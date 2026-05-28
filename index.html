@@ -76,7 +76,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .lnums{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:10px}
 .nb{background:#F7F7F7;border-radius:8px;padding:8px 10px}
 .nb .nl{font-size:10px;color:#888;margin-bottom:3px}
-.nb .nv{font-size:13px;font-weight:600}
+.nb .nv{font-size:13px;font-weight:600}.nb .ok{color:var(--g)}.nb .nd{font-size:9px;color:#AAA;margin-top:2px}
 .nb .nv.warn{color:var(--a)}.nb .nv.red{color:var(--r)}
 .lmeta{display:flex;gap:10px;font-size:12px;color:#888;margin-bottom:10px;flex-wrap:wrap}
 .lmeta .ok{color:var(--g);font-weight:600}
@@ -463,7 +463,7 @@ function renderDet(name){
   var el=document.getElementById('db');
   var ls=S.lots.filter(function(l){return l.contractorName===name;});
   var ps=S.pays.filter(function(p){return ls.find(function(l){return l.id===p.lotId;});});
-  var tb=ls.reduce(function(s,l){return s+(l.piecesIssued*l.rate);},0);
+  var tb=ls.reduce(function(s,l){var pay=(l.piecesReceived!=null?l.piecesReceived:l.piecesIssued)*l.rate;return s+pay;},0);
   var tp=ps.reduce(function(s,p){return s+p.amount;},0);
   var tbal=ls.reduce(function(s,l){return s+Math.max(0,bal(l));},0);
   var pd=ls.filter(function(l){return l.status==='PENDING';}).length;
@@ -498,8 +498,14 @@ function lotCard(lot,showCon){
   var vc=showCon?'<button class="btn sm" data-action="viewCon" data-name="'+esc(lot.contractorName)+'">👷</button>':'';
   return '<div class="lc">'+
     '<div class="lch"><div style="display:flex;align-items:center;gap:8px"><span class="lid">'+esc(lot.id)+'</span><div><div class="lname">'+(showCon?esc(lot.contractorName):esc(lot.item))+'</div><div class="lsub">'+(showCon?esc(lot.item):fmtD(lot.dateIssued))+'</div></div></div><span class="sbdg sp-'+lot.status+'">'+lot.status+'</span></div>'+
-    '<div class="lnums"><div class="nb"><div class="nl">Issued</div><div class="nv">'+fmtN(lot.piecesIssued)+' pcs</div></div><div class="nb"><div class="nl">Rate</div><div class="nv">Rs.'+lot.rate+'</div></div><div class="nb"><div class="nl">Total</div><div class="nv">'+fmt(lot.piecesIssued*lot.rate)+'</div></div><div class="nb"><div class="nl">Paid</div><div class="nv '+(a>0?'warn':'')+'">'+fmt(a)+'</div></div><div class="nb"><div class="nl">Balance</div><div class="nv '+(b>0?'red':'')+'">'+fmt(b)+'</div></div></div>'+
-    '<div class="lmeta">'+(showCon?'<span>📤 '+fmtD(lot.dateIssued)+'</span>':'')+
+    '<div class="lnums">'+
+    '<div class="nb"><div class="nl">📤 Issued</div><div class="nv">'+fmtN(lot.piecesIssued)+' pcs</div><div style="font-size:9px;color:#AAA;margin-top:2px">'+fmtD(lot.dateIssued)+'</div></div>'+
+    '<div class="nb"><div class="nl">'+(lot.piecesReceived!=null?'📥 Received':'📥 Pending')+'</div><div class="nv '+(ms!=null&&ms>0?'red':'ok')+'">'+( lot.piecesReceived!=null?fmtN(lot.piecesReceived)+' pcs':'-')+'</div><div style="font-size:9px;color:#AAA;margin-top:2px">'+(lot.dateReceived?fmtD(lot.dateReceived):'-')+'</div></div>'+
+    '<div class="nb"><div class="nl">Payable</div><div class="nv">'+fmt(p)+'</div><div style="font-size:9px;color:#AAA;margin-top:2px">'+fmtN(lot.piecesReceived!=null?lot.piecesReceived:lot.piecesIssued)+' x Rs.'+lot.rate+'</div></div>'+
+    '<div class="nb"><div class="nl">Paid</div><div class="nv '+(a>0?'warn':'')+'">'+fmt(a)+'</div></div>'+
+    '<div class="nb"><div class="nl">Balance</div><div class="nv '+(b>0?'red':'')+'">'+fmt(b)+'</div></div>'+
+    '</div>'+
+    '<div class="lmeta">'+
     (ms!=null?'<span class="'+(ms>0?'ms':'ok')+'">'+(ms>0?'⚠ ':'✓ ')+'Rcvd '+fmtN(lot.piecesReceived)+(ms>0?' ('+ms+' short)':'')+'</span>':'')+
     (lot.remarks?'<span style="font-style:italic;color:#AAA">'+esc(lot.remarks)+'</span>':'')+'</div>'+
     '<div class="lacts">'+ap+ar+as+'<button class="btn sm pur" data-action="print" data-id="'+esc(lot.id)+'">🖨</button><button class="btn sm" style="color:#059669;border-color:#6EE7B7" data-action="editLot" data-id="'+esc(lot.id)+'">✏️</button>'+vc+'<button class="btn sm red" style="margin-left:auto" data-action="del" data-id="'+esc(lot.id)+'">🗑</button></div>'+
@@ -662,7 +668,7 @@ function printLot(lid){
 function printReport(name){
   var ls=S.lots.filter(function(l){return l.contractorName===name;});
   var ps=S.pays.filter(function(p){return ls.find(function(l){return l.id===p.lotId;});});
-  var tb=ls.reduce(function(s,l){return s+(l.piecesIssued*l.rate);},0);
+  var tb=ls.reduce(function(s,l){var py=(l.piecesReceived!=null?l.piecesReceived:l.piecesIssued)*l.rate;return s+py;},0);
   var tp=ps.reduce(function(s,p){return s+p.amount;},0);
   var tbal=ls.reduce(function(s,l){return s+Math.max(0,bal(l));},0);
   var rows=ls.map(function(l,i){var a=adv(l.id),b=((l.piecesReceived!=null?l.piecesReceived:l.piecesIssued)*l.rate)-a;return '<tr style="background:'+(i%2?'#F9F9F9':'#fff')+'"><td style="padding:7px;border:1px solid #E0E0E0">'+esc(l.id)+'<'+'/td><td style="padding:7px;border:1px solid #E0E0E0">'+fmtD(l.dateIssued)+'<'+'/td><td style="padding:7px;border:1px solid #E0E0E0">'+esc(l.item)+'<'+'/td><td style="padding:7px;border:1px solid #E0E0E0;text-align:right">'+fmt(l.piecesIssued*l.rate)+'<'+'/td><td style="padding:7px;border:1px solid #E0E0E0;text-align:right;color:#059669">'+fmt(a)+'<'+'/td><td style="padding:7px;border:1px solid #E0E0E0;text-align:right;color:'+(b>0?'#DC2626':'#059669')+'">'+fmt(b)+'<'+'/td><'+'/tr>';}).join('');
