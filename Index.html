@@ -442,7 +442,7 @@ function render(){
 
 function renderHome(){
   var ta=S.pays.reduce(function(s,p){return s+p.amount;},0);
-  var tb=S.lots.reduce(function(s,l){return s+Math.max(0,bal(l));},0);
+  var tb=S.lots.reduce(function(s,l){var py=(l.piecesReceived!=null?l.piecesReceived:l.piecesIssued)*l.rate;return s+py;},0)-S.pays.reduce(function(s,p){return s+p.amount;},0);
   document.getElementById('hs').innerHTML=
     '<div class="sc"><div class="sl">Total Lots</div><div class="sv">'+S.lots.length+'</div></div>'+
     '<div class="sc"><div class="sl">Pending</div><div class="sv warn">'+S.lots.filter(function(l){return l.status==='PENDING';}).length+'</div></div>'+
@@ -454,7 +454,7 @@ function renderHome(){
 
 function getNames(){
   var ns=[...new Set(S.lots.map(function(l){return l.contractorName;}))];
-  return ns.sort(function(a,b){return S.lots.filter(function(l){return l.contractorName===b;}).reduce(function(s,l){return s+Math.max(0,bal(l));},0)-S.lots.filter(function(l){return l.contractorName===a;}).reduce(function(s,l){return s+Math.max(0,bal(l));},0);});
+  return ns.sort(function(a,b){var nb=function(n){var ls=S.lots.filter(function(l){return l.contractorName===n;});var ps=S.pays.filter(function(p){return ls.find(function(l){return l.id===p.lotId;});});return ls.reduce(function(s,l){var py=(l.piecesReceived!=null?l.piecesReceived:l.piecesIssued)*l.rate;return s+py;},0)-ps.reduce(function(s,p){return s+p.amount;},0);}; return nb(b)-nb(a);});
 }
 
 function renderCon(){
@@ -464,7 +464,7 @@ function renderCon(){
   el.innerHTML=ns.map(function(n,i){
     var ls=S.lots.filter(function(l){return l.contractorName===n;});
     var pd=ls.filter(function(l){return l.status==='PENDING';}).length;
-    var tb=ls.reduce(function(s,l){return s+Math.max(0,bal(l));},0);
+    var tb=ls.reduce(function(s,l){var py=(l.piecesReceived!=null?l.piecesReceived:l.piecesIssued)*l.rate;return s+py;},0)-S.pays.filter(function(p){return ls.find(function(l){return l.id===p.lotId;});}).reduce(function(s,p){return s+p.amount;},0);
     var div=document.createElement('div');
     div.className='crow';div.dataset.action='openCon';div.dataset.name=n;
     div.innerHTML='<div class="cav" style="background:'+avc(i)+'">'+esc(ini(n))+'</div>'+
