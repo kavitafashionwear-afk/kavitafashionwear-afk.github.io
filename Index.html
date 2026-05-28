@@ -63,7 +63,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .cact.g{background:#ECFDF5;color:var(--g)}
 .cact.b{background:#EFF6FF;color:var(--n)}
 .cact.o{background:#FFF7ED;color:#C2410C}
-.cact.p{background:#F5F3FF;color:#7C3AED}
+.cact.p{background:#F5F3FF;color:#7C3AED}.cact.r{background:#FFF1F2;color:#DC2626;border:1.5px solid #FECACA}
 .lc{background:#fff;border:1px solid #E8E8E8;border-radius:12px;padding:14px 16px;margin-bottom:10px}
 .lch{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px}
 .lid{background:#DBEAFE;color:#1E40AF;font-size:12px;font-weight:600;padding:3px 12px;border-radius:20px}
@@ -492,7 +492,7 @@ function renderDet(name){
     '<button class="cact b" data-action="newLot" data-name="'+esc(name)+'">+ New Lot</button>'+
     '<button class="cact o" data-action="editCon" data-name="'+esc(name)+'">✏️ Edit</button>'+
     '<button class="cact p" data-action="report" data-name="'+esc(name)+'">🖨 Report</button>'+
-    '<button class="cact" style="background:#FFF1F2;color:#DC2626;grid-column:1/-1" data-action="delCon" data-name="'+esc(name)+'">🗑 Delete Contractor &amp; All Lots</button>'+
+    '<button class="cact" style="background:#FFF1F2;color:#DC2626;border:1.5px solid #FECACA;grid-column:1/-1;font-size:14px" data-action="delCon" data-name="'+esc(name)+'">🗑️ Delete Contractor &amp; All Lots</button>'+
   '</div>';
   el.innerHTML=
     '<div class="cdh"><div style="display:flex;align-items:center;gap:12px"><div class="cav" style="background:'+avc(ci)+';width:44px;height:44px;font-size:16px">'+esc(ini(name))+'</div><div><div style="font-size:18px;font-weight:700;color:#fff">'+esc(name)+'</div><div style="font-size:12px;color:#B0C4DE">'+ls.length+' lots &middot; '+pd+' pending &middot; '+st+' settled</div></div></div></div>'+
