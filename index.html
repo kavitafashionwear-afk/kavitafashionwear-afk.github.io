@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Contractor Tracker - Modrobe Impex</title>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{--n:#1F3864;--g:#059669;--r:#DC2626;--a:#D97706}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#F0F2F5;color:#1A1A1A;font-size:14px}
+#pg-load,#pg-login,#pg-app{position:fixed;inset:0}
+#pg-load{background:var(--n);display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;z-index:30}
+#pg-load .sp{font-size:48px;animation:spin 1.5s linear infinite;margin-bottom:16px}
+@keyframes spin{to{transform:rotate(360deg)}}
+#pg-login{background:linear-gradient(160deg,#1F3864,#2D5090);display:none;align-items:center;justify-content:center;padding:24px;z-index:20}
+#pg-app{display:none;background:#F0F2F5;overflow-y:auto;padding-bottom:68px;z-index:10}
+.lcard{background:#fff;border-radius:20px;padding:36px 28px;width:100%;max-width:360px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.gbtn{width:100%;padding:14px;background:#fff;border:2px solid #DDD;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit}
+.topbar{background:var(--n);color:#fff;padding:0 14px;height:54px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
+#bb{background:rgba(255,255,255,.15);border:none;color:#fff;width:34px;height:34px;border-radius:8px;cursor:pointer;font-size:20px;display:none;align-items:center;justify-content:center;margin-right:6px;flex-shrink:0}
+#bb.show{display:flex}
+.hbtn{background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer;font-family:inherit}
+.av{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.2);border:2px solid rgba(255,255,255,.4);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;overflow:hidden;flex-shrink:0}
+.av img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.sdot{width:8px;height:8px;border-radius:50%;background:#4ADE80;display:inline-block;margin-left:4px;vertical-align:middle}
+.sdot.busy{background:#FCD34D;animation:pulse .8s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.bnav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #E0E0E0;display:flex;z-index:50}
+.nt{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 4px 10px;cursor:pointer;border:none;background:none;color:#999;font-size:10px;font-family:inherit;gap:2px}
+.nt .ni{font-size:22px}
+.nt.on{color:var(--n);font-weight:700}
+.fab{position:fixed;right:18px;bottom:76px;width:52px;height:52px;border-radius:50%;background:var(--n);color:#fff;border:none;font-size:26px;cursor:pointer;box-shadow:0 4px 16px rgba(31,56,100,.4);display:none;align-items:center;justify-content:center;z-index:49}
+.umenu{position:fixed;top:60px;right:12px;background:#fff;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.18);padding:8px;z-index:200;display:none;min-width:200px}
+.umenu.open{display:block}
+.umh{padding:10px 12px;border-bottom:1px solid #F0F0F0;margin-bottom:4px}
+.umi{padding:10px 12px;border-radius:8px;cursor:pointer;font-size:14px;color:#555}
+.umi:hover{background:#F5F5F5}
+.umi.danger{color:var(--r)}
+.cs{display:none}.cs.on{display:block}
+.pg{padding:14px;max-width:900px;margin:0 auto}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+.sc{background:#fff;border-radius:12px;padding:13px;border:1px solid #E8E8E8}
+.sl{font-size:11px;color:#888;margin-bottom:4px}
+.sv{font-size:20px;font-weight:700}
+.sv.warn{color:var(--a)}.sv.red{color:var(--r)}.sv.grn{color:var(--g)}
+.banner{background:var(--n);color:#fff;border-radius:14px;padding:16px;margin-bottom:16px}
+.sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.sh h2{font-size:15px;font-weight:700}
+.crow{background:#fff;border-radius:12px;margin-bottom:8px;border:1px solid #E8E8E8;display:flex;align-items:center;padding:14px;cursor:pointer;gap:12px}
+.cav{width:40px;height:40px;border-radius:50%;color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0}
+.cinfo{flex:1;min-width:0}
+.cname{font-size:14px;font-weight:700}
+.cmeta{font-size:11px;color:#888;margin-top:2px}
+.cbal{font-size:14px;font-weight:700}
+.cbal.red{color:var(--r)}.cbal.zero{color:#AAA}
+.cdh{background:var(--n);color:#fff;padding:16px;margin:-14px -14px 14px}
+.cacts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+.cact{border:none;border-radius:12px;padding:11px 8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+.cact.g{background:#ECFDF5;color:var(--g)}
+.cact.b{background:#EFF6FF;color:var(--n)}
+.cact.o{background:#FFF7ED;color:#C2410C}
+.cact.p{background:#F5F3FF;color:#7C3AED}
+.lc{background:#fff;border:1px solid #E8E8E8;border-radius:12px;padding:14px 16px;margin-bottom:10px}
+.lch{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px}
+.lid{background:#DBEAFE;color:#1E40AF;font-size:12px;font-weight:600;padding:3px 12px;border-radius:20px}
+.lname{font-size:14px;font-weight:600}
+.lsub{font-size:12px;color:#888;margin-top:1px}
+.sbdg{font-size:11px;font-weight:600;padding:3px 12px;border-radius:20px;flex-shrink:0}
+.sp-PENDING{background:#FEF3C7;color:#92400E}
+.sp-RECEIVED{background:#DBEAFE;color:#1E40AF}
+.sp-SETTLED{background:#D1FAE5;color:#065F46}
+.lnums{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:10px}
+.nb{background:#F7F7F7;border-radius:8px;padding:8px 10px}
+.nb .nl{font-size:10px;color:#888;margin-bottom:3px}
+.nb .nv{font-size:13px;font-weight:600}
+.nb .nv.warn{color:var(--a)}.nb .nv.red{color:var(--r)}
+.lmeta{display:flex;gap:10px;font-size:12px;color:#888;margin-bottom:10px;flex-wrap:wrap}
+.lmeta .ok{color:var(--g);font-weight:600}
+.lmeta .ms{color:var(--r);font-weight:600}
+.lacts{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.fbar{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.fb{background:#fff;border:1px solid #D0D0D0;border-radius:20px;padding:5px 14px;font-size:12px;cursor:pointer;font-family:inherit}
+.fb.on{background:var(--n);color:#fff;border-color:var(--n);font-weight:600}
+.btn{border:1px solid #CCC;border-radius:8px;padding:8px 14px;font-size:13px;background:#fff;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.btn.pri{background:var(--n);color:#fff;border-color:var(--n);font-weight:700}
+.btn.grn{background:var(--g);color:#fff;border-color:var(--g);font-weight:700}
+.btn.red{color:var(--r);border-color:#FCA5A5}
+.btn.pur{color:#7C3AED;border-color:#C4B5FD;background:#F5F3FF}
+.btn.sm{padding:5px 11px;font-size:12px}
+.ibox{padding:10px 14px;border-radius:9px;font-size:13px;font-weight:600;margin:6px 0}
+.ibox.blue{background:#EFF6FF;color:#1D4ED8}
+.ibox.yellow{background:#FFFBEB;color:#92400E}
+.ibox.green{background:#ECFDF5;color:#065F46}
+.ibox.red{background:#FEF2F2;color:#B91C1C}
+.empty{text-align:center;padding:3rem 1rem;color:#AAA}
+.empty .ei{font-size:40px;margin-bottom:8px}
+.tw{border:1px solid #E0E0E0;border-radius:10px;overflow:hidden}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{padding:9px 10px;text-align:left;font-weight:600;color:#666;font-size:11px;border-bottom:1px solid #E0E0E0;background:#F5F5F5}
+td{padding:8px 10px;border-bottom:1px solid #F0F0F0}
+tr:last-child td{border-bottom:none}
+tr.alt{background:#FAFAFA}
+.tt td{font-weight:600;background:#F0F4FF}
+.ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:flex-end;justify-content:center}
+.ov.show{display:flex}
+.mb{background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:540px;max-height:92vh;overflow-y:auto;animation:sup .25s ease;padding-bottom:20px}
+@keyframes sup{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.mh{width:40px;height:4px;background:#DDD;border-radius:2px;margin:12px auto 6px}
+.mhd{padding:8px 20px 13px;border-bottom:1px solid #F0F0F0;display:flex;justify-content:space-between;align-items:center}
+.mhd h3{font-size:16px;font-weight:700}
+.mbd{padding:14px 20px}
+.mft{padding:10px 20px 0;display:flex;gap:8px}
+.xb{background:#F0F0F0;border:none;width:30px;height:30px;border-radius:50%;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#666}
+.fg{margin-bottom:13px}
+.fr{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px}
+label{font-size:12px;color:#555;display:block;margin-bottom:4px;font-weight:600}
+input,select{width:100%;padding:11px 12px;font-size:15px;border:1.5px solid #DDD;border-radius:9px;font-family:inherit;background:#fff;outline:none}
+input:focus,select:focus{border-color:var(--n)}
+@media(min-width:600px){.ov{align-items:center;padding:20px}.mb{border-radius:16px}.mh{display:none}.stats{grid-template-columns:repeat(4,1fr)}.cacts{grid-template-columns:repeat(4,1fr)}}
+@media(max-width:600px){.stats{grid-template-columns:1fr 1fr;gap:8px}.lnums{grid-template-columns:repeat(3,1fr)}.fr{grid-template-columns:1fr}.pg{padding:12px}}
+</style>
+</head>
+<body>
+
+<div id="pg-load">
+  <div class="sp">🧵</div>
+  <div style="font-size:20px;font-weight:700">Contractor Tracker</div>
+  <p style="font-size:13px;color:#B0C4DE;margin-top:6px">Modrobe Impex</p>
+  <p style="font-size:11px;color:#4A6FA5;margin-top:20px">v29-MAY</p>
+</div>
+
+<div id="pg-login">
+  <div class="lcard">
+    <div style="font-size:52px;margin-bottom:12px">🧵</div>
+    <div style="font-size:22px;font-weight:700;color:var(--n);margin-bottom:6px">Contractor Tracker</div>
+    <div style="font-size:13px;color:#888;margin-bottom:28px;line-height:1.6">Modrobe Impex<br>Job Work &middot; Lot Management</div>
+    <button class="gbtn" id="lbtn" onclick="doLogin()">
+      <svg width="20" height="20" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+      Continue with Google
+    </button>
+    <div id="lmsg" style="font-size:12px;color:#888;margin-top:12px;min-height:20px"></div>
+  </div>
+</div>
+
+<div id="pg-app">
+  <div class="topbar">
+    <div style="display:flex;align-items:center;flex:1;min-width:0">
+      <button id="bb" onclick="goBack()">&#8592;</button>
+      <div><div id="tbt" style="font-size:16px;font-weight:700">🧵 Contractor Tracker</div>
+      <div style="font-size:10px;color:#B0C4DE">Modrobe Impex <span class="sdot" id="sd"></span></div></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button class="hbtn" onclick="openModal('aL')">+ New Lot</button>
+      <div class="av" id="av" onclick="toggleMenu()"></div>
+    </div>
+  </div>
+
+  <div class="cs on" id="cs-home">
+    <div class="pg">
+      <div class="banner"><h2>📦 Contractor Overview</h2><p id="hd" style="font-size:12px;color:#AAC4DE;margin-top:3px"></p></div>
+      <div class="stats" id="hs"></div>
+      <div class="sh"><h2>Recent Lots</h2></div>
+      <div id="hl"></div>
+    </div>
+  </div>
+
+  <div class="cs" id="cs-con">
+    <div class="pg">
+      <div class="sh"><h2>All Contractors</h2></div>
+      <div id="cl"></div>
+    </div>
+  </div>
+
+  <div class="cs" id="cs-det">
+    <div class="pg" id="db"></div>
+  </div>
+
+  <div class="cs" id="cs-lots">
+    <div class="pg">
+      <div class="fbar" id="lf"></div>
+      <div id="ll"></div>
+    </div>
+  </div>
+
+  <div class="cs" id="cs-pays">
+    <div class="pg">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <span id="pm" style="font-size:12px;color:#888"></span>
+        <button class="btn sm pri" onclick="openModal('aP')">+ Add Payment</button>
+      </div>
+      <div id="pl"></div>
+    </div>
+  </div>
+
+  <nav class="bnav">
+    <button class="nt on" id="nt-home" onclick="goTab('home')"><div class="ni">🏠</div><div>Home</div></button>
+    <button class="nt" id="nt-con" onclick="goTab('con')"><div class="ni">👷</div><div>Contractors</div></button>
+    <button class="nt" id="nt-lots" onclick="goTab('lots')"><div class="ni">📦</div><div>All Lots</div></button>
+    <button class="nt" id="nt-pays" onclick="goTab('pays')"><div class="ni">💵</div><div>Payments</div></button>
+  </nav>
+</div>
+
+<button class="fab" id="fab" onclick="openModal('aL')">+</button>
+
+<div class="umenu" id="um">
+  <div class="umh"><div style="font-size:14px;font-weight:700" id="un"></div><div style="font-size:11px;color:#888" id="ue"></div></div>
+  <div class="umi" onclick="openImport()">📥 Import from Excel</div>
+  <div class="umi danger" onclick="doLogout()">🚪 Sign Out</div>
+</div>
+
+<!-- ADD LOT -->
+<div class="ov" id="mo-aL"><div class="mb"><div class="mh"></div>
+  <div class="mhd"><h3>New Cutting Lot</h3><button class="xb" onclick="closeModal('aL')">&#10005;</button></div>
+  <div class="mbd">
+    <div class="fr"><div><label>Contractor *</label><input id="fc" oninput="pvL()"></div><div><label>Item *</label><input id="fi" oninput="pvL()"></div></div>
+    <div class="fr"><div><label>Pieces *</label><input id="fp" type="number" inputmode="numeric" oninput="pvL()"></div><div><label>Rate (Rs./pc) *</label><input id="fr" type="number" inputmode="decimal" oninput="pvL()"></div></div>
+    <div class="fg"><label>Date Issued *</label><input id="fd" type="date"></div>
+    <div class="fg"><label>Remarks</label><input id="fm"></div>
+    <div class="ibox blue" id="lp" style="display:none"></div>
+  </div>
+  <div class="mft"><button class="btn" style="flex:1;justify-content:center" onclick="closeModal('aL')">Cancel</button><button class="btn pri" style="flex:1;justify-content:center" onclick="addLot()">Create Lot</button></div>
+</div></div>
+
+<!-- EDIT LOT -->
+<div class="ov" id="mo-eL"><div class="mb"><div class="mh"></div>
+  <div class="mhd"><div><h3>&#9998; Edit Lot</h3><div style="font-size:12px;color:#888" id="els"></div></div><button class="xb" onclick="closeModal('eL')">&#10005;</button></div>
+  <div class="mbd">
+    <div class="fr"><div><label>Contractor *</label><input id="ec" oninput="pvEL()"></div><div><label>Item *</label><input id="ei" oninput="pvEL()"></div></div>
+    <div class="fr"><div><label>Pieces *</label><input id="ep" type="number" inputmode="numeric" oninput="pvEL()"></div><div><label>Rate (Rs./pc) *</label><input id="er" type="number" inputmode="decimal" oninput="pvEL()"></div></div>
+    <div class="fg"><label>Date Issued *</label><input id="ed" type="date"></div>
+    <div class="fg"><label>Remarks</label><input id="em"></div>
+    <div class="ibox blue" id="elp" style="display:none"></div>
+  </div>
+  <div class="mft"><button class="btn" style="flex:1;justify-content:center" onclick="closeModal('eL')">Cancel</button><button class="btn pri" style="flex:1;justify-content:center" onclick="saveEL()">&#10003; Save</button></div>
+</div></div>
+
+<!-- EDIT CONTRACTOR -->
+<div class="ov" id="mo-eC"><div class="mb"><div class="mh"></div>
+  <div class="mhd"><div><h3>&#9998; Edit Contractor</h3><div style="font-size:12px;color:#888" id="ecs"></div></div><button class="xb" onclick="closeModal('eC')">&#10005;</button></div>
+  <div class="mbd">
+    <div class="fg"><label>Contractor Name *</label><input id="en"></div>
+    <div style="background:#FFF7ED;border:1px solid #FDE68A;border-radius:10px;padding:12px;font-size:12px;color:#92400E;margin-top:4px">Renaming updates all lots automatically.</div>
+  </div>
+  <div class="mft"><button class="btn" style="flex:1;justify-content:center" onclick="closeModal('eC')">Cancel</button><button class="btn pri" style="flex:1;justify-content:center" onclick="saveEC()">&#10003; Save</button></div>
+</div></div>
+
+<!-- ADD PAYMENT -->
+<div class="ov" id="mo-aP"><div class="mb"><div class="mh"></div>
+  <div class="mhd"><h3>Record Payment</h3><button class="xb" onclick="closeModal('aP')">&#10005;</button></div>
+  <div class="mbd">
+    <div class="fg"><label>Lot *</label><select id="pl2" onchange="pvP()"><option value="">Select lot...</option></select></div>
+    <div class="fr"><div><label>Date *</label><input id="pd" type="date"></div><div><label>Amount (Rs.) *</label><input id="pa" type="number" inputmode="numeric" oninput="pvP()"></div></div>
+    <div class="fg"><label>Mode</label><select id="pm2"><option>Cash</option><option>UPI</option><option>Bank Transfer</option><option>Cheque</option></select></div>
+    <div class="fg"><label>Remarks</label><input id="pr"></div>
+    <div class="ibox yellow" id="pp" style="display:none"></div>
+  </div>
+  <div class="mft"><button class="btn" style="flex:1;justify-content:center" onclick="closeModal('aP')">Cancel</button><button class="btn pri" style="flex:1;justify-content:center" onclick="addPay()">Save</button></div>
+</div></div>
+
+<!-- RECEIVE LOT -->
+<div class="ov" id="mo-rv"><div class="mb"><div class="mh"></div>
+  <div class="mhd"><div><h3>Receive Lot</h3><div style="font-size:12px;color:#888" id="rvs"></div></div><button class="xb" onclick="closeModal('rv')">&#10005;</button></div>
+  <div class="mbd">
+    <div class="ibox blue" id="rvi" style="margin-bottom:12px"></div>
+    <div class="fr"><div><label>Pieces Received *</label><input id="rp" type="number" inputmode="numeric" oninput="pvR()"></div><div><label>Date *</label><input id="rd" type="date"></div></div>
+    <div class="ibox green" id="rvp" style="display:none"></div>
+  </div>
+  <div class="mft"><button class="btn" style="flex:1;justify-content:center" onclick="closeModal('rv')">Cancel</button><button class="btn pri" style="flex:1;justify-content:center" onclick="recvLot()">Confirm</button></div>
+</div></div>
+
+<!-- CONFIRM DELETE -->
+<div class="ov" id="mo-cf"><div class="mb" style="max-height:80vh"><div class="mh"></div>
+  <div class="mhd"><h3>Confirm Delete</h3><button class="xb" onclick="closeModal('cf')">&#10005;</button></div>
+  <div class="mbd"><div id="cfm" style="font-size:13px;color:#555;line-height:1.6"></div></div>
+  <div class="mft" style="margin-top:16px"><button class="btn" style="flex:1;justify-content:center" onclick="closeModal('cf')">Cancel</button><button class="btn red" style="flex:1;justify-content:center;background:#FEF2F2;font-weight:700" id="cfo">Yes, Delete</button></div>
+</div></div>
+
+<!-- IMPORT -->
+<div class="ov" id="mo-imp"><div class="mb" style="max-height:95vh"><div class="mh"></div>
+  <div class="mhd"><h3>Import from Excel</h3><button class="xb" onclick="closeModal('imp')">&#10005;</button></div>
+  <div class="mbd" style="overflow-y:auto">
+    <div id="i1">
+      <div style="background:#F0F4FF;border:2px dashed #93C5FD;border-radius:12px;padding:24px;text-align:center;cursor:pointer;margin-bottom:14px" onclick="document.getElementById('iff').click()">
+        <div style="font-size:36px;margin-bottom:8px">📊</div>
+        <div style="font-size:14px;font-weight:700;color:var(--n)">Tap to select Excel file</div>
+        <div style="font-size:12px;color:#888;margin-top:4px">FABRICATORS.xlsx format</div>
+      </div>
+      <input type="file" id="iff" accept=".xlsx,.xls" style="display:none" onchange="rdXL(this)">
+      <div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;padding:12px;font-size:12px;color:#92400E">Each sheet = one contractor. Columns: DATE, ITEM NAME, RATE, Pieces sent, REC. DATE, PIECE RECIEVED, Payment done</div>
+    </div>
+    <div id="i2" style="display:none;text-align:center;padding:24px">
+      <div style="font-size:36px;margin-bottom:10px">⏳</div>
+      <div style="font-size:14px;font-weight:600;color:var(--n)" id="itx">Reading...</div>
+      <div style="background:#E5E7EB;border-radius:4px;height:8px;overflow:hidden;margin:12px 0"><div id="ib" style="background:var(--n);height:8px;border-radius:4px;width:0%;transition:width .3s"></div></div>
+    </div>
+    <div id="i3" style="display:none"><div id="isum" style="margin-bottom:12px"></div><div style="font-size:12px;font-weight:700;color:#555;margin-bottom:8px">Preview:</div><div id="ilist" style="max-height:300px;overflow-y:auto"></div></div>
+    <div id="i4" style="display:none;text-align:center;padding:20px"><div style="font-size:48px;margin-bottom:10px">🎉</div><div style="font-size:16px;font-weight:700;color:var(--n)" id="idn"></div></div>
+  </div>
+  <div class="mft" id="ift"><button class="btn" style="flex:1;justify-content:center" onclick="closeModal('imp')">Cancel</button></div>
+</div></div>
+
+<script>
+firebase.initializeApp({apiKey:"AIzaSyDRfRBzqdg8LCUjZKdGRNIsKCBszbtM7ok",authDomain:"challan-manager-85768.firebaseapp.com",projectId:"challan-manager-85768",storageBucket:"challan-manager-85768.firebasestorage.app",messagingSenderId:"667915790046",appId:"1:667915790046:web:92b61ba86c9facd620444f"});
+var auth=firebase.auth(),db=firebase.firestore();
+var S={lots:[],pays:[],lC:0,pC:0},uid=null,unsubDB=null,ready=false;
+var curTab='home',curCon=null,navStack=[],curFilter='ALL',rvId=null,eLId=null,eCName=null,impData=null;
+var AVC=['#1F3864','#065F46','#92400E','#6D28D9','#9D174D','#1E40AF','#047857'];
+
+function avc(i){return AVC[i%AVC.length];}
+function ini(n){var w=(n||'').trim().split(' ');return(w.map(function(x){return x[0]||'';}).join('').toUpperCase().slice(0,2))||'?';}
+function pad(n){return String(n).padStart(3,'0');}
+function fmt(n){return 'Rs.'+new Intl.NumberFormat('en-IN').format(Math.round(n||0));}
+function fmtN(n){return new Intl.NumberFormat('en-IN').format(Math.round(n||0));}
+function fmtD(d){return d?new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}):'-';}
+function td(){return new Date().toISOString().split('T')[0];}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function adv(lid){return S.pays.filter(function(p){return p.lotId===lid;}).reduce(function(s,p){return s+p.amount;},0);}
+function bal(lot){return((lot.piecesReceived!=null?lot.piecesReceived:lot.piecesIssued)*lot.rate)-adv(lot.id);}
+
+function sdot(s){var d=document.getElementById('sd');if(d)d.className='sdot'+(s==='busy'?' busy':'');}
+function subscribe(){
+  sdot('busy');
+  unsubDB=db.collection('users').doc(uid).collection('contractor').doc('main').onSnapshot(function(snap){
+    if(snap.exists){var d=snap.data();S.lots=d.lots||[];S.pays=d.pays||[];S.lC=d.lC||0;S.pC=d.pC||0;}
+    sdot('ok');render();
+  },function(){sdot('err');});
+}
+function save(){
+  if(!uid)return;sdot('busy');
+  db.collection('users').doc(uid).collection('contractor').doc('main').set({lots:S.lots,pays:S.pays,lC:S.lC,pC:S.pC,updated:new Date().toISOString()}).then(function(){sdot('ok');}).catch(function(e){sdot('err');alert('Sync error: '+e.message);});
+}
+
+function showApp(user){
+  if(!user)return;uid=user.uid;ready=true;
+  document.getElementById('pg-load').style.display='none';
+  document.getElementById('pg-login').style.display='none';
+  document.getElementById('pg-app').style.display='block';
+  document.getElementById('fab').style.display='flex';
+  document.getElementById('hd').textContent='Today: '+fmtD(td());
+  document.getElementById('un').textContent=user.displayName||'';
+  document.getElementById('ue').textContent=user.email||'';
+  var a=document.getElementById('av');
+  if(user.photoURL)a.innerHTML='<img src="'+user.photoURL+'" referrerpolicy="no-referrer">';
+  else a.textContent=(user.displayName||'U')[0].toUpperCase();
+  subscribe();
+}
+function showLogin(){
+  ready=false;uid=null;if(unsubDB){unsubDB();unsubDB=null;}
+  document.getElementById('pg-load').style.display='none';
+  document.getElementById('pg-app').style.display='none';
+  document.getElementById('fab').style.display='none';
+  document.getElementById('pg-login').style.display='flex';
+  document.getElementById('lmsg').textContent='';
+  var b=document.getElementById('lbtn');if(b){b.disabled=false;b.textContent='Continue with Google';}
+}
+auth.onAuthStateChanged(function(user){if(user){showApp(user);}else if(!ready){showLogin();}});
+auth.getRedirectResult().then(function(r){if(r&&r.user)showApp(r.user);}).catch(function(){});
+function doLogin(){
+  var b=document.getElementById('lbtn'),m=document.getElementById('lmsg');
+  b.disabled=true;b.textContent='Opening Google...';m.textContent='';
+  var p=new firebase.auth.GoogleAuthProvider();p.setCustomParameters({prompt:'select_account'});
+  auth.signInWithPopup(p).then(function(r){if(r&&r.user)showApp(r.user);}).catch(function(e){
+    if(e.code==='auth/popup-blocked'){m.textContent='Redirecting...';auth.signInWithRedirect(p);}
+    else{b.disabled=false;b.textContent='Continue with Google';m.textContent='Error: '+e.code;}
+  });
+}
+function doLogout(){closeMenu();ready=false;auth.signOut().then(function(){showLogin();});}
+
+function toggleMenu(){document.getElementById('um').classList.toggle('open');}
+function closeMenu(){document.getElementById('um').classList.remove('open');}
+document.addEventListener('click',function(e){var m=document.getElementById('um'),a=document.getElementById('av');if(m.classList.contains('open')&&!m.contains(e.target)&&!a.contains(e.target))closeMenu();});
+
+// EVENT DELEGATION - no inline onclick with dynamic values
+document.addEventListener('click',function(e){
+  var t=e.target.closest('[data-action]');
+  if(!t)return;
+  var action=t.dataset.action,id=t.dataset.id,name=t.dataset.name;
+  if(action==='openCon')openContractor(name);
+  else if(action==='pay')openPayFor(id);
+  else if(action==='newLot')openLotFor(name);
+  else if(action==='editCon')openEC(name);
+  else if(action==='report')printReport(name);
+  else if(action==='payLot')openPayModal(id);
+  else if(action==='recv')openRv(id);
+  else if(action==='settle')settleLot(id);
+  else if(action==='print')printLot(id);
+  else if(action==='editLot')openEL(id);
+  else if(action==='viewCon')openContractor(name);
+  else if(action==='del')confirmDel(id);
+  else if(action==='filter')setFilter(id);
+});
+
+function goTab(tab){
+  curTab=tab;curCon=null;navStack=[];
+  document.querySelectorAll('.cs').forEach(function(s){s.classList.remove('on');});
+  document.querySelectorAll('.nt').forEach(function(t){t.classList.remove('on');});
+  document.getElementById('cs-'+tab).classList.add('on');
+  var nt=document.getElementById('nt-'+tab);if(nt)nt.classList.add('on');
+  document.getElementById('bb').className='';
+  document.getElementById('fab').style.display='flex';
+  var ti={home:'🧵 Contractor Tracker',con:'👷 Contractors',lots:'📦 All Lots',pays:'💵 Payments'};
+  document.getElementById('tbt').textContent=ti[tab]||'Contractor Tracker';
+  render();
+}
+function openContractor(name){
+  curCon=name;navStack.push(curTab);
+  document.querySelectorAll('.cs').forEach(function(s){s.classList.remove('on');});
+  document.getElementById('cs-det').classList.add('on');
+  document.getElementById('bb').className='show';
+  document.getElementById('fab').style.display='none';
+  document.getElementById('tbt').textContent=name;
+  renderDet(name);
+}
+function goBack(){goTab(navStack.pop()||'home');}
+
+function render(){
+  if(curTab==='home')renderHome();
+  else if(curTab==='con')renderCon();
+  else if(curTab==='lots')renderLots();
+  else if(curTab==='pays')renderPays();
+  if(curCon)renderDet(curCon);
+}
+
+function renderHome(){
+  var ta=S.pays.reduce(function(s,p){return s+p.amount;},0);
+  var tb=S.lots.reduce(function(s,l){return s+Math.max(0,bal(l));},0);
+  document.getElementById('hs').innerHTML=
+    '<div class="sc"><div class="sl">Total Lots</div><div class="sv">'+S.lots.length+'</div></div>'+
+    '<div class="sc"><div class="sl">Pending</div><div class="sv warn">'+S.lots.filter(function(l){return l.status==='PENDING';}).length+'</div></div>'+
+    '<div class="sc"><div class="sl">Advance Paid</div><div class="sv">'+fmt(ta)+'</div></div>'+
+    '<div class="sc"><div class="sl">Balance Due</div><div class="sv red">'+fmt(tb)+'</div></div>';
+  var rec=[].concat(S.lots).reverse().slice(0,5);
+  document.getElementById('hl').innerHTML=rec.length?rec.map(function(l){return lotCard(l,true);}).join(''):'<div class="empty"><div class="ei">📦</div><p>No lots yet</p></div>';
+}
+
+function getNames(){
+  var ns=[...new Set(S.lots.map(function(l){return l.contractorName;}))];
+  return ns.sort(function(a,b){return S.lots.filter(function(l){return l.contractorName===b;}).reduce(function(s,l){return s+Math.max(0,bal(l));},0)-S.lots.filter(function(l){return l.contractorName===a;}).reduce(function(s,l){return s+Math.max(0,bal(l));},0);});
+}
+
+function renderCon(){
+  var el=document.getElementById('cl');
+  var ns=getNames();
+  if(!ns.length){el.innerHTML='<div class="empty"><div class="ei">👷</div><p>No contractors yet</p></div>';return;}
+  el.innerHTML=ns.map(function(n,i){
+    var ls=S.lots.filter(function(l){return l.contractorName===n;});
+    var pd=ls.filter(function(l){return l.status==='PENDING';}).length;
+    var tb=ls.reduce(function(s,l){return s+Math.max(0,bal(l));},0);
+    var div=document.createElement('div');
+    div.className='crow';div.dataset.action='openCon';div.dataset.name=n;
+    div.innerHTML='<div class="cav" style="background:'+avc(i)+'">'+esc(ini(n))+'</div>'+
+      '<div class="cinfo"><div class="cname">'+esc(n)+'</div><div class="cmeta">'+ls.length+' lot(s) &middot; '+pd+' pending</div></div>'+
+      '<div style="text-align:right"><div class="cbal '+(tb>0?'red':'zero')+'">'+fmt(tb)+'</div><div style="font-size:10px;color:#AAA">'+(tb>0?'due':'clear')+'</div></div>';
+    return div.outerHTML;
+  }).join('');
+}
+
+function renderDet(name){
+  var el=document.getElementById('db');
+  var ls=S.lots.filter(function(l){return l.contractorName===name;});
+  var ps=S.pays.filter(function(p){return ls.find(function(l){return l.id===p.lotId;});});
+  var tb=ls.reduce(function(s,l){return s+(l.piecesIssued*l.rate);},0);
+  var tp=ps.reduce(function(s,p){return s+p.amount;},0);
+  var tbal=ls.reduce(function(s,l){return s+Math.max(0,bal(l));},0);
+  var pd=ls.filter(function(l){return l.status==='PENDING';}).length;
+  var st=ls.filter(function(l){return l.status==='SETTLED';}).length;
+  var ns=getNames();var ci=ns.indexOf(name);
+  var lh=ls.length?[].concat(ls).reverse().map(function(l){return lotCard(l,false);}).join(''):'<div class="empty" style="padding:1.5rem"><div class="ei" style="font-size:32px">📦</div><p>No lots</p></div>';
+  var ph=ps.length?[].concat(ps).reverse().slice(0,5).map(function(p,i){return '<div style="background:'+(i%2?'#FAFAFA':'#fff')+';border:1px solid #E8E8E8;border-radius:10px;padding:10px 14px;margin-bottom:6px;display:flex;align-items:center;gap:10px"><div style="width:8px;height:8px;border-radius:50%;background:var(--g);flex-shrink:0"></div><div style="flex:1"><div style="font-size:14px;font-weight:700;color:var(--g)">+ '+fmt(p.amount)+'</div><div style="font-size:11px;color:#888">'+fmtD(p.date)+' &middot; '+esc(p.mode)+'</div><div style="font-size:10px;color:#AAA">'+esc(p.lotId)+'</div></div></div>';}).join('')+(ps.length>5?'<div style="text-align:center;font-size:12px;color:#888;padding:6px">+ '+(ps.length-5)+' more</div>':''):'<div class="empty" style="padding:1.5rem"><div class="ei" style="font-size:32px">💵</div><p>No payments</p></div>';
+  // Build action buttons using data attributes
+  var acts='<div class="cacts">'+
+    '<button class="cact g" data-action="pay" data-name="'+esc(name)+'">💵 Payment</button>'+
+    '<button class="cact b" data-action="newLot" data-name="'+esc(name)+'">+ New Lot</button>'+
+    '<button class="cact o" data-action="editCon" data-name="'+esc(name)+'">✏️ Edit</button>'+
+    '<button class="cact p" data-action="report" data-name="'+esc(name)+'">🖨 Report</button>'+
+  '</div>';
+  el.innerHTML=
+    '<div class="cdh"><div style="display:flex;align-items:center;gap:12px"><div class="cav" style="background:'+avc(ci)+';width:44px;height:44px;font-size:16px">'+esc(ini(name))+'</div><div><div style="font-size:18px;font-weight:700;color:#fff">'+esc(name)+'</div><div style="font-size:12px;color:#B0C4DE">'+ls.length+' lots &middot; '+pd+' pending &middot; '+st+' settled</div></div></div></div>'+
+    '<div class="stats" style="margin-bottom:14px"><div class="sc"><div class="sl">Total Billed</div><div class="sv">'+fmt(tb)+'</div></div><div class="sc"><div class="sl">Total Paid</div><div class="sv grn">'+fmt(tp)+'</div></div><div class="sc"><div class="sl">Balance Due</div><div class="sv red">'+fmt(tbal)+'</div></div><div class="sc"><div class="sl">Lots</div><div class="sv warn">'+pd+' pending</div></div></div>'+
+    acts+
+    (tbal>0?'<div class="ibox red">Outstanding: <strong>'+fmt(tbal)+'</strong></div>':'<div class="ibox green">&#10003; No outstanding balance</div>')+
+    '<div class="sh" style="margin-top:12px"><h2>Lots</h2></div>'+lh+
+    '<div class="sh" style="margin-top:14px"><h2>Recent Payments</h2></div>'+ph+
+    '<div style="height:20px"></div>';
+}
+
+function lotCard(lot,showCon){
+  var a=adv(lot.id),p=(lot.piecesReceived!=null?lot.piecesReceived:lot.piecesIssued)*lot.rate,b=p-a;
+  var ms=lot.piecesReceived!=null?lot.piecesIssued-lot.piecesReceived:null;
+  // Build action buttons using data attributes - NO INLINE FUNCTIONS WITH ARGS
+  var ap=(lot.status==='PENDING'||lot.status==='RECEIVED')?'<button class="btn sm" data-action="payLot" data-id="'+esc(lot.id)+'">💵 Pay</button>':'';
+  var ar=lot.status==='PENDING'?'<button class="btn sm" data-action="recv" data-id="'+esc(lot.id)+'">📥 Receive</button>':'';
+  var as=lot.status==='RECEIVED'?'<button class="btn sm grn" data-action="settle" data-id="'+esc(lot.id)+'">✓ Settle</button>':'';
+  var vc=showCon?'<button class="btn sm" data-action="viewCon" data-name="'+esc(lot.contractorName)+'">👷</button>':'';
+  return '<div class="lc">'+
+    '<div class="lch"><div style="display:flex;align-items:center;gap:8px"><span class="lid">'+esc(lot.id)+'</span><div><div class="lname">'+(showCon?esc(lot.contractorName):esc(lot.item))+'</div><div class="lsub">'+(showCon?esc(lot.item):fmtD(lot.dateIssued))+'</div></div></div><span class="sbdg sp-'+lot.status+'">'+lot.status+'</span></div>'+
+    '<div class="lnums"><div class="nb"><div class="nl">Issued</div><div class="nv">'+fmtN(lot.piecesIssued)+' pcs</div></div><div class="nb"><div class="nl">Rate</div><div class="nv">Rs.'+lot.rate+'</div></div><div class="nb"><div class="nl">Total</div><div class="nv">'+fmt(lot.piecesIssued*lot.rate)+'</div></div><div class="nb"><div class="nl">Paid</div><div class="nv '+(a>0?'warn':'')+'">'+fmt(a)+'</div></div><div class="nb"><div class="nl">Balance</div><div class="nv '+(b>0?'red':'')+'">'+fmt(b)+'</div></div></div>'+
+    '<div class="lmeta">'+(showCon?'<span>📤 '+fmtD(lot.dateIssued)+'</span>':'')+
+    (ms!=null?'<span class="'+(ms>0?'ms':'ok')+'">'+(ms>0?'⚠ ':'✓ ')+'Rcvd '+fmtN(lot.piecesReceived)+(ms>0?' ('+ms+' short)':'')+'</span>':'')+
+    (lot.remarks?'<span style="font-style:italic;color:#AAA">'+esc(lot.remarks)+'</span>':'')+'</div>'+
+    '<div class="lacts">'+ap+ar+as+'<button class="btn sm pur" data-action="print" data-id="'+esc(lot.id)+'">🖨</button><button class="btn sm" style="color:#059669;border-color:#6EE7B7" data-action="editLot" data-id="'+esc(lot.id)+'">✏️</button>'+vc+'<button class="btn sm red" style="margin-left:auto" data-action="del" data-id="'+esc(lot.id)+'">🗑</button></div>'+
+  '</div>';
+}
+
+function renderLots(){
+  var fs=['ALL','PENDING','RECEIVED','SETTLED'];
+  document.getElementById('lf').innerHTML=fs.map(function(f){return '<button class="fb '+(curFilter===f?'on':'')+'" data-action="filter" data-id="'+f+'">'+(f==='ALL'?'All':f.charAt(0)+f.slice(1).toLowerCase())+'</button>';}).join('');
+  var vis=curFilter==='ALL'?S.lots:S.lots.filter(function(l){return l.status===curFilter;});
+  document.getElementById('ll').innerHTML=vis.length?[].concat(vis).reverse().map(function(l){return lotCard(l,true);}).join(''):'<div class="empty"><div class="ei">📦</div><p>No lots</p></div>';
+}
+function setFilter(f){curFilter=f;renderLots();}
+
+function renderPays(){
+  var vp=S.pays;
+  var tot=vp.reduce(function(s,p){return s+p.amount;},0);
+  document.getElementById('pm').textContent=vp.length+' record(s) &middot; '+fmt(tot);
+  var el=document.getElementById('pl');
+  if(!vp.length){el.innerHTML='<div class="empty"><div class="ei">💵</div><p>No payments yet</p></div>';return;}
+  var rows=[].concat(vp).reverse().map(function(p,i){var lot=S.lots.find(function(l){return l.id===p.lotId;});return '<tr class="'+(i%2?'alt':'')+'"><td style="color:#888">'+esc(p.id)+'</td><td>'+fmtD(p.date)+'</td><td style="color:#1E40AF;font-weight:600">'+esc(p.lotId)+'</td><td>'+esc(lot?lot.contractorName:'-')+'</td><td style="font-weight:600">'+fmt(p.amount)+'</td><td>'+esc(p.mode)+'</td></tr>';}).join('');
+  el.innerHTML='<div class="tw"><table><thead><tr><th>Pay ID</th><th>Date</th><th>Lot</th><th>Contractor</th><th>Amount</th><th>Mode</th></tr></thead><tbody>'+rows+'<tr class="tt"><td colspan="4" style="text-align:right">Total</td><td>'+fmt(tot)+'</td><td></td></tr></tbody></table></div>';
+}
+
+function openModal(t){
+  if(t==='aL'){['fc','fi','fp','fr','fm'].forEach(function(id){document.getElementById(id).value='';});document.getElementById('fd').value=td();document.getElementById('lp').style.display='none';}
+  if(t==='aP'){
+    var s=document.getElementById('pl2');s.innerHTML='<option value="">Select lot...</option>';
+    S.lots.filter(function(l){return l.status!=='SETTLED';}).forEach(function(l){var o=document.createElement('option');o.value=l.id;o.textContent=l.id+' - '+l.contractorName+' ('+l.item+')';s.appendChild(o);});
+    document.getElementById('pd').value=td();document.getElementById('pa').value='';document.getElementById('pm2').value='Cash';document.getElementById('pr').value='';document.getElementById('pp').style.display='none';
+  }
+  var el=document.getElementById('mo-'+t);el.classList.add('show');el.style.display='flex';
+}
+function openPayFor(name){
+  openModal('aP');
+  var s=document.getElementById('pl2');s.innerHTML='<option value="">Select lot...</option>';
+  S.lots.filter(function(l){return l.contractorName===name&&l.status!=='SETTLED';}).forEach(function(l){var o=document.createElement('option');o.value=l.id;o.textContent=l.id+' - '+l.item+' ('+fmtD(l.dateIssued)+')';s.appendChild(o);});
+}
+function openLotFor(name){openModal('aL');document.getElementById('fc').value=name;}
+function openPayModal(lid){openModal('aP');document.getElementById('pl2').value=lid;pvP();}
+function closeModal(t){var el=document.getElementById('mo-'+t);el.classList.remove('show');el.style.display='none';}
+document.querySelectorAll('.ov').forEach(function(o){o.addEventListener('click',function(e){if(e.target===o){o.classList.remove('show');o.style.display='none';}});});
+function openRv(lid){rvId=lid;var lot=S.lots.find(function(l){return l.id===lid;});document.getElementById('rvs').textContent=lot.id+' - '+lot.contractorName;document.getElementById('rvi').textContent='Issued: '+fmtN(lot.piecesIssued)+' pcs @ Rs.'+lot.rate+' = '+fmt(lot.piecesIssued*lot.rate);document.getElementById('rp').value='';document.getElementById('rd').value=td();document.getElementById('rvp').style.display='none';var el=document.getElementById('mo-rv');el.classList.add('show');el.style.display='flex';}
+function openEL(lid){eLId=lid;var lot=S.lots.find(function(l){return l.id===lid;});if(!lot)return;document.getElementById('els').textContent=lid;document.getElementById('ec').value=lot.contractorName;document.getElementById('ei').value=lot.item;document.getElementById('ep').value=lot.piecesIssued;document.getElementById('er').value=lot.rate;document.getElementById('ed').value=lot.dateIssued;document.getElementById('em').value=lot.remarks||'';document.getElementById('elp').style.display='none';var el=document.getElementById('mo-eL');el.classList.add('show');el.style.display='flex';}
+function openEC(name){eCName=name;document.getElementById('ecs').textContent=name;document.getElementById('en').value=name;var el=document.getElementById('mo-eC');el.classList.add('show');el.style.display='flex';}
+
+function pvL(){var p=+document.getElementById('fp').value,r=+document.getElementById('fr').value,b=document.getElementById('lp');if(p&&r){b.style.display='block';b.textContent='Total: '+fmt(p*r);}else b.style.display='none';}
+function pvEL(){var p=+document.getElementById('ep').value,r=+document.getElementById('er').value,b=document.getElementById('elp');if(p&&r){b.style.display='block';b.textContent='Total: '+fmt(p*r)+' ('+fmtN(p)+' pcs x Rs.'+r+')';}else b.style.display='none';}
+function pvP(){var lid=document.getElementById('pl2').value,a=+document.getElementById('pa').value,b=document.getElementById('pp');if(lid&&a){b.style.display='block';b.textContent='Total advance after: '+fmt(adv(lid)+a);}else b.style.display='none';}
+function pvR(){var lot=S.lots.find(function(l){return l.id===rvId;}),p=+document.getElementById('rp').value,b=document.getElementById('rvp');if(!p||!lot){b.style.display='none';return;}var m=lot.piecesIssued-p;b.style.display='block';if(m>0){b.className='ibox red';b.textContent='Warning: '+m+' pcs short - Payable: '+fmt(p*lot.rate);}else{b.className='ibox green';b.textContent='All received - Payable: '+fmt(p*lot.rate);}}
+
+function addLot(){
+  var c=document.getElementById('fc').value.trim(),i=document.getElementById('fi').value.trim(),p=+document.getElementById('fp').value,r=+document.getElementById('fr').value,d=document.getElementById('fd').value,m=document.getElementById('fm').value.trim();
+  if(!c||!i||!p||!r||!d){alert('Fill all required fields.');return;}
+  S.lC++;S.lots.push({id:'LOT-'+pad(S.lC),contractorName:c,item:i,piecesIssued:p,rate:r,dateIssued:d,piecesReceived:null,dateReceived:null,status:'PENDING',remarks:m});
+  save();closeModal('aL');render();if(curCon)renderDet(curCon);
+}
+function addPay(){
+  var lid=document.getElementById('pl2').value,d=document.getElementById('pd').value,a=+document.getElementById('pa').value,m=document.getElementById('pm2').value,r=document.getElementById('pr').value.trim();
+  if(!lid||!d||!a){alert('Fill all required fields.');return;}
+  S.pC++;S.pays.push({id:'PAY-'+pad(S.pC),lotId:lid,date:d,amount:a,mode:m,remarks:r});
+  save();closeModal('aP');render();if(curCon)renderDet(curCon);
+}
+function recvLot(){
+  var p=+document.getElementById('rp').value,d=document.getElementById('rd').value;
+  if(!p||!d){alert('Fill all required fields.');return;}
+  var lot=S.lots.find(function(l){return l.id===rvId;});if(!lot)return;
+  lot.piecesReceived=p;lot.dateReceived=d;lot.status='RECEIVED';
+  save();closeModal('rv');render();if(curCon)renderDet(curCon);
+}
+function settleLot(id){var lot=S.lots.find(function(l){return l.id===id;});if(!lot)return;lot.status='SETTLED';save();render();if(curCon)renderDet(curCon);}
+function saveEL(){
+  var lot=S.lots.find(function(l){return l.id===eLId;});if(!lot)return;
+  var c=document.getElementById('ec').value.trim(),i=document.getElementById('ei').value.trim(),p=+document.getElementById('ep').value,r=+document.getElementById('er').value,d=document.getElementById('ed').value,m=document.getElementById('em').value.trim();
+  if(!c||!i||!p||!r||!d){alert('Fill all required fields.');return;}
+  lot.contractorName=c;lot.item=i;lot.piecesIssued=p;lot.rate=r;lot.dateIssued=d;lot.remarks=m;
+  save();closeModal('eL');render();if(curCon)renderDet(curCon);
+}
+function saveEC(){
+  if(!eCName)return;
+  var n=document.getElementById('en').value.trim();
+  if(!n){alert('Name required.');return;}
+  S.lots.forEach(function(l){if(l.contractorName===eCName)l.contractorName=n;});
+  curCon=n;eCName=n;save();closeModal('eC');document.getElementById('tbt').textContent=n;render();renderDet(n);
+}
+function confirmDel(lid){
+  var lot=S.lots.find(function(l){return l.id===lid;});if(!lot)return;
+  var b=bal(lot),pc=S.pays.filter(function(p){return p.lotId===lid;}).length;
+  document.getElementById('cfm').innerHTML='<div style="margin-bottom:8px"><span class="lid">'+esc(lot.id)+'</span></div><div style="font-size:13px;color:#555">Contractor: <strong>'+esc(lot.contractorName)+'</strong><br>Item: <strong>'+esc(lot.item)+'</strong></div>'+(b>0?'<div style="background:#FEF2F2;border:1.5px solid #FCA5A5;border-radius:10px;padding:10px;margin:10px 0;font-size:13px;color:#B91C1C">Balance Due: <strong>'+fmt(b)+'</strong></div>':'<div style="background:#ECFDF5;border:1.5px solid #A7F3D0;border-radius:10px;padding:10px;margin:10px 0;font-size:13px;color:#065F46">No outstanding balance</div>')+'<div style="background:#FFF7ED;border:1px solid #FDE68A;border-radius:8px;padding:10px;font-size:12px;color:#92400E">Deletes '+pc+' payment(s). Cannot be undone.</div>';
+  document.getElementById('cfo').onclick=function(){S.lots=S.lots.filter(function(l){return l.id!==lid;});S.pays=S.pays.filter(function(p){return p.lotId!==lid;});save();closeModal('cf');render();if(curCon)renderDet(curCon);};
+  var el=document.getElementById('mo-cf');el.classList.add('show');el.style.display='flex';
+}
+
+function openImport(){closeMenu();['i1','i2','i3','i4'].forEach(function(id,i){document.getElementById(id).style.display=i===0?'block':'none';});document.getElementById('iff').value='';document.getElementById('ift').innerHTML='<button class="btn" style="flex:1;justify-content:center" onclick="closeModal(\'imp\')">Cancel</button>';impData=null;var el=document.getElementById('mo-imp');el.classList.add('show');el.style.display='flex';}
+function rdXL(input){
+  var file=input.files[0];if(!file)return;
+  document.getElementById('i1').style.display='none';document.getElementById('i2').style.display='block';
+  var reader=new FileReader();
+  reader.onload=function(e){
+    try{var wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true,raw:false});impData=parseXL(wb);showPrev(impData);}
+    catch(err){document.getElementById('i2').style.display='none';document.getElementById('i1').style.display='block';alert('Error: '+err.message);}
+  };
+  reader.readAsArrayBuffer(file);
+}
+function parseDt(v){if(!v)return null;if(v instanceof Date){if(isNaN(v.getTime()))return null;return v.getFullYear()+'-'+String(v.getMonth()+1).padStart(2,'0')+'-'+String(v.getDate()).padStart(2,'0');}var s=String(v).trim();if(!s||s==='null')return null;var m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);if(m)return m[1]+'-'+m[2]+'-'+m[3];var d=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);if(d){var y=d[3].length===2?'20'+d[3]:d[3];return y+'-'+d[2].padStart(2,'0')+'-'+d[1].padStart(2,'0');}var dt=new Date(s);return isNaN(dt.getTime())?null:parseDt(dt);}
+function parseXL(wb){
+  var nl=[],np=[],lc=S.lC,pc=S.pC,sk=0;
+  wb.SheetNames.forEach(function(sn){
+    if(sn.toLowerCase().includes('sample'))return;
+    var ws=wb.Sheets[sn],rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:false});
+    if(!rows||rows.length<2)return;
+    var cn=sn.trim(),hi=-1,cm={};
+    for(var i=0;i<Math.min(rows.length,5);i++){var row=rows[i];if(!row)continue;var rs=row.map(function(c){return String(c||'').toUpperCase();}).join('|');if(rs.includes('DATE')&&rs.includes('RATE')){hi=i;row.forEach(function(cell,idx){var h=String(cell||'').toUpperCase().trim();if(h==='DATE')cm.dt=idx;else if(h==='ITEM NAME')cm.in=idx;else if(h==='ITEM CODE')cm.ic=idx;else if(h==='RATE')cm.rt=idx;else if(h.includes('PIECES SENT'))cm.po=idx;else if(h.includes('REC')&&h.includes('DATE'))cm.dr=idx;else if(h.includes('PIECE')&&h.includes('REC'))cm.pr=idx;else if(h.includes('PAYMENT DATE'))cm.pd=idx;else if(h==='PAYMENT DONE')cm.pdn=idx;else if(h==='BALANCE')cm.bl=idx;else if(h==='NOTES')cm.nt=idx;});break;}}
+    if(hi===-1){cm={dt:0,in:2,ic:1,rt:3,po:4,dr:7,pr:8,pd:12,pdn:13,bl:14,nt:16};hi=0;}
+    for(var i=hi+1;i<rows.length;i++){
+      var row=rows[i];if(!row||!row[cm.dt])continue;
+      var di=parseDt(row[cm.dt]);if(!di)continue;
+      var it=String(row[cm.in]||row[cm.ic]||'Garment').trim();
+      var rt=parseFloat(row[cm.rt]),po=parseFloat(row[cm.po]);
+      if(!po||!rt||isNaN(po)||isNaN(rt)||po<=0||rt<=0)continue;
+      var dup=S.lots.find(function(l){return l.contractorName.toLowerCase()===cn.toLowerCase()&&l.dateIssued===di&&Math.abs(l.piecesIssued-Math.round(po))<2;});
+      if(dup){sk++;continue;}
+      var pr=parseFloat(row[cm.pr]),dr=parseDt(row[cm.dr]),pdn=parseFloat(row[cm.pdn]),bl=parseFloat(row[cm.bl]),pd=parseDt(row[cm.pd]),nt=String(row[cm.nt]||'').trim();
+      var hp=!isNaN(pr)&&pr>0,st=hp?((!isNaN(bl)&&bl<=0&&!isNaN(pdn)&&pdn>0)?'SETTLED':'RECEIVED'):'PENDING';
+      lc++;var lid='LOT-'+String(lc).padStart(3,'0');
+      nl.push({id:lid,contractorName:cn,item:it,piecesIssued:Math.round(po),rate:Math.round(rt*100)/100,dateIssued:di,piecesReceived:hp?Math.round(pr):null,dateReceived:dr||null,status:st,remarks:nt||''});
+      if(!isNaN(pdn)&&pdn>0){pc++;np.push({id:'PAY-'+String(pc).padStart(3,'0'),lotId:lid,date:pd||di,amount:Math.round(pdn),mode:'Cash',remarks:nt?nt.substring(0,60):''});}
+    }
+  });
+  return{newLots:nl,newPays:np,lC:lc,pC:pc,skipped:sk};
+}
+function showPrev(r){
+  document.getElementById('i2').style.display='none';document.getElementById('i3').style.display='block';
+  var ta=r.newPays.reduce(function(s,p){return s+p.amount;},0);
+  var bn={};r.newLots.forEach(function(l){if(!bn[l.contractorName])bn[l.contractorName]=[];bn[l.contractorName].push(l);});
+  document.getElementById('isum').innerHTML='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px"><div style="background:#EFF6FF;border-radius:10px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:700;color:var(--n)">'+r.newLots.length+'</div><div style="font-size:10px;color:#888">New Lots</div></div><div style="background:#ECFDF5;border-radius:10px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:700;color:var(--g)">'+r.newPays.length+'</div><div style="font-size:10px;color:#888">Payments</div></div></div><div style="font-size:12px;color:#555;background:#F5F5F5;border-radius:8px;padding:10px">Total Advance: <strong>'+fmt(ta)+'</strong>'+(r.skipped>0?'<br>Skipped: <strong>'+r.skipped+'</strong>':'')+'</div>';
+  if(!r.newLots.length){document.getElementById('ilist').innerHTML='<div style="text-align:center;padding:16px;color:#888">No new lots to import.</div>';document.getElementById('ift').innerHTML='<button class="btn pri" style="flex:1;justify-content:center" onclick="closeModal(\'imp\')">OK</button>';return;}
+  document.getElementById('ilist').innerHTML=Object.entries(bn).map(function(e){var n=e[0],ls=e[1];return '<div style="background:#fff;border:1px solid #E8E8E8;border-radius:10px;margin-bottom:8px;overflow:hidden"><div style="background:var(--n);color:#fff;padding:8px 12px;font-weight:700;font-size:13px">'+esc(n)+' ('+ls.length+')</div>'+ls.map(function(l,i){return '<div style="padding:8px 12px;border-bottom:1px solid #F5F5F5;display:flex;justify-content:space-between;'+(i%2?'background:#FAFAFA':'')+'">'+'<div style="font-size:12px"><strong>'+fmtD(l.dateIssued)+'</strong> &middot; '+esc(l.item)+'</div><div style="font-size:12px;font-weight:700">'+fmt(l.piecesIssued*l.rate)+'</div></div>';}).join('')+'</div>';}).join('');
+  document.getElementById('ift').innerHTML='<button class="btn" style="flex:1;justify-content:center" onclick="closeModal(\'imp\')">Cancel</button><button class="btn pri" style="flex:1;justify-content:center" onclick="doImport()">Import Now</button>';
+}
+function doImport(){
+  if(!impData)return;
+  S.lots=S.lots.concat(impData.newLots);S.pays=S.pays.concat(impData.newPays);S.lC=impData.lC;S.pC=impData.pC;
+  save();document.getElementById('i3').style.display='none';document.getElementById('i4').style.display='block';
+  document.getElementById('idn').textContent='Imported '+impData.newLots.length+' lots!';
+  document.getElementById('ift').innerHTML='<button class="btn pri" style="flex:1;justify-content:center" onclick="closeModal(\'imp\')">Done</button>';
+  render();
+}
+
+function printLot(lid){
+  var lot=S.lots.find(function(l){return l.id===lid;});if(!lot)return;
+  var lp=S.pays.filter(function(p){return p.lotId===lid;});
+  var a=lp.reduce(function(s,p){return s+p.amount;},0);
+  var py=(lot.piecesReceived!=null?lot.piecesReceived:lot.piecesIssued)*lot.rate,b=py-a;
+  var pr=lp.length?lp.map(function(p,i){return '<tr style="background:'+(i%2?'#F9F9F9':'#fff')+'"><td style="padding:8px;border:1px solid #E0E0E0">'+esc(p.id)+'</td><td style="padding:8px;border:1px solid #E0E0E0">'+fmtD(p.date)+'</td><td style="padding:8px;border:1px solid #E0E0E0;font-weight:600">'+fmt(p.amount)+'</td><td style="padding:8px;border:1px solid #E0E0E0">'+esc(p.mode)+'</td></tr>';}).join(''):'<tr><td colspan="4" style="padding:12px;text-align:center;color:#999;border:1px solid #E0E0E0">No payments</td></tr>';
+  var w=window.open('','_blank');
+  var h='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+esc(lot.id)+'<'+'/title><style>body{font-family:Arial,sans-serif;font-size:13px;margin:0}@media print{.np{display:none!important}}.pg{max-width:700px;margin:0 auto;padding:24px}.top{display:flex;justify-content:space-between;border-bottom:3px solid #1F3864;padding-bottom:14px;margin-bottom:16px}.meta{display:grid;grid-template-columns:1fr 1fr;border:1px solid #E0E0E0;border-radius:6px;overflow:hidden;margin-bottom:14px}.ml{padding:8px 12px;background:#F5F7FA;color:#555;font-weight:600;font-size:12px;border-bottom:1px solid #E8E8E8;border-right:1px solid #E8E8E8}.mv{padding:8px 12px;font-weight:700;border-bottom:1px solid #E8E8E8}.sum{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:12px 0}.sb{border:1.5px solid #E0E0E0;border-radius:8px;padding:10px;text-align:center}.db{border:2px solid #1F3864;border-radius:8px;padding:13px;display:flex;justify-content:space-between;align-items:center;margin:12px 0;background:#EFF6FF}table{width:100%;border-collapse:collapse;font-size:12px}th{background:#1F3864;color:#fff;padding:8px;text-align:left;font-size:11px}</'+'>style><'+'/head><body><div class="pg"><div class="np" style="background:#f0f0f0;padding:10px;display:flex;gap:10px;margin:-24px -24px 24px"><button onclick="window.print()" style="padding:8px 20px;border-radius:6px;border:none;cursor:pointer;font-size:13px;font-weight:600;background:#1F3864;color:#fff">Print<'+'/button><button onclick="window.close()" style="padding:8px 20px;border-radius:6px;border:none;cursor:pointer;font-size:13px;background:#fff;border:1px solid #CCC">Close<'+'/button><'+'/div><div class="top"><div><div style="font-size:19px;font-weight:700;color:#1F3864">Modrobe Impex<'+'/div><div style="font-size:11px;color:#888">Garment Manufacturer<'+'/div><'+'/div><div style="text-align:right"><div style="font-size:13px;font-weight:700;color:#1F3864">JOB WORK VOUCHER<'+'/div><div style="font-size:22px;font-weight:700;color:#1E40AF">'+esc(lot.id)+'<'+'/div><'+'/div><'+'/div><div class="meta"><div class="ml">Contractor<'+'/div><div class="mv">'+esc(lot.contractorName)+'<'+'/div><div class="ml">Item<'+'/div><div class="mv">'+esc(lot.item)+'<'+'/div><div class="ml">Date Issued<'+'/div><div class="mv">'+fmtD(lot.dateIssued)+'<'+'/div><div class="ml">Pieces Issued<'+'/div><div class="mv">'+fmtN(lot.piecesIssued)+' pcs<'+'/div><div class="ml">Rate<'+'/div><div class="mv">Rs.'+lot.rate+'<'+'/div><div class="ml">Remarks<'+'/div><div class="mv">'+esc(lot.remarks||'-')+'<'+'/div><'+'/div><div class="sum"><div class="sb"><div style="font-size:10px;color:#888;margin-bottom:4px">Total Agreed<'+'/div><div style="font-size:16px;font-weight:700;color:#1F3864">'+fmt(lot.piecesIssued*lot.rate)+'<'+'/div><'+'/div><div class="sb"><div style="font-size:10px;color:#888;margin-bottom:4px">Advance Paid<'+'/div><div style="font-size:16px;font-weight:700;color:#D97706">'+fmt(a)+'<'+'/div><'+'/div><div class="sb"><div style="font-size:10px;color:#888;margin-bottom:4px">Balance Due<'+'/div><div style="font-size:16px;font-weight:700;color:'+(b>0?'#DC2626':'#059669')+'">'+fmt(Math.abs(b))+'<'+'/div><'+'/div><'+'/div><div class="db"><div style="font-size:13px;font-weight:600;color:#1F3864">NET BALANCE<'+'/div><div style="font-size:22px;font-weight:700;color:'+(b>0?'#DC2626':'#059669')+'">'+fmt(Math.abs(b))+'<'+'/div><'+'/div><div style="font-weight:700;font-size:12px;color:#1F3864;margin-top:14px;border-bottom:2px solid #1F3864;padding-bottom:3px">PAYMENT HISTORY<'+'/div><table><thead><tr><th>Pay ID<'+'/th><th>Date<'+'/th><th>Amount<'+'/th><th>Mode<'+'/th><'+'/tr><'+'/thead><tbody>'+pr+'<'+'/tbody><'+'/table><'+'/div><'+'/body><'+'/html>';
+  w.document.write(h);w.document.close();
+}
+function printReport(name){
+  var ls=S.lots.filter(function(l){return l.contractorName===name;});
+  var ps=S.pays.filter(function(p){return ls.find(function(l){return l.id===p.lotId;});});
+  var tb=ls.reduce(function(s,l){return s+(l.piecesIssued*l.rate);},0);
+  var tp=ps.reduce(function(s,p){return s+p.amount;},0);
+  var tbal=ls.reduce(function(s,l){return s+Math.max(0,bal(l));},0);
+  var rows=ls.map(function(l,i){var a=adv(l.id),b=((l.piecesReceived!=null?l.piecesReceived:l.piecesIssued)*l.rate)-a;return '<tr style="background:'+(i%2?'#F9F9F9':'#fff')+'"><td style="padding:7px;border:1px solid #E0E0E0">'+esc(l.id)+'<'+'/td><td style="padding:7px;border:1px solid #E0E0E0">'+fmtD(l.dateIssued)+'<'+'/td><td style="padding:7px;border:1px solid #E0E0E0">'+esc(l.item)+'<'+'/td><td style="padding:7px;border:1px solid #E0E0E0;text-align:right">'+fmt(l.piecesIssued*l.rate)+'<'+'/td><td style="padding:7px;border:1px solid #E0E0E0;text-align:right;color:#059669">'+fmt(a)+'<'+'/td><td style="padding:7px;border:1px solid #E0E0E0;text-align:right;color:'+(b>0?'#DC2626':'#059669')+'">'+fmt(b)+'<'+'/td><'+'/tr>';}).join('');
+  var w=window.open('','_blank');
+  var h='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+esc(name)+'<'+'/title><style>body{font-family:Arial,sans-serif;font-size:13px;margin:0}@media print{.np{display:none!important}}.pg{max-width:760px;margin:0 auto;padding:24px}.top{display:flex;justify-content:space-between;border-bottom:3px solid #1F3864;padding-bottom:14px;margin-bottom:16px}table{width:100%;border-collapse:collapse;font-size:12px}th{background:#1F3864;color:#fff;padding:8px;text-align:left;font-size:11px}.sum{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin:14px 0}.sb{border:1.5px solid #E0E0E0;border-radius:8px;padding:10px;text-align:center}.db{border:2px solid #1F3864;border-radius:8px;padding:13px;display:flex;justify-content:space-between;align-items:center;margin:14px 0;background:#EFF6FF}<'+'/style><'+'/head><body><div class="pg"><div class="np" style="background:#f0f0f0;padding:10px;display:flex;gap:10px;margin:-24px -24px 24px"><button onclick="window.print()" style="padding:8px 20px;border-radius:6px;border:none;cursor:pointer;font-size:13px;font-weight:600;background:#1F3864;color:#fff">Print<'+'/button><button onclick="window.close()" style="padding:8px 20px;border-radius:6px;border:none;cursor:pointer;font-size:13px;background:#fff;border:1px solid #CCC">Close<'+'/button><'+'/div><div class="top"><div><div style="font-size:19px;font-weight:700;color:#1F3864">Modrobe Impex<'+'/div><'+'/div><div style="text-align:right"><div style="font-size:14px;font-weight:700;color:#1F3864">CONTRACTOR STATEMENT<'+'/div><div style="font-size:17px;font-weight:700;margin-top:3px">'+esc(name)+'<'+'/div><'+'/div><'+'/div><div class="sum"><div class="sb"><div style="font-size:10px;color:#888;margin-bottom:4px">Total Billed<'+'/div><div style="font-size:16px;font-weight:700;color:#1F3864">'+fmt(tb)+'<'+'/div><'+'/div><div class="sb"><div style="font-size:10px;color:#888;margin-bottom:4px">Total Paid<'+'/div><div style="font-size:16px;font-weight:700;color:#059669">'+fmt(tp)+'<'+'/div><'+'/div><div class="sb"><div style="font-size:10px;color:#888;margin-bottom:4px">Balance<'+'/div><div style="font-size:16px;font-weight:700;color:'+(tbal>0?'#DC2626':'#059669')+'">'+fmt(tbal)+'<'+'/div><'+'/div><'+'/div><table><thead><tr><th>Lot ID<'+'/th><th>Date<'+'/th><th>Item<'+'/th><th>Amount<'+'/th><th>Paid<'+'/th><th>Balance<'+'/th><'+'/tr><'+'/thead><tbody>'+rows+'<'+'/tbody><'+'/table><div class="db"><div style="font-size:13px;font-weight:600;color:#1F3864">NET OUTSTANDING<'+'/div><div style="font-size:22px;font-weight:700;color:'+(tbal>0?'#DC2626':'#059669')+'">'+fmt(tbal)+(tbal<=0?' (CLEAR)':'')+'<'+'/div><'+'/div><div style="text-align:center;font-size:10px;color:#AAA;margin-top:8px">Generated: '+new Date().toLocaleString('en-IN')+'<'+'/div><'+'/div><'+'/body><'+'/html>';
+  w.document.write(h);w.document.close();
+}
+</script>
+</body>
+</html>
