@@ -63,7 +63,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .cact.g{background:#ECFDF5;color:var(--g)}
 .cact.b{background:#EFF6FF;color:var(--n)}
 .cact.o{background:#FFF7ED;color:#C2410C}
-.cact.p{background:#F5F3FF;color:#7C3AED}.cact.r{background:#FFF1F2;color:#DC2626;border:1.5px solid #FECACA}
+.cact.p{background:#F5F3FF;color:#7C3AED}
 .lc{background:#fff;border:1px solid #E8E8E8;border-radius:12px;padding:14px 16px;margin-bottom:10px}
 .lch{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px}
 .lid{background:#DBEAFE;color:#1E40AF;font-size:12px;font-weight:600;padding:3px 12px;border-radius:20px}
@@ -442,7 +442,7 @@ function render(){
 
 function renderHome(){
   var ta=S.pays.reduce(function(s,p){return s+p.amount;},0);
-  var tb=S.lots.reduce(function(s,l){var py=(l.piecesReceived!=null?l.piecesReceived:l.piecesIssued)*l.rate;return s+py;},0)-S.pays.reduce(function(s,p){return s+p.amount;},0);
+  var tb=S.lots.reduce(function(s,l){return s+Math.max(0,bal(l));},0);
   document.getElementById('hs').innerHTML=
     '<div class="sc"><div class="sl">Total Lots</div><div class="sv">'+S.lots.length+'</div></div>'+
     '<div class="sc"><div class="sl">Pending</div><div class="sv warn">'+S.lots.filter(function(l){return l.status==='PENDING';}).length+'</div></div>'+
@@ -454,7 +454,7 @@ function renderHome(){
 
 function getNames(){
   var ns=[...new Set(S.lots.map(function(l){return l.contractorName;}))];
-  return ns.sort(function(a,b){var nb=function(n){var ls=S.lots.filter(function(l){return l.contractorName===n;});var ps=S.pays.filter(function(p){return ls.find(function(l){return l.id===p.lotId;});});return ls.reduce(function(s,l){var py=(l.piecesReceived!=null?l.piecesReceived:l.piecesIssued)*l.rate;return s+py;},0)-ps.reduce(function(s,p){return s+p.amount;},0);}; return nb(b)-nb(a);});
+  return ns.sort(function(a,b){return S.lots.filter(function(l){return l.contractorName===b;}).reduce(function(s,l){return s+Math.max(0,bal(l));},0)-S.lots.filter(function(l){return l.contractorName===a;}).reduce(function(s,l){return s+Math.max(0,bal(l));},0);});
 }
 
 function renderCon(){
@@ -464,7 +464,7 @@ function renderCon(){
   el.innerHTML=ns.map(function(n,i){
     var ls=S.lots.filter(function(l){return l.contractorName===n;});
     var pd=ls.filter(function(l){return l.status==='PENDING';}).length;
-    var tb=ls.reduce(function(s,l){var py=(l.piecesReceived!=null?l.piecesReceived:l.piecesIssued)*l.rate;return s+py;},0)-S.pays.filter(function(p){return ls.find(function(l){return l.id===p.lotId;});}).reduce(function(s,p){return s+p.amount;},0);
+    var tb=ls.reduce(function(s,l){return s+Math.max(0,bal(l));},0);
     var div=document.createElement('div');
     div.className='crow';div.dataset.action='openCon';div.dataset.name=n;
     div.innerHTML='<div class="cav" style="background:'+avc(i)+'">'+esc(ini(n))+'</div>'+
@@ -492,7 +492,7 @@ function renderDet(name){
     '<button class="cact b" data-action="newLot" data-name="'+esc(name)+'">+ New Lot</button>'+
     '<button class="cact o" data-action="editCon" data-name="'+esc(name)+'">✏️ Edit</button>'+
     '<button class="cact p" data-action="report" data-name="'+esc(name)+'">🖨 Report</button>'+
-    '<button class="cact" style="background:#FFF1F2;color:#DC2626;border:1.5px solid #FECACA;grid-column:1/-1;font-size:14px" data-action="delCon" data-name="'+esc(name)+'">🗑️ Delete Contractor &amp; All Lots</button>'+
+    '<button class="cact" style="background:#FFF1F2;color:#DC2626;grid-column:1/-1" data-action="delCon" data-name="'+esc(name)+'">🗑 Delete Contractor &amp; All Lots</button>'+
   '</div>';
   el.innerHTML=
     '<div class="cdh"><div style="display:flex;align-items:center;gap:12px"><div class="cav" style="background:'+avc(ci)+';width:44px;height:44px;font-size:16px">'+esc(ini(name))+'</div><div><div style="font-size:18px;font-weight:700;color:#fff">'+esc(name)+'</div><div style="font-size:12px;color:#B0C4DE">'+ls.length+' lots &middot; '+pd+' pending &middot; '+st+' settled</div></div></div></div>'+
@@ -513,7 +513,7 @@ function lotCard(lot,showCon){
   var as=lot.status==='RECEIVED'?'<button class="btn sm grn" data-action="settle" data-id="'+esc(lot.id)+'">✓ Settle</button>':'';
   var vc=showCon?'<button class="btn sm" data-action="viewCon" data-name="'+esc(lot.contractorName)+'">👷</button>':'';
   return '<div class="lc">'+
-    '<div class="lch"><div style="display:flex;align-items:center;gap:8px"><span class="lid">'+esc(lot.id)+'</span><div><div class="lname">'+(showCon?esc(lot.contractorName):esc(lot.item))+'</div><div class="lsub">'+(showCon?esc(lot.item):fmtD(lot.dateIssued))+'</div></div></div><span class="sbdg sp-'+lot.status+'">'+lot.status+'</span></div>'+
+    '<div class="lch"><div style="display:flex;align-items:center;gap:8px"><span class="lid">'+esc(lot.id)+'</span><div><div class="lname">'+(showCon?esc(lot.contractorName):esc(lot.item))+'</div><div class="lsub">'+(showCon?esc(lot.item):fmtD(lot.dateIssued))+'</div></div></div><div style="display:flex;align-items:center;gap:6px;flex-shrink:0"><span style="background:#FFF7ED;color:#C2410C;border:1.5px solid #FED7AA;font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px">&#8377;'+lot.rate+'/pc</span><span class="sbdg sp-'+lot.status+'">'+lot.status+'</span></div></div>'+
     '<div class="lnums">'+
     '<div class="nb"><div class="nl">📤 Issued</div><div class="nv">'+fmtN(lot.piecesIssued)+' pcs</div><div style="font-size:9px;color:#AAA;margin-top:2px">'+fmtD(lot.dateIssued)+'</div></div>'+
     '<div class="nb"><div class="nl">'+(lot.piecesReceived!=null?'📥 Received':'📥 Pending')+'</div><div class="nv '+(ms!=null&&ms>0?'red':'ok')+'">'+( lot.piecesReceived!=null?fmtN(lot.piecesReceived)+' pcs':'-')+'</div><div style="font-size:9px;color:#AAA;margin-top:2px">'+(lot.dateReceived?fmtD(lot.dateReceived):'-')+'</div></div>'+
@@ -680,7 +680,7 @@ function showPrev(r){
   var ta=r.newPays.reduce(function(s,p){return s+p.amount;},0);
   var bn={};r.newLots.forEach(function(l){if(!bn[l.contractorName])bn[l.contractorName]=[];bn[l.contractorName].push(l);});
   document.getElementById('isum').innerHTML='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px"><div style="background:#EFF6FF;border-radius:10px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:700;color:var(--n)">'+r.newLots.length+'</div><div style="font-size:10px;color:#888">New Lots</div></div><div style="background:#ECFDF5;border-radius:10px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:700;color:var(--g)">'+r.newPays.length+'</div><div style="font-size:10px;color:#888">Payments</div></div></div><div style="font-size:12px;color:#555;background:#F5F5F5;border-radius:8px;padding:10px">Total Advance: <strong>'+fmt(ta)+'</strong>'+(r.skipped>0?'<br>Skipped: <strong>'+r.skipped+'</strong>':'')+'</div>';
-  if(!r.newLots.length){document.getElementById('ilist').innerHTML='<div style="text-align:center;padding:16px;color:#888">No new lots to import.</div>';document.getElementById('ift').innerHTML='<button class="btn pri" style="flex:1;justify-content:center" onclick="closeModal(\'imp\')">OK</button>';return;}
+  if(!r.newLots.length){document.getElementById('ilist').innerHTML='<div style="background:#FFF7ED;border:1px solid #FDE68A;border-radius:10px;padding:14px;color:#92400E;font-size:13px">'+(r.skipped>0?'All '+r.skipped+' entries already exist. Same contractor name + date + pieces found. To re-import: delete the contractor first, then import again.':'No valid lot data found in file.')+'</div>';document.getElementById('ift').innerHTML='<button class="btn pri" style="flex:1;justify-content:center" onclick="closeModal(\'imp\')">OK</button>';return;}
   document.getElementById('ilist').innerHTML=Object.entries(bn).map(function(e){var n=e[0],ls=e[1];return '<div style="background:#fff;border:1px solid #E8E8E8;border-radius:10px;margin-bottom:8px;overflow:hidden"><div style="background:var(--n);color:#fff;padding:8px 12px;font-weight:700;font-size:13px">'+esc(n)+' ('+ls.length+')</div>'+ls.map(function(l,i){return '<div style="padding:8px 12px;border-bottom:1px solid #F5F5F5;display:flex;justify-content:space-between;'+(i%2?'background:#FAFAFA':'')+'">'+'<div style="font-size:12px"><strong>'+fmtD(l.dateIssued)+'</strong> &middot; '+esc(l.item)+'</div><div style="font-size:12px;font-weight:700">'+fmt(l.piecesIssued*l.rate)+'</div></div>';}).join('')+'</div>';}).join('');
   document.getElementById('ift').innerHTML='<button class="btn" style="flex:1;justify-content:center" onclick="closeModal(\'imp\')">Cancel</button><button class="btn pri" style="flex:1;justify-content:center" onclick="doImport()">Import Now</button>';
 }
