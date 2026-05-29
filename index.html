@@ -226,7 +226,9 @@ input:focus,select:focus{border-color:var(--n)}
 <div class="ov" id="mo-aL"><div class="mb"><div class="mh"></div>
   <div class="mhd"><h3>New Cutting Lot</h3><button class="xb" onclick="closeModal('aL')">&#10005;</button></div>
   <div class="mbd">
-    <div class="fr"><div><label>Contractor *</label><input id="fc" oninput="pvL()"></div><div><label>Item *</label><input id="fi" oninput="pvL()"></div></div>
+    <div class="fr"><div><label>Contractor *</label>
+<input id="fc" list="con-list" autocomplete="off" oninput="pvL()" placeholder="Select or type name">
+<datalist id="con-list"></datalist></div><div><label>Item *</label><input id="fi" oninput="pvL()"></div></div>
     <div class="fr"><div><label>Pieces *</label><input id="fp" type="number" inputmode="numeric" oninput="pvL()"></div><div><label>Rate (Rs./pc) *</label><input id="fr" type="number" inputmode="decimal" oninput="pvL()"></div></div>
     <div class="fg"><label>Date Issued *</label><input id="fd" type="date"></div>
     <div class="fg"><label>Remarks</label><input id="fm"></div>
@@ -239,7 +241,9 @@ input:focus,select:focus{border-color:var(--n)}
 <div class="ov" id="mo-eL"><div class="mb"><div class="mh"></div>
   <div class="mhd"><div><h3>&#9998; Edit Lot</h3><div style="font-size:12px;color:#888" id="els"></div></div><button class="xb" onclick="closeModal('eL')">&#10005;</button></div>
   <div class="mbd">
-    <div class="fr"><div><label>Contractor *</label><input id="ec" oninput="pvEL()"></div><div><label>Item *</label><input id="ei" oninput="pvEL()"></div></div>
+    <div class="fr"><div><label>Contractor *</label>
+<input id="ec" list="con-list2" autocomplete="off" oninput="pvEL()" placeholder="Select or type name">
+<datalist id="con-list2"></datalist></div><div><label>Item *</label><input id="ei" oninput="pvEL()"></div></div>
     <div class="fr"><div><label>Pieces *</label><input id="ep" type="number" inputmode="numeric" oninput="pvEL()"></div><div><label>Rate (Rs./pc) *</label><input id="er" type="number" inputmode="decimal" oninput="pvEL()"></div></div>
     <div class="fg"><label>Date Issued *</label><input id="ed" type="date"></div>
     <div class="fg"><label>Remarks</label><input id="em"></div>
@@ -558,7 +562,13 @@ function renderPays(){
 }
 
 function openModal(t){
-  if(t==='aL'){['fc','fi','fp','fr','fm'].forEach(function(id){document.getElementById(id).value='';});document.getElementById('fd').value=td();document.getElementById('lp').style.display='none';}
+  if(t==='aL'){
+    ['fc','fi','fp','fr','fm'].forEach(function(id){document.getElementById(id).value='';});
+    document.getElementById('fd').value=td();
+    document.getElementById('lp').style.display='none';
+    var dl=document.getElementById('con-list');
+    if(dl){dl.innerHTML=getNames().map(function(n){return '<option value="'+esc(n)+'"></option>';}).join('');}
+  }
   if(t==='aP'){
     var s=document.getElementById('pl2');s.innerHTML='<option value="">Select lot...</option>';
     S.lots.filter(function(l){return l.status!=='SETTLED';}).forEach(function(l){var o=document.createElement('option');o.value=l.id;o.textContent=l.id+' - '+l.contractorName+' ('+l.item+')';s.appendChild(o);});
@@ -576,7 +586,7 @@ function openPayModal(lid){openModal('aP');document.getElementById('pl2').value=
 function closeModal(t){var el=document.getElementById('mo-'+t);el.classList.remove('show');el.style.display='none';}
 document.querySelectorAll('.ov').forEach(function(o){o.addEventListener('click',function(e){if(e.target===o){o.classList.remove('show');o.style.display='none';}});});
 function openRv(lid){rvId=lid;var lot=S.lots.find(function(l){return l.id===lid;});document.getElementById('rvs').textContent=lot.id+' - '+lot.contractorName;document.getElementById('rvi').textContent='Issued: '+fmtN(lot.piecesIssued)+' pcs @ Rs.'+lot.rate+' = '+fmt(lot.piecesIssued*lot.rate);document.getElementById('rp').value='';document.getElementById('rd').value=td();document.getElementById('rvp').style.display='none';var el=document.getElementById('mo-rv');el.classList.add('show');el.style.display='flex';}
-function openEL(lid){eLId=lid;var lot=S.lots.find(function(l){return l.id===lid;});if(!lot)return;document.getElementById('els').textContent=lid;document.getElementById('ec').value=lot.contractorName;document.getElementById('ei').value=lot.item;document.getElementById('ep').value=lot.piecesIssued;document.getElementById('er').value=lot.rate;document.getElementById('ed').value=lot.dateIssued;document.getElementById('em').value=lot.remarks||'';document.getElementById('elp').style.display='none';var el=document.getElementById('mo-eL');el.classList.add('show');el.style.display='flex';}
+function openEL(lid){eLId=lid;var lot=S.lots.find(function(l){return l.id===lid;});if(!lot)return;document.getElementById('els').textContent=lid;document.getElementById('ec').value=lot.contractorName;var dl2=document.getElementById('con-list2');if(dl2){dl2.innerHTML=getNames().map(function(n){return '<option value="'+esc(n)+'"></option>';}).join('');}  document.getElementById('ei').value=lot.item;document.getElementById('ep').value=lot.piecesIssued;document.getElementById('er').value=lot.rate;document.getElementById('ed').value=lot.dateIssued;document.getElementById('em').value=lot.remarks||'';document.getElementById('elp').style.display='none';var el=document.getElementById('mo-eL');el.classList.add('show');el.style.display='flex';}
 function openEC(name){eCName=name;document.getElementById('ecs').textContent=name;document.getElementById('en').value=name;var el=document.getElementById('mo-eC');el.classList.add('show');el.style.display='flex';}
 
 function pvL(){var p=+document.getElementById('fp').value,r=+document.getElementById('fr').value,b=document.getElementById('lp');if(p&&r){b.style.display='block';b.textContent='Total: '+fmt(p*r);}else b.style.display='none';}
@@ -606,10 +616,18 @@ function recvLot(){
 function settleLot(id){var lot=S.lots.find(function(l){return l.id===id;});if(!lot)return;lot.status='SETTLED';save();render();if(curCon)renderDet(curCon);}
 function saveEL(){
   var lot=S.lots.find(function(l){return l.id===eLId;});if(!lot)return;
-  var c=document.getElementById('ec').value.trim(),i=document.getElementById('ei').value.trim(),p=+document.getElementById('ep').value,r=+document.getElementById('er').value,d=document.getElementById('ed').value,m=document.getElementById('em').value.trim();
-  if(!c||!i||!p||!r||!d){alert('Fill all required fields.');return;}
-  lot.contractorName=c;lot.item=i;lot.piecesIssued=p;lot.rate=r;lot.dateIssued=d;lot.remarks=m;
-  save();closeModal('eL');render();if(curCon)renderDet(curCon);
+  var nc=document.getElementById('ec').value.trim(),ni=document.getElementById('ei').value.trim(),np=+document.getElementById('ep').value,nr=+document.getElementById('er').value,nd=document.getElementById('ed').value,nm=document.getElementById('em').value.trim();
+  if(!nc||!ni||!np||!nr||!nd){alert('Fill all required fields.');return;}
+  var oldCon=lot.contractorName;
+  lot.contractorName=nc;lot.item=ni;lot.piecesIssued=np;lot.rate=nr;lot.dateIssued=nd;lot.remarks=nm;
+  save();closeModal('eL');
+  if(oldCon!==nc){
+    curCon=nc;
+    document.getElementById('tbt').textContent=nc;
+    render();renderDet(nc);
+  } else {
+    render();if(curCon)renderDet(curCon);
+  }
 }
 function saveEC(){
   if(!eCName)return;
