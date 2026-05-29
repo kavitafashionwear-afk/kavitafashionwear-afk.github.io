@@ -401,6 +401,7 @@ document.addEventListener('click',function(e){
   else if(action==='payLot')openPayModal(id);
   else if(action==='recv')openRv(id);
   else if(action==='settle')settleLot(id);
+  else if(action==='unsettle')unsettleLot(id);
   else if(action==='print')printLot(id);
   else if(action==='editLot')openEL(id);
   else if(action==='viewCon')openContractor(name);
@@ -515,6 +516,7 @@ function lotCard(lot,showCon){
   var ap=(lot.status==='PENDING'||lot.status==='RECEIVED')?'<button class="btn sm" data-action="payLot" data-id="'+esc(lot.id)+'">💵 Pay</button>':'';
   var ar=lot.status==='PENDING'?'<button class="btn sm" data-action="recv" data-id="'+esc(lot.id)+'">📥 Receive</button>':'';
   var as=lot.status==='RECEIVED'?'<button class="btn sm grn" data-action="settle" data-id="'+esc(lot.id)+'">✓ Settle</button>':'';
+  var au=lot.status==='SETTLED'?'<button class="btn sm" style="color:#D97706;border-color:#FDE68A;background:#FFFBEB" data-action="unsettle" data-id="'+esc(lot.id)+'">↩ Unsettle</button>':'';
   var vc=showCon?'<button class="btn sm" data-action="viewCon" data-name="'+esc(lot.contractorName)+'">👷</button>':'';
   return '<div class="lc">'+
     '<div class="lch"><div style="display:flex;align-items:center;gap:8px"><span class="lid">'+esc(lot.id)+'</span><div><div class="lname">'+(showCon?esc(lot.contractorName):esc(lot.item))+'</div><div class="lsub">'+(showCon?esc(lot.item):fmtD(lot.dateIssued))+'</div></div></div><div style="display:flex;align-items:center;gap:6px;flex-shrink:0"><span style="background:#FFF7ED;color:#C2410C;border:1.5px solid #FED7AA;font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px">&#8377;'+lot.rate+'/pc</span><span class="sbdg sp-'+lot.status+'">'+lot.status+'</span></div></div>'+
@@ -528,7 +530,7 @@ function lotCard(lot,showCon){
     '<div class="lmeta">'+
     (ms!=null?'<span class="'+(ms>0?'ms':'ok')+'">'+(ms>0?'⚠ ':'✓ ')+'Rcvd '+fmtN(lot.piecesReceived)+(ms>0?' ('+ms+' short)':'')+'</span>':'')+
     (lot.remarks?'<span style="font-style:italic;color:#AAA">'+esc(lot.remarks)+'</span>':'')+'</div>'+
-    '<div class="lacts">'+ap+ar+as+'<button class="btn sm pur" data-action="print" data-id="'+esc(lot.id)+'">🖨</button><button class="btn sm" style="color:#059669;border-color:#6EE7B7" data-action="editLot" data-id="'+esc(lot.id)+'">✏️</button>'+vc+'<button class="btn sm red" style="margin-left:auto" data-action="del" data-id="'+esc(lot.id)+'">🗑</button></div>'+
+    '<div class="lacts">'+ap+ar+as+'<button class="btn sm pur" data-action="print" data-id="'+esc(lot.id)+'">🖨</button><button class="btn sm" style="color:#059669;border-color:#6EE7B7" data-action="editLot" data-id="'+esc(lot.id)+'">✏️</button>'+au+vc+'<button class="btn sm red" style="margin-left:auto" data-action="del" data-id="'+esc(lot.id)+'">🗑</button></div>'+
   '</div>';
 }
 
@@ -614,6 +616,24 @@ function recvLot(){
   save();closeModal('rv');render();if(curCon)renderDet(curCon);
 }
 function settleLot(id){var lot=S.lots.find(function(l){return l.id===id;});if(!lot)return;lot.status='SETTLED';save();render();if(curCon)renderDet(curCon);}
+function unsettleLot(id){
+  var lot=S.lots.find(function(l){return l.id===id;});if(!lot)return;
+  var targetStatus=lot.piecesReceived!=null?'RECEIVED':'PENDING';
+  document.getElementById('cfm').innerHTML=
+    '<div style="margin-bottom:10px"><span class="lid">'+esc(lot.id)+'</span>&nbsp;<span style="font-size:13px;font-weight:600">'+esc(lot.contractorName)+'</span></div>'+
+    '<div style="font-size:13px;color:#555;margin-bottom:12px">Item: <strong>'+esc(lot.item)+'</strong></div>'+
+    '<div style="background:#FFF7ED;border:1px solid #FDE68A;border-radius:10px;padding:12px;font-size:13px;color:#92400E">'+
+    'This lot will move back to <strong>'+targetStatus+'</strong>.'+(targetStatus==='RECEIVED'?' ('+fmtN(lot.piecesReceived)+' pcs received)':' (No pieces recorded)')+'</div>';
+  document.getElementById('cfo').textContent='Yes, Unsettle';
+  document.getElementById('cfo').style.background='#FFF7ED';
+  document.getElementById('cfo').style.color='#D97706';
+  document.getElementById('cfo').style.borderColor='#FDE68A';
+  document.getElementById('cfo').onclick=function(){
+    lot.status=targetStatus;
+    save();closeModal('cf');render();if(curCon)renderDet(curCon);
+  };
+  var el=document.getElementById('mo-cf');el.classList.add('show');el.style.display='flex';
+}
 function saveEL(){
   var lot=S.lots.find(function(l){return l.id===eLId;});if(!lot)return;
   var nc=document.getElementById('ec').value.trim(),ni=document.getElementById('ei').value.trim(),np=+document.getElementById('ep').value,nr=+document.getElementById('er').value,nd=document.getElementById('ed').value,nm=document.getElementById('em').value.trim();
