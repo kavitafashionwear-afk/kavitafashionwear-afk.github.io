@@ -400,6 +400,8 @@ document.addEventListener('click',function(e){
   else if(action==='report')printReport(name);
   else if(action==='payLot')openPayModal(id);
   else if(action==='recv')openRv(id);
+  else if(action==='editRecv')openEditRecv(id);
+  else if(action==='unreceive')confirmUnreceive(id);
   else if(action==='settle')settleLot(id);
   else if(action==='unsettle')unsettleLot(id);
   else if(action==='print')printLot(id);
@@ -515,6 +517,8 @@ function lotCard(lot,showCon){
   // Build action buttons using data attributes - NO INLINE FUNCTIONS WITH ARGS
   var ap=(lot.status==='PENDING'||lot.status==='RECEIVED')?'<button class="btn sm" data-action="payLot" data-id="'+esc(lot.id)+'">💵 Pay</button>':'';
   var ar=lot.status==='PENDING'?'<button class="btn sm" data-action="recv" data-id="'+esc(lot.id)+'">📥 Receive</button>':'';
+  var ae=lot.status==='RECEIVED'?'<button class="btn sm" style="color:#1E40AF;border-color:#BFDBFE;background:#EFF6FF" data-action="editRecv" data-id="'+esc(lot.id)+'">✏️ Edit Receipt</button>':'';
+  var ap2=lot.status==='RECEIVED'?'<button class="btn sm" style="color:#92400E;border-color:#FDE68A;background:#FEF3C7" data-action="unreceive" data-id="'+esc(lot.id)+'">↩ Move to Pending</button>':'';
   var as=lot.status==='RECEIVED'?'<button class="btn sm grn" data-action="settle" data-id="'+esc(lot.id)+'">✓ Settle</button>':'';
   var au=lot.status==='SETTLED'?'<button class="btn sm" style="color:#D97706;border-color:#FDE68A;background:#FFFBEB" data-action="unsettle" data-id="'+esc(lot.id)+'">↩ Unsettle</button>':'';
   var vc=showCon?'<button class="btn sm" data-action="viewCon" data-name="'+esc(lot.contractorName)+'">👷</button>':'';
@@ -530,7 +534,7 @@ function lotCard(lot,showCon){
     '<div class="lmeta">'+
     (ms!=null?'<span class="'+(ms>0?'ms':'ok')+'">'+(ms>0?'⚠ ':'✓ ')+'Rcvd '+fmtN(lot.piecesReceived)+(ms>0?' ('+ms+' short)':'')+'</span>':'')+
     (lot.remarks?'<span style="font-style:italic;color:#AAA">'+esc(lot.remarks)+'</span>':'')+'</div>'+
-    '<div class="lacts">'+ap+ar+as+'<button class="btn sm pur" data-action="print" data-id="'+esc(lot.id)+'">🖨</button><button class="btn sm" style="color:#059669;border-color:#6EE7B7" data-action="editLot" data-id="'+esc(lot.id)+'">✏️</button>'+au+vc+'<button class="btn sm red" style="margin-left:auto" data-action="del" data-id="'+esc(lot.id)+'">🗑</button></div>'+
+    '<div class="lacts">'+ap+ar+ae+ap2+as+'<button class="btn sm pur" data-action="print" data-id="'+esc(lot.id)+'">🖨</button><button class="btn sm" style="color:#059669;border-color:#6EE7B7" data-action="editLot" data-id="'+esc(lot.id)+'">✏️</button>'+au+vc+'<button class="btn sm red" style="margin-left:auto" data-action="del" data-id="'+esc(lot.id)+'">🗑</button></div>'+
   '</div>';
 }
 
@@ -614,6 +618,36 @@ function recvLot(){
   var lot=S.lots.find(function(l){return l.id===rvId;});if(!lot)return;
   lot.piecesReceived=p;lot.dateReceived=d;lot.status='RECEIVED';
   save();closeModal('rv');render();if(curCon)renderDet(curCon);
+}
+
+function openEditRecv(lid){
+  var lot=S.lots.find(function(l){return l.id===lid;});if(!lot)return;
+  rvId=lid;
+  document.getElementById('rvs').textContent=lot.id+' - '+lot.contractorName+' (editing receipt)';
+  document.getElementById('rvi').textContent='Issued: '+fmtN(lot.piecesIssued)+' pcs @ Rs.'+lot.rate+' = '+fmt(lot.piecesIssued*lot.rate);
+  document.getElementById('rp').value=lot.piecesReceived||'';
+  document.getElementById('rd').value=lot.dateReceived||td();
+  document.getElementById('rvp').style.display='none';
+  var el=document.getElementById('mo-rv');el.classList.add('show');el.style.display='flex';
+}
+
+function confirmUnreceive(lid){
+  var lot=S.lots.find(function(l){return l.id===lid;});if(!lot)return;
+  document.getElementById('cfm').innerHTML=
+    '<div style="margin-bottom:10px"><span class="lid">'+esc(lot.id)+'</span>&nbsp;<span style="font-size:13px;font-weight:600">'+esc(lot.contractorName)+'</span></div>'+
+    '<div style="font-size:13px;color:#555;margin-bottom:12px">Item: <strong>'+esc(lot.item)+'</strong></div>'+
+    '<div style="background:#FFF7ED;border:1px solid #FDE68A;border-radius:10px;padding:12px;font-size:13px;color:#92400E">'+
+    'This will clear the received pieces ('+fmtN(lot.piecesReceived)+' pcs on '+fmtD(lot.dateReceived)+') and move this lot back to <strong>PENDING</strong>.</div>'+
+    '<div style="background:#FEF2F2;border:1px solid #FCA5A5;border-radius:8px;padding:10px;font-size:12px;color:#B91C1C;margin-top:8px">Payments recorded against this lot will remain. Only the receipt is cleared.</div>';
+  document.getElementById('cfo').textContent='Yes, Move to Pending';
+  document.getElementById('cfo').style.background='#FFF7ED';
+  document.getElementById('cfo').style.color='#D97706';
+  document.getElementById('cfo').style.borderColor='#FDE68A';
+  document.getElementById('cfo').onclick=function(){
+    lot.piecesReceived=null;lot.dateReceived=null;lot.status='PENDING';
+    save();closeModal('cf');render();if(curCon)renderDet(curCon);
+  };
+  var el=document.getElementById('mo-cf');el.classList.add('show');el.style.display='flex';
 }
 function settleLot(id){var lot=S.lots.find(function(l){return l.id===id;});if(!lot)return;lot.status='SETTLED';save();render();if(curCon)renderDet(curCon);}
 function unsettleLot(id){
