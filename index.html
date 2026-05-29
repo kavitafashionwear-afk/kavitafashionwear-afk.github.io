@@ -442,12 +442,12 @@ function render(){
 
 function renderHome(){
   var ta=S.pays.reduce(function(s,p){return s+p.amount;},0);
-  var tb=S.lots.reduce(function(s,l){return s+Math.max(0,bal(l));},0);
+  var totalBal=S.lots.reduce(function(s,l){var py=(l.piecesReceived!=null?l.piecesReceived:l.piecesIssued)*l.rate;return s+py;},0)-S.pays.reduce(function(s,p){return s+p.amount;},0);
   document.getElementById('hs').innerHTML=
     '<div class="sc"><div class="sl">Total Lots</div><div class="sv">'+S.lots.length+'</div></div>'+
     '<div class="sc"><div class="sl">Pending</div><div class="sv warn">'+S.lots.filter(function(l){return l.status==='PENDING';}).length+'</div></div>'+
     '<div class="sc"><div class="sl">Advance Paid</div><div class="sv">'+fmt(ta)+'</div></div>'+
-    '<div class="sc"><div class="sl">Balance Due</div><div class="sv red">'+fmt(tb)+'</div></div>';
+    '<div class="sc"><div class="sl">Balance Due</div><div class="sv red">'+fmt(Math.max(0,totalBal))+'</div></div>';
   var rec=[].concat(S.lots).reverse().slice(0,5);
   document.getElementById('hl').innerHTML=rec.length?rec.map(function(l){return lotCard(l,true);}).join(''):'<div class="empty"><div class="ei">📦</div><p>No lots yet</p></div>';
 }
@@ -464,7 +464,7 @@ function renderCon(){
   el.innerHTML=ns.map(function(n,i){
     var ls=S.lots.filter(function(l){return l.contractorName===n;});
     var pd=ls.filter(function(l){return l.status==='PENDING';}).length;
-    var tb=ls.reduce(function(s,l){return s+Math.max(0,bal(l));},0);
+    var tb=ls.reduce(function(s,l){var py=(l.piecesReceived!=null?l.piecesReceived:l.piecesIssued)*l.rate;return s+py;},0)-S.pays.filter(function(p){return ls.find(function(l){return l.id===p.lotId;});}).reduce(function(s,p){return s+p.amount;},0);
     var div=document.createElement('div');
     div.className='crow';div.dataset.action='openCon';div.dataset.name=n;
     div.innerHTML='<div class="cav" style="background:'+avc(i)+'">'+esc(ini(n))+'</div>'+
