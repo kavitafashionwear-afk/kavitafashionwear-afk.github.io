@@ -331,6 +331,7 @@ function avc(i){return AVC[i%AVC.length];}
 function ini(n){var w=(n||'').trim().split(' ');return(w.map(function(x){return x[0]||'';}).join('').toUpperCase().slice(0,2))||'?';}
 function pad(n){return String(n).padStart(3,'0');}
 function fmt(n){return 'Rs.'+new Intl.NumberFormat('en-IN').format(Math.round(n||0));}
+function fmtR(n){if(!n&&n!==0)return '0';var v=parseFloat(n);if(Number.isInteger(v))return String(v);return v.toFixed(2).replace(/\.?0+$/,'');}
 function fmtN(n){return new Intl.NumberFormat('en-IN').format(Math.round(n||0));}
 function fmtD(d){return d?new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}):'-';}
 function td(){return new Date().toISOString().split('T')[0];}
@@ -538,11 +539,11 @@ function lotCard(lot,showCon){
   var au=lot.status==='SETTLED'?'<button class="btn sm" style="color:#D97706;border-color:#FDE68A;background:#FFFBEB" data-action="unsettle" data-id="'+esc(lot.id)+'">↩ Unsettle</button>':'';
   var vc=showCon?'<button class="btn sm" data-action="viewCon" data-name="'+esc(lot.contractorName)+'">👷</button>':'';
   return '<div class="lc">'+
-    '<div class="lch"><div style="display:flex;align-items:center;gap:8px"><span class="lid">'+esc(lot.id)+'</span><div><div class="lname">'+(showCon?esc(lot.contractorName):esc(lot.item))+'</div><div class="lsub">'+(showCon?esc(lot.item):fmtD(lot.dateIssued))+'</div></div></div><div style="display:flex;align-items:center;gap:6px;flex-shrink:0"><span style="background:#FFF7ED;color:#C2410C;border:1.5px solid #FED7AA;font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px">&#8377;'+lot.rate+'/pc</span><span class="sbdg sp-'+lot.status+'">'+lot.status+'</span></div></div>'+
+    '<div class="lch"><div style="display:flex;align-items:center;gap:8px"><span class="lid">'+esc(lot.id)+'</span><div><div class="lname">'+(showCon?esc(lot.contractorName):esc(lot.item))+'</div><div class="lsub">'+(showCon?esc(lot.item):fmtD(lot.dateIssued))+'</div></div></div><div style="display:flex;align-items:center;gap:6px;flex-shrink:0"><span style="background:#FFF7ED;color:#C2410C;border:1.5px solid #FED7AA;font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px">&#8377;'+fmtR(lot.rate)+'/pc</span><span class="sbdg sp-'+lot.status+'">'+lot.status+'</span></div></div>'+
     '<div class="lnums">'+
     '<div class="nb"><div class="nl">📤 Issued</div><div class="nv">'+fmtN(lot.piecesIssued)+' pcs</div><div style="font-size:9px;color:#AAA;margin-top:2px">'+fmtD(lot.dateIssued)+'</div></div>'+
     '<div class="nb"><div class="nl">'+(_tr!=null?'📥 Received':'📥 Pending')+'</div><div class="nv '+(ms!=null&&ms>0?'red':'ok')+'">'+ (_tr!=null?fmtN(_tr)+' pcs':'-')+'</div><div style="font-size:9px;color:#AAA;margin-top:2px">'+(lot.receipts&&lot.receipts.length>1?'('+lot.receipts.length+' batches)':lot.dateReceived?fmtD(lot.dateReceived):'-')+'</div></div>'+
-    '<div class="nb"><div class="nl">Payable</div><div class="nv">'+fmt(p)+'</div><div style="font-size:9px;color:#AAA;margin-top:2px">'+fmtN(_tr!=null?_tr:lot.piecesIssued)+' x Rs.'+lot.rate+'</div></div>'+
+    '<div class="nb"><div class="nl">Payable</div><div class="nv">'+fmt(p)+'</div><div style="font-size:9px;color:#AAA;margin-top:2px">'+fmtN(_tr!=null?_tr:lot.piecesIssued)+' x Rs.'+fmtR(lot.rate)+'</div></div>'+
     '<div class="nb"><div class="nl">Paid</div><div class="nv '+(a>0?'warn':'')+'">'+fmt(a)+'</div></div>'+
     '<div class="nb"><div class="nl">Balance</div><div class="nv '+(b>0?'red':'')+'">'+fmt(b)+'</div></div>'+
     '</div>'+
@@ -607,7 +608,7 @@ function openPayModal(lid){openModal('aP');document.getElementById('pl2').value=
 function closeModal(t){var el=document.getElementById('mo-'+t);el.classList.remove('show');el.style.display='none';}
 document.querySelectorAll('.ov').forEach(function(o){o.addEventListener('click',function(e){if(e.target===o){o.classList.remove('show');o.style.display='none';}});});
 var _rvEditIdx=-1;
-function openRv(lid){rvId=lid;_rvEditIdx=-1;var lot=S.lots.find(function(l){return l.id===lid;});document.getElementById('rvs').textContent=lot.id+' - '+lot.contractorName;var _alr=totalRecv(lot)||0;document.getElementById('rvi').textContent='Issued: '+fmtN(lot.piecesIssued)+' pcs @ Rs.'+lot.rate+(_alr>0?' | Already rcvd: '+fmtN(_alr)+' | Remaining: '+fmtN(lot.piecesIssued-_alr):' = '+fmt(lot.piecesIssued*lot.rate));document.getElementById('rp').value='';document.getElementById('rd').value=td();document.getElementById('rvp').style.display='none';var el=document.getElementById('mo-rv');el.classList.add('show');el.style.display='flex';}
+function openRv(lid){rvId=lid;_rvEditIdx=-1;var lot=S.lots.find(function(l){return l.id===lid;});document.getElementById('rvs').textContent=lot.id+' - '+lot.contractorName;var _alr=totalRecv(lot)||0;document.getElementById('rvi').textContent='Issued: '+fmtN(lot.piecesIssued)+' pcs @ Rs.'+fmtR(lot.rate)+(_alr>0?' | Already rcvd: '+fmtN(_alr)+' | Remaining: '+fmtN(lot.piecesIssued-_alr):' = '+fmt(lot.piecesIssued*lot.rate));document.getElementById('rp').value='';document.getElementById('rd').value=td();document.getElementById('rvp').style.display='none';var el=document.getElementById('mo-rv');el.classList.add('show');el.style.display='flex';}
 function openEL(lid){eLId=lid;var lot=S.lots.find(function(l){return l.id===lid;});if(!lot)return;document.getElementById('els').textContent=lid;document.getElementById('ec').value=lot.contractorName;var dl2=document.getElementById('con-list2');if(dl2){dl2.innerHTML=getNames().map(function(n){return '<option value="'+esc(n)+'"></option>';}).join('');}  document.getElementById('ei').value=lot.item;document.getElementById('ep').value=lot.piecesIssued;document.getElementById('er').value=lot.rate;document.getElementById('ed').value=lot.dateIssued;document.getElementById('em').value=lot.remarks||'';document.getElementById('elp').style.display='none';var el=document.getElementById('mo-eL');el.classList.add('show');el.style.display='flex';}
 function openEC(name){eCName=name;document.getElementById('ecs').textContent=name;document.getElementById('en').value=name;var el=document.getElementById('mo-eC');el.classList.add('show');el.style.display='flex';}
 
@@ -649,7 +650,7 @@ function openEditRecv(lid){
   var lot=S.lots.find(function(l){return l.id===lid;});if(!lot)return;
   rvId=lid;
   document.getElementById('rvs').textContent=lot.id+' - '+lot.contractorName+' (editing receipt)';
-  document.getElementById('rvi').textContent='Issued: '+fmtN(lot.piecesIssued)+' pcs @ Rs.'+lot.rate+' = '+fmt(lot.piecesIssued*lot.rate);
+  document.getElementById('rvi').textContent='Issued: '+fmtN(lot.piecesIssued)+' pcs @ Rs.'+fmtR(lot.rate)+' = '+fmt(lot.piecesIssued*lot.rate);
   document.getElementById('rp').value=lot.piecesReceived||'';
   document.getElementById('rd').value=lot.dateReceived||td();
   document.getElementById('rvp').style.display='none';
@@ -860,7 +861,7 @@ function printLot(lid){
     +'<div style="padding:8px 12px;background:#F5F7FA;color:#555;font-weight:600;font-size:12px;border-bottom:1px solid #E8E8E8;border-right:1px solid #E8E8E8">Contractor</div><div style="padding:8px 12px;font-weight:700;border-bottom:1px solid #E8E8E8;color:#1F3864;font-size:14px">'+esc(lot.contractorName)+'</div>'
     +'<div style="padding:8px 12px;background:#F5F7FA;color:#555;font-weight:600;font-size:12px;border-bottom:1px solid #E8E8E8;border-right:1px solid #E8E8E8">Item</div><div style="padding:8px 12px;font-weight:700;border-bottom:1px solid #E8E8E8">'+esc(lot.item)+'</div>'
     +'<div style="padding:8px 12px;background:#F5F7FA;color:#555;font-weight:600;font-size:12px;border-bottom:1px solid #E8E8E8;border-right:1px solid #E8E8E8">Date Issued</div><div style="padding:8px 12px;font-weight:700;border-bottom:1px solid #E8E8E8">'+fmtD(lot.dateIssued)+'</div>'
-    +'<div style="padding:8px 12px;background:#F5F7FA;color:#555;font-weight:600;font-size:12px;border-right:1px solid #E8E8E8">Pieces Issued</div><div style="padding:8px 12px;font-weight:700">'+fmtN(lot.piecesIssued)+' pcs &nbsp;&nbsp; @ &nbsp;&nbsp; Rs.'+lot.rate+'/pc</div>'
+    +'<div style="padding:8px 12px;background:#F5F7FA;color:#555;font-weight:600;font-size:12px;border-right:1px solid #E8E8E8">Pieces Issued</div><div style="padding:8px 12px;font-weight:700">'+fmtN(lot.piecesIssued)+' pcs &nbsp;&nbsp; @ &nbsp;&nbsp; Rs.'+fmtR(lot.rate)+'/pc</div>'
     +'</div>'
     +recvRow
     +(lot.remarks?'<div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:6px;padding:8px 12px;font-size:12px;color:#92400E;margin-bottom:12px"><strong>Remarks:</strong> '+esc(lot.remarks)+'</div>':'')
@@ -1137,7 +1138,7 @@ function editOneBatch(lid,idx){
   var r=lot.receipts[idx];
   closeModal('rh');
   document.getElementById('rvs').textContent='Editing Batch '+(idx+1)+' of '+lot.receipts.length+' - '+lot.contractorName;
-  document.getElementById('rvi').textContent='Issued: '+fmtN(lot.piecesIssued)+' pcs @ Rs.'+lot.rate;
+  document.getElementById('rvi').textContent='Issued: '+fmtN(lot.piecesIssued)+' pcs @ Rs.'+fmtR(lot.rate);
   document.getElementById('rp').value=r.pieces||'';
   document.getElementById('rd').value=r.date||td();
   document.getElementById('rvp').style.display='none';
