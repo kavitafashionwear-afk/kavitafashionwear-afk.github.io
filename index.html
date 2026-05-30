@@ -467,7 +467,9 @@ function renderHome(){
     '<div class="sc"><div class="sl">Pending</div><div class="sv warn">'+S.lots.filter(function(l){return l.status==='PENDING';}).length+'</div></div>'+
     '<div class="sc"><div class="sl">Advance Paid</div><div class="sv">'+fmt(ta)+'</div></div>'+
     '<div class="sc"><div class="sl">Balance Due</div><div class="sv red">'+fmt(Math.max(0,totalBal))+'</div></div>';
-  var rec=[].concat(S.lots).reverse().slice(0,5);
+  var _rPend=[].concat(S.lots).filter(function(l){return l.status==='PENDING';}).sort(function(a,b){return a.dateIssued<b.dateIssued?-1:a.dateIssued>b.dateIssued?1:0;});
+  var _rOther=[].concat(S.lots).filter(function(l){return l.status!=='PENDING';}).sort(function(a,b){return b.dateIssued<a.dateIssued?-1:b.dateIssued>a.dateIssued?1:0;});
+  var rec=_rPend.concat(_rOther).slice(0,5);
   document.getElementById('hl').innerHTML=rec.length?rec.map(function(l){return lotCard(l,true);}).join(''):'<div class="empty"><div class="ei">📦</div><p>No lots yet</p></div>';
 }
 
@@ -503,7 +505,7 @@ function renderDet(name){
   var pd=ls.filter(function(l){return l.status==='PENDING';}).length;
   var st=ls.filter(function(l){return l.status==='SETTLED';}).length;
   var ns=getNames();var ci=ns.indexOf(name);
-  var _pending=[].concat(ls).filter(function(l){return l.status==='PENDING';}).sort(function(a,b){return a.dateIssued<b.dateIssued?-1:a.dateIssued>b.dateIssued?1:0;});var _others=[].concat(ls).filter(function(l){return l.status!=='PENDING';}).sort(function(a,b){return b.dateIssued<a.dateIssued?-1:b.dateIssued>a.dateIssued?1:0;});var _sorted=_pending.concat(_others);var lh=_sorted.length?_sorted.map(function(l){return lotCard(l,false);}).join(''):'<div class="empty" style="padding:1.5rem"><div class="ei" style="font-size:32px">📦</div><p>No lots</p></div>';
+  var _lPend=[].concat(ls).filter(function(l){return l.status==='PENDING';}).sort(function(a,b){return a.dateIssued<b.dateIssued?-1:a.dateIssued>b.dateIssued?1:0;});var _lOther=[].concat(ls).filter(function(l){return l.status!=='PENDING';}).sort(function(a,b){return b.dateIssued<a.dateIssued?-1:b.dateIssued>a.dateIssued?1:0;});var lh=(_lPend.concat(_lOther)).length?(_lPend.concat(_lOther)).map(function(l){return lotCard(l,false);}).join(''):'<div class="empty" style="padding:1.5rem"><div class="ei" style="font-size:32px">📦</div><p>No lots</p></div>';
   var ph=ps.length?[].concat(ps).reverse().slice(0,5).map(function(p,i){return '<div style="background:'+(i%2?'#FAFAFA':'#fff')+';border:1px solid #E8E8E8;border-radius:10px;padding:10px 14px;margin-bottom:6px;display:flex;align-items:center;gap:10px"><div style="width:8px;height:8px;border-radius:50%;background:var(--g);flex-shrink:0"></div><div style="flex:1"><div style="font-size:14px;font-weight:700;color:var(--g)">+ '+fmt(p.amount)+'</div><div style="font-size:11px;color:#888">'+fmtD(p.date)+' &middot; '+esc(p.mode)+'</div><div style="font-size:10px;color:#AAA">'+esc(p.lotId)+'</div></div></div>';}).join('')+(ps.length>5?'<div style="text-align:center;font-size:12px;color:#888;padding:6px">+ '+(ps.length-5)+' more</div>':''):'<div class="empty" style="padding:1.5rem"><div class="ei" style="font-size:32px">💵</div><p>No payments</p></div>';
   // Build action buttons using data attributes
   var acts='<div class="cacts">'+
@@ -555,7 +557,7 @@ function renderLots(){
   var fs=['ALL','PENDING','RECEIVED','SETTLED'];
   document.getElementById('lf').innerHTML=fs.map(function(f){return '<button class="fb '+(curFilter===f?'on':'')+'" data-action="filter" data-id="'+f+'">'+(f==='ALL'?'All':f.charAt(0)+f.slice(1).toLowerCase())+'</button>';}).join('');
   var vis=curFilter==='ALL'?S.lots:S.lots.filter(function(l){return l.status===curFilter;});
-  document.getElementById('ll').innerHTML=vis.length?[].concat(vis).reverse().map(function(l){return lotCard(l,true);}).join(''):'<div class="empty"><div class="ei">📦</div><p>No lots</p></div>';
+  var _visPend=[].concat(vis).filter(function(l){return l.status==='PENDING';}).sort(function(a,b){return a.dateIssued<b.dateIssued?-1:a.dateIssued>b.dateIssued?1:0;});var _visOther=[].concat(vis).filter(function(l){return l.status!=='PENDING';}).sort(function(a,b){return b.dateIssued<a.dateIssued?-1:b.dateIssued>a.dateIssued?1:0;});document.getElementById('ll').innerHTML=vis.length?(_visPend.concat(_visOther)).map(function(l){return lotCard(l,true);}).join(''):'<div class="empty"><div class="ei">📦</div><p>No lots</p></div>';
 }
 function setFilter(f){curFilter=f;renderLots();}
 
