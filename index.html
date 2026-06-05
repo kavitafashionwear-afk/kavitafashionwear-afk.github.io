@@ -400,6 +400,7 @@ document.addEventListener('click',function(e){
   else if(action==='payLot')openPayModal(id);
   else if(action==='recv')openRv(id);
   else if(action==='settle')settleLot(id);
+  else if(action==='clearRecv')clearReceive(id);
   else if(action==='print')printLot(id);
   else if(action==='printReturn')printReturn(id);
   else if(action==='editLot')openEL(id);
@@ -515,6 +516,7 @@ function lotCard(lot,showCon){
   var ap=(lot.status==='PENDING'||lot.status==='RECEIVED')?'<button class="btn sm" data-action="payLot" data-id="'+esc(lot.id)+'">💵 Pay</button>':'';
   var ar=lot.status==='PENDING'?'<button class="btn sm" data-action="recv" data-id="'+esc(lot.id)+'">📥 Receive</button>':(lot.status==='RECEIVED'||lot.status==='SETTLED')?'<button class="btn sm" style="background:#FFF7ED;color:#D97706;border-color:#FDE68A" data-action="recv" data-id="'+esc(lot.id)+'">✏️ Edit Rcvd</button>':'';
   var as=lot.status==='RECEIVED'?'<button class="btn sm grn" data-action="settle" data-id="'+esc(lot.id)+'">✓ Settle</button>':'';
+  var aclr=(lot.status==='RECEIVED'||lot.status==='SETTLED')?'<button class="btn sm red" style="background:#FEF2F2" data-action="clearRecv" data-id="'+esc(lot.id)+'" title="Reset lot to Pending">↩ Pending</button>':'';
   var vc=showCon?'<button class="btn sm" data-action="viewCon" data-name="'+esc(lot.contractorName)+'">👷</button>':'';
   return '<div class="lc">'+
     '<div class="lch"><div style="display:flex;align-items:center;gap:8px"><span class="lid">'+esc(lot.id)+'</span><div><div class="lname">'+(showCon?esc(lot.contractorName):esc(lot.item))+'</div><div class="lsub">'+(showCon?esc(lot.item):fmtD(lot.dateIssued))+'</div></div></div><span class="sbdg sp-'+lot.status+'">'+lot.status+'</span></div>'+
@@ -528,7 +530,7 @@ function lotCard(lot,showCon){
     '<div class="lmeta">'+
     (ms!=null?'<span class="'+(ms>0?'ms':'ok')+'">'+(ms>0?'⚠ ':'✓ ')+'Rcvd '+fmtN(lot.piecesReceived)+(ms>0?' ('+ms+' short)':'')+'</span>':'')+
     (lot.remarks?'<span style="font-style:italic;color:#AAA">'+esc(lot.remarks)+'</span>':'')+'</div>'+
-    '<div class="lacts">'+ap+ar+as+'<button class="btn sm pur" data-action="print" data-id="'+esc(lot.id)+'">🖨 Front</button>'+(lot.piecesReceived!=null?'<button class="btn sm" style="background:#ECFDF5;color:#065F46;border-color:#6EE7B7" data-action="printReturn" data-id="'+esc(lot.id)+'">🖨 Back</button>':'')+'<button class="btn sm" style="color:#059669;border-color:#6EE7B7" data-action="editLot" data-id="'+esc(lot.id)+'">✏️</button>'+vc+'<button class="btn sm red" style="margin-left:auto" data-action="del" data-id="'+esc(lot.id)+'">🗑</button></div>'+
+    '<div class="lacts">'+ap+ar+as+aclr+'<button class="btn sm pur" data-action="print" data-id="'+esc(lot.id)+'">🖨 Front</button>'+(lot.piecesReceived!=null?'<button class="btn sm" style="background:#ECFDF5;color:#065F46;border-color:#6EE7B7" data-action="printReturn" data-id="'+esc(lot.id)+'">🖨 Back</button>':'')+'<button class="btn sm" style="color:#059669;border-color:#6EE7B7" data-action="editLot" data-id="'+esc(lot.id)+'">✏️</button>'+vc+'<button class="btn sm red" style="margin-left:auto" data-action="del" data-id="'+esc(lot.id)+'">🗑</button></div>'+
   '</div>';
 }
 
@@ -625,6 +627,13 @@ function recvLot(){
   setTimeout(function(){printReturn(lot.id);},400);
 }
 function settleLot(id){var lot=S.lots.find(function(l){return l.id===id;});if(!lot)return;lot.status='SETTLED';save();render();if(curCon)renderDet(curCon);}
+function clearReceive(id){
+  var lot=S.lots.find(function(l){return l.id===id;});if(!lot)return;
+  if(!confirm('Reset "'+lot.id+'" to PENDING?\nThis clears received pieces, date, bags returned and advance. Payments are kept.'))return;
+  lot.piecesReceived=null;lot.dateReceived=null;lot.status='PENDING';
+  delete lot.bagsReturned;delete lot.advancePaid;
+  save();render();if(curCon)renderDet(curCon);
+}
 function saveEL(){
   var lot=S.lots.find(function(l){return l.id===eLId;});if(!lot)return;
   var c=document.getElementById('ec').value.trim(),i=document.getElementById('ei').value.trim(),p=+document.getElementById('ep').value,r=+document.getElementById('er').value,d=document.getElementById('ed').value,m=document.getElementById('em').value.trim();
