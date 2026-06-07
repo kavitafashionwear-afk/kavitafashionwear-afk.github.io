@@ -331,15 +331,18 @@ function fmtN(n){return new Intl.NumberFormat('en-IN').format(Math.round(n||0));
 function fmtD(d){return d?new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}):'-';}
 function td(){return new Date().toISOString().split('T')[0];}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-function adv(lid){return S.pays.filter(function(p){return p.lotId===lid;}).reduce(function(s,p){return s+p.amount;},0);}
+function adv(lid){var lot=S.lots.find(function(l){return l.id===lid;});return S.pays.filter(function(p){return p.lotId===lid;}).reduce(function(s,p){return s+p.amount;},0)+(lot&&lot.advancePaid?+lot.advancePaid:0);}
 function bal(lot){return((lot.piecesReceived!=null?lot.piecesReceived:lot.piecesIssued)*lot.rate)-adv(lot.id);}
+function cleanupTrash(){if(!S.trash)S.trash=[];var before=S.trash.length,cutoff=Date.now()-30*86400000;S.trash=S.trash.filter(function(item){var t=new Date(item.deletedAt).getTime();return !isNaN(t)&&t>=cutoff;});return S.trash.length!==before;}
 
 function sdot(s){var d=document.getElementById('sd');if(d)d.className='sdot'+(s==='busy'?' busy':'');}
 function subscribe(){
   sdot('busy');
   unsubDB=db.collection('users').doc(uid).collection('contractor').doc('main').onSnapshot(function(snap){
     if(snap.exists){var d=snap.data();S.lots=d.lots||[];S.pays=d.pays||[];S.lC=d.lC||0;S.pC=d.pC||0;S.trash=d.trash||[];}
+    var cleaned=cleanupTrash();
     sdot('ok');render();
+    if(cleaned)save();
   },function(){sdot('err');});
 }
 function save(){
@@ -393,7 +396,7 @@ document.addEventListener('click',function(e){
   if(!t)return;
   var action=t.dataset.action,id=t.dataset.id,name=t.dataset.name;
   if(action==='openCon')openContractor(name);
-  else if(action==='pay')openPayFor(id);
+  else if(action==='pay')openPayFor(name);
   else if(action==='newLot')openLotFor(name);
   else if(action==='editCon')openEC(name);
   else if(action==='report')printReport(name);
@@ -560,11 +563,11 @@ function renderPays(){
       '<td><button class="btn sm" style="color:#059669;border-color:#6EE7B7" data-action="editPay" data-id="'+esc(p.id)+'">✏️</button> <button class="btn sm red" data-action="delPay" data-id="'+esc(p.id)+'">🗑</button></td>'+
     '</tr>';
   }).join('');
-  el.innerHTML='<div class="tw"><table><thead><tr><th>Pay ID</th><th>Date</th><th>Lot</th><th>Contractor</th><th>Amount</th><th>Mode</th></tr></thead><tbody>'+rows+'<tr class="tt"><td colspan="4" style="text-align:right">Total</td><td>'+fmt(tot)+'</td><td></td></tr></tbody></table></div>';
+  el.innerHTML='<div class="tw"><table><thead><tr><th>Pay ID</th><th>Date</th><th>Lot</th><th>Contractor</th><th>Amount</th><th>Mode</th><th>Actions</th></tr></thead><tbody>'+rows+'<tr class="tt"><td colspan="4" style="text-align:right">Total</td><td>'+fmt(tot)+'</td><td></td><td></td></tr></tbody></table></div>';
 }
 
 function openModal(t){
-  if(t==='aL'){['fc','fi','fp','fr','fm'].forEach(function(id){document.getElementById(id).value='';});document.getElementById('fd').value=td();document.getElementById('lp').style.display='none';}
+  if(t==='aL'){['fc','fi','fp','fr','fln','fbg','fm'].forEach(function(id){document.getElementById(id).value='';});document.getElementById('fd').value=td();document.getElementById('lp').style.display='none';}
   if(t==='aP'){
     var s=document.getElementById('pl2');s.innerHTML='<option value="">Select lot...</option>';
     S.lots.filter(function(l){return l.status!=='SETTLED';}).forEach(function(l){var o=document.createElement('option');o.value=l.id;o.textContent=l.id+' - '+l.contractorName+' ('+l.item+')';s.appendChild(o);});
@@ -608,25 +611,28 @@ function pvR(){var lot=S.lots.find(function(l){return l.id===rvId;}),p=+document
 function addLot(){
   var c=document.getElementById('fc').value.trim(),i=document.getElementById('fi').value.trim(),p=+document.getElementById('fp').value,r=+document.getElementById('fr').value,d=document.getElementById('fd').value,m=document.getElementById('fm').value.trim();
   if(!c||!i||!p||!r||!d){alert('Fill all required fields.');return;}
+  if(p<=0||r<=0){alert('Pieces and rate must be greater than zero.');return;}
   S.lC++;var _ln=+document.getElementById('fln').value||S.lC;var _bg=+document.getElementById('fbg').value||0;S.lots.push({id:'LOT-'+pad(S.lC),lotNumber:_ln,bags:_bg,contractorName:c,item:i,piecesIssued:p,rate:r,dateIssued:d,piecesReceived:null,dateReceived:null,status:'PENDING',remarks:m});
   save();closeModal('aL');render();if(curCon)renderDet(curCon);
 }
 function addPay(){
   var lid=document.getElementById('pl2').value,d=document.getElementById('pd').value,a=+document.getElementById('pa').value,m=document.getElementById('pm2').value,r=document.getElementById('pr').value.trim();
   if(!lid||!d||!a){alert('Fill all required fields.');return;}
+  if(a<=0){alert('Payment amount must be greater than zero.');return;}
   S.pC++;S.pays.push({id:'PAY-'+pad(S.pC),lotId:lid,date:d,amount:a,mode:m,remarks:r});
   save();closeModal('aP');render();if(curCon)renderDet(curCon);
 }
 function recvLot(){
   var p=+document.getElementById('rp').value,d=document.getElementById('rd').value;
   if(!p||!d){alert('Fill all required fields.');return;}
+  if(p<=0){alert('Pieces received must be greater than zero.');return;}
   var lot=S.lots.find(function(l){return l.id===rvId;});if(!lot)return;
-  lot.piecesReceived=p;lot.dateReceived=d;lot.status='RECEIVED';var _rbg=+document.getElementById('rbg').value||0;var _radv=+document.getElementById('radv').value||0;if(_rbg)lot.bagsReturned=_rbg;if(_radv)lot.advancePaid=_radv;
+  lot.piecesReceived=p;lot.dateReceived=d;lot.status='RECEIVED';var _rbg=+document.getElementById('rbg').value||0;var _radv=+document.getElementById('radv').value||0;if(_rbg>0)lot.bagsReturned=_rbg;else delete lot.bagsReturned;if(_radv>0)lot.advancePaid=_radv;else delete lot.advancePaid;
   save();closeModal('rv');render();if(curCon)renderDet(curCon);
   // Auto-open return receipt print
   setTimeout(function(){printReturn(lot.id);},400);
 }
-function settleLot(id){var lot=S.lots.find(function(l){return l.id===id;});if(!lot)return;lot.status='SETTLED';save();render();if(curCon)renderDet(curCon);}
+function settleLot(id){var lot=S.lots.find(function(l){return l.id===id;});if(!lot)return;var due=bal(lot);if(due>0&&!confirm('This lot still has '+fmt(due)+' due. Mark as settled anyway?'))return;lot.status='SETTLED';save();render();if(curCon)renderDet(curCon);}
 function clearReceive(id){
   var lot=S.lots.find(function(l){return l.id===id;});if(!lot)return;
   if(!confirm('Reset "'+lot.id+'" to PENDING?\nThis clears received pieces, date, bags returned and advance. Payments are kept.'))return;
@@ -638,6 +644,7 @@ function saveEL(){
   var lot=S.lots.find(function(l){return l.id===eLId;});if(!lot)return;
   var c=document.getElementById('ec').value.trim(),i=document.getElementById('ei').value.trim(),p=+document.getElementById('ep').value,r=+document.getElementById('er').value,d=document.getElementById('ed').value,m=document.getElementById('em').value.trim();
   if(!c||!i||!p||!r||!d){alert('Fill all required fields.');return;}
+  if(p<=0||r<=0){alert('Pieces and rate must be greater than zero.');return;}
   lot.lotNumber=+document.getElementById('eln').value||lot.lotNumber||0;lot.bags=+document.getElementById('ebg').value||0;lot.contractorName=c;lot.item=i;lot.piecesIssued=p;lot.rate=r;lot.dateIssued=d;lot.remarks=m;
   save();closeModal('eL');render();if(curCon)renderDet(curCon);
 }
@@ -800,8 +807,7 @@ function printLot(lid){
 function printReturn(lid){
   // BACK SLIP — printed when lot is returned (flip sheet and print on back)
   var lot=S.lots.find(function(l){return l.id===lid;});if(!lot||lot.piecesReceived==null)return;
-  var lp=S.pays.filter(function(p){return p.lotId===lid;});
-  var advTotal=lp.reduce(function(s,p){return s+p.amount;},0)+(lot.advancePaid||0);
+  var advTotal=adv(lid);
   var pcsRecv=lot.piecesReceived;
   var payable=pcsRecv*lot.rate;
   var missing=lot.piecesIssued-pcsRecv;
@@ -970,6 +976,7 @@ function confirmDelPay(pid){
     'Date: <strong>'+fmtD(pay.date)+'</strong><br>'+
     'Lot: <strong>'+esc(pay.lotId)+'</strong></div>'+
     '<div style="background:#FFF7ED;border:1px solid #FDE68A;border-radius:8px;padding:10px;font-size:12px;color:#92400E;margin-top:10px">Deleting this payment will increase the balance due. Cannot be undone.</div>';
+  document.getElementById('cfo').textContent='Delete Payment';
   document.getElementById('cfo').onclick=function(){
     S.pays=S.pays.filter(function(p){return p.id!==pid;});
     save();closeModal('cf');render();if(curCon)renderDet(curCon);
@@ -1003,6 +1010,7 @@ function saveEditPay(){
   var pay=S.pays.find(function(p){return p.id===editPayId;});if(!pay)return;
   var lid=document.getElementById('epl').value,d=document.getElementById('epd').value,a=+document.getElementById('epa').value,m=document.getElementById('epm').value,r=document.getElementById('epr').value.trim();
   if(!lid||!d||!a){alert('Fill all required fields.');return;}
+  if(a<=0){alert('Payment amount must be greater than zero.');return;}
   pay.lotId=lid;pay.date=d;pay.amount=a;pay.mode=m;pay.remarks=r;
   save();closeModal('ePay');render();if(curCon)renderDet(curCon);
 }
@@ -1060,12 +1068,12 @@ function restoreItem(i){
   if(!S.trash||!S.trash[i])return;
   var item=S.trash[i];
   if(item.type==='lot'){
-    S.lots.push(item.lot);
-    if(item.pays)(item.pays).forEach(function(p){S.pays.push(p);});
+    if(!S.lots.find(function(l){return l.id===item.lot.id;}))S.lots.push(item.lot);
+    if(item.pays)(item.pays).forEach(function(p){if(!S.pays.find(function(x){return x.id===p.id;}))S.pays.push(p);});
     alert('✅ Lot '+item.lot.id+' restored!');
   } else {
-    (item.lots||[]).forEach(function(l){S.lots.push(l);});
-    (item.pays||[]).forEach(function(p){S.pays.push(p);});
+    (item.lots||[]).forEach(function(l){if(!S.lots.find(function(x){return x.id===l.id;}))S.lots.push(l);});
+    (item.pays||[]).forEach(function(p){if(!S.pays.find(function(x){return x.id===p.id;}))S.pays.push(p);});
     alert('✅ Contractor "'+item.name+'" and all data restored!');
   }
   S.trash.splice(i,1);
