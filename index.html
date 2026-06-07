@@ -336,9 +336,11 @@ function payable(lot){return lot&&lot.piecesReceived!=null?lot.piecesReceived*lo
 function bal(lot){return payable(lot)-adv(lot.id);}
 function lotSortVal(lot){return new Date((lot.dateReceived||lot.dateIssued||'1970-01-01')+'T00:00:00').getTime()||0;}
 function contractorLots(name){return S.lots.filter(function(l){return l.contractorName===name;});}
-function contractorPays(name){var ids=contractorLots(name).map(function(l){return l.id;});return S.pays.filter(function(p){return ids.indexOf(p.lotId)!==-1;});}
+function payContractorName(pay){var lot=S.lots.find(function(l){return l.id===pay.lotId;});return lot?lot.contractorName:(pay.contractorName||'');}
+function contractorPays(name){return S.pays.filter(function(p){return payContractorName(p)===name;});}
 function contractorPayable(name){return contractorLots(name).reduce(function(s,l){return s+payable(l);},0);}
-function contractorPaid(name){return contractorLots(name).filter(function(l){return l.piecesReceived!=null;}).reduce(function(s,l){return s+adv(l.id);},0);}
+function contractorAdvancePaid(name){return contractorLots(name).filter(function(l){return l.piecesReceived!=null;}).reduce(function(s,l){return s+(l.advancePaid?+l.advancePaid:0);},0);}
+function contractorPaid(name){return contractorPays(name).reduce(function(s,p){return s+p.amount;},0)+contractorAdvancePaid(name);}
 function contractorBal(name){return contractorPayable(name)-contractorPaid(name);}
 function refreshLotStatus(lot){if(!lot)return;if(lot.piecesReceived==null){lot.status='PENDING';return;}lot.status=bal(lot)<=0?'SETTLED':'RECEIVED';}
 function refreshAllStatuses(){S.lots.forEach(refreshLotStatus);}
@@ -357,7 +359,7 @@ function shareLot(id){
   else{prompt('Copy lot details:',text);}
 }
 function allocatePayment(name,amount,date,mode,remarks){
-  var left=amount,created=[];
+  var left=amount,created=[],batchId='PAYB-'+Date.now()+'-'+Math.floor(Math.random()*1000);
   var lots=contractorLots(name).filter(function(l){return l.piecesReceived!=null&&bal(l)>0;}).sort(function(a,b){return lotSortVal(a)-lotSortVal(b)||(a.lotNumber||0)-(b.lotNumber||0)||a.id.localeCompare(b.id);});
   lots.forEach(function(lot){
     if(left<=0)return;
@@ -365,13 +367,25 @@ function allocatePayment(name,amount,date,mode,remarks){
     if(use<=0)return;
     S.pC++;
     var note=remarks||'';
-    created.push({id:'PAY-'+pad(S.pC),lotId:lot.id,date:date,amount:use,mode:mode,remarks:note+(amount!==use?' (FIFO payment for '+name+')':'')});
+    created.push({id:'PAY-'+pad(S.pC),batchId:batchId,contractorName:name,lotId:lot.id,date:date,amount:use,totalAmount:amount,mode:mode,remarks:note});
     left-=use;
   });
   if(left>0)return{ok:false,left:left,created:created};
   S.pays=S.pays.concat(created);
   refreshAllStatuses();
   return{ok:true,created:created};
+}
+function paymentGroups(pays){
+  var map={};
+  pays.forEach(function(p){
+    var k=p.batchId||p.id;
+    if(!map[k])map[k]={key:k,date:p.date,mode:p.mode||'Cash',remarks:p.remarks||'',contractorName:payContractorName(p),amount:0,items:[],ids:[]};
+    map[k].amount+=p.amount;map[k].items.push(p);map[k].ids.push(p.id);
+  });
+  return Object.keys(map).map(function(k){return map[k];}).sort(function(a,b){return (new Date(b.date)-new Date(a.date))||b.key.localeCompare(a.key);});
+}
+function paymentAllocationText(group){
+  return group.items.map(function(p){return esc(p.lotId)+' '+fmt(p.amount);}).join(' | ');
 }
 function cleanupTrash(){if(!S.trash)S.trash=[];var before=S.trash.length,cutoff=Date.now()-30*86400000;S.trash=S.trash.filter(function(item){var t=new Date(item.deletedAt).getTime();return !isNaN(t)&&t>=cutoff;});return S.trash.length!==before;}
 
@@ -452,6 +466,7 @@ document.addEventListener('click',function(e){
   else if(action==='del')confirmDel(id);
   else if(action==='delCon')confirmDelCon(name);
   else if(action==='delPay')confirmDelPay(id);
+  else if(action==='delPayGroup')confirmDelPayGroup(id);
   else if(action==='editPay')openEditPay(id);
   else if(action==='filter')setFilter(id);
 });
@@ -526,7 +541,7 @@ function renderCon(){
 function renderDet(name){
   var el=document.getElementById('db');
   var ls=S.lots.filter(function(l){return l.contractorName===name;});
-  var ps=S.pays.filter(function(p){return ls.find(function(l){return l.id===p.lotId;});});
+  var ps=contractorPays(name);
   var tb=contractorPayable(name);
   var tp=contractorPaid(name);
   var tbal=tb-tp;
@@ -535,6 +550,8 @@ function renderDet(name){
   var ns=getNames();var ci=ns.indexOf(name);
   var lh=ls.length?[].concat(ls).reverse().map(function(l){return lotCard(l,false);}).join(''):'<div class="empty" style="padding:1.5rem"><div class="ei" style="font-size:32px">📦</div><p>No lots</p></div>';
   var ph=ps.length?[].concat(ps).reverse().slice(0,5).map(function(p,i){return '<div style="background:'+(i%2?'#FAFAFA':'#fff')+';border:1px solid #E8E8E8;border-radius:10px;padding:10px 14px;margin-bottom:6px;display:flex;align-items:center;gap:10px"><div style="width:8px;height:8px;border-radius:50%;background:var(--g);flex-shrink:0"></div><div style="flex:1"><div style="font-size:14px;font-weight:700;color:var(--g)">+ '+fmt(p.amount)+'</div><div style="font-size:11px;color:#888">'+fmtD(p.date)+' &middot; '+esc(p.mode)+'</div><div style="font-size:10px;color:#AAA">'+esc(p.lotId)+'</div></div></div>';}).join('')+(ps.length>5?'<div style="text-align:center;font-size:12px;color:#888;padding:6px">+ '+(ps.length-5)+' more</div>':''):'<div class="empty" style="padding:1.5rem"><div class="ei" style="font-size:32px">💵</div><p>No payments</p></div>';
+  var pg=paymentGroups(ps);
+  ph=pg.length?pg.slice(0,5).map(function(g,i){return '<div style="background:'+(i%2?'#FAFAFA':'#fff')+';border:1px solid #E8E8E8;border-radius:10px;padding:10px 14px;margin-bottom:6px;display:flex;align-items:center;gap:10px"><div style="width:8px;height:8px;border-radius:50%;background:var(--g);flex-shrink:0"></div><div style="flex:1"><div style="font-size:14px;font-weight:700;color:var(--g)">+ '+fmt(g.amount)+'</div><div style="font-size:11px;color:#888">'+fmtD(g.date)+' &middot; '+esc(g.mode)+' &middot; FIFO</div><div style="font-size:10px;color:#AAA">Settled: '+paymentAllocationText(g)+'</div>'+(g.remarks?'<div style="font-size:10px;color:#AAA;font-style:italic">'+esc(g.remarks)+'</div>':'')+'</div></div>';}).join('')+(pg.length>5?'<div style="text-align:center;font-size:12px;color:#888;padding:6px">+ '+(pg.length-5)+' more</div>':''):'<div class="empty" style="padding:1.5rem"><div class="ei" style="font-size:32px">💵</div><p>No payments</p></div>';
   // Build action buttons using data attributes
   var acts='<div class="cacts">'+
     '<button class="cact g" data-action="pay" data-name="'+esc(name)+'">💵 Payment</button>'+
@@ -588,6 +605,24 @@ function setFilter(f){curFilter=f;renderLots();}
 
 function renderPays(){
   var vp=S.pays;
+  var groups=paymentGroups(vp);
+  var groupedTot=groups.reduce(function(s,g){return s+g.amount;},0);
+  document.getElementById('pm').textContent=groups.length+' payment(s) &middot; '+fmt(groupedTot);
+  var el=document.getElementById('pl');
+  if(!vp.length){el.innerHTML='<div class="empty"><div class="ei">💵</div><p>No payments yet</p></div>';return;}
+  var groupedRows=groups.map(function(g,i){
+    return '<tr class="'+(i%2?'alt':'')+'">'+
+      '<td style="color:#888">'+esc(g.key)+'</td>'+
+      '<td>'+fmtD(g.date)+'</td>'+
+      '<td style="color:#1E40AF;font-weight:600">'+paymentAllocationText(g)+'</td>'+
+      '<td>'+esc(g.contractorName||'-')+'</td>'+
+      '<td style="font-weight:600">'+fmt(g.amount)+'</td>'+
+      '<td>'+esc(g.mode)+'</td>'+
+      '<td>'+(g.items.length===1?'<button class="btn sm" style="color:#059669;border-color:#6EE7B7" data-action="editPay" data-id="'+esc(g.items[0].id)+'">✏️</button> ':'')+'<button class="btn sm red" data-action="delPayGroup" data-id="'+esc(g.key)+'">🗑</button></td>'+
+    '</tr>';
+  }).join('');
+  el.innerHTML='<div class="tw"><table><thead><tr><th>Payment</th><th>Date</th><th>FIFO Settlement</th><th>Contractor</th><th>Amount</th><th>Mode</th><th>Actions</th></tr></thead><tbody>'+groupedRows+'<tr class="tt"><td colspan="4" style="text-align:right">Total</td><td>'+fmt(groupedTot)+'</td><td></td><td></td></tr></tbody></table></div>';
+  return;
   var tot=vp.reduce(function(s,p){return s+p.amount;},0);
   document.getElementById('pm').textContent=vp.length+' record(s) &middot; '+fmt(tot);
   var el=document.getElementById('pl');
@@ -936,7 +971,7 @@ function printReturn(lid){
 
 function printReport(name){
   var ls=S.lots.filter(function(l){return l.contractorName===name;});
-  var ps=S.pays.filter(function(p){return ls.find(function(l){return l.id===p.lotId;});});
+  var ps=contractorPays(name);
   var tb=contractorPayable(name);
   var tp=contractorPaid(name);
   var tbal=tb-tp;
@@ -983,7 +1018,7 @@ function printReport(name){
 // DELETE CONTRACTOR
 function confirmDelCon(name){
   var ls=S.lots.filter(function(l){return l.contractorName===name;});
-  var ps=S.pays.filter(function(p){return ls.find(function(l){return l.id===p.lotId;});});
+  var ps=contractorPays(name);
   var tbal=contractorBal(name);
   document.getElementById('cfm').innerHTML=
     '<div style="font-size:15px;font-weight:700;color:#1F3864;margin-bottom:10px">'+esc(name)+'</div>'+
@@ -1018,6 +1053,24 @@ function confirmDelPay(pid){
   document.getElementById('cfo').textContent='Delete Payment';
   document.getElementById('cfo').onclick=function(){
     S.pays=S.pays.filter(function(p){return p.id!==pid;});refreshAllStatuses();
+    save();closeModal('cf');render();if(curCon)renderDet(curCon);
+  };
+  var el=document.getElementById('mo-cf');el.classList.add('show');el.style.display='flex';
+}
+function confirmDelPayGroup(key){
+  var group=paymentGroups(S.pays).find(function(g){return g.key===key;});if(!group)return;
+  document.getElementById('cfm').innerHTML=
+    '<div style="font-size:13px;color:#555;line-height:1.8">'+
+    'Payment: <strong>'+esc(group.key)+'</strong><br>'+
+    'Contractor: <strong>'+esc(group.contractorName||'-')+'</strong><br>'+
+    'Amount: <strong>'+fmt(group.amount)+'</strong><br>'+
+    'Date: <strong>'+fmtD(group.date)+'</strong><br>'+
+    'FIFO: <strong>'+paymentAllocationText(group)+'</strong></div>'+
+    '<div style="background:#FFF7ED;border:1px solid #FDE68A;border-radius:8px;padding:10px;font-size:12px;color:#92400E;margin-top:10px">Deleting this payment removes all FIFO allocations created from it.</div>';
+  document.getElementById('cfo').textContent='Delete Payment';
+  document.getElementById('cfo').onclick=function(){
+    var ids=group.ids;
+    S.pays=S.pays.filter(function(p){return ids.indexOf(p.id)===-1;});refreshAllStatuses();
     save();closeModal('cf');render();if(curCon)renderDet(curCon);
   };
   var el=document.getElementById('mo-cf');el.classList.add('show');el.style.display='flex';
