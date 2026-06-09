@@ -163,7 +163,7 @@ input:focus,select:focus{border-color:var(--n)}
     <div class="pg">
       <div class="banner"><h2>📦 Contractor Overview</h2><p id="hd" style="font-size:12px;color:#AAC4DE;margin-top:3px"></p></div>
       <div class="stats" id="hs"></div>
-      <div id="fix-payments-bar" style="display:none;margin:8px 0 4px;background:#FFF7ED;border:1.5px solid #F59E0B;border-radius:10px;padding:11px 14px"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><div style="font-size:13px;font-weight:700;color:#92400E">⚠️ Payment Distribution Needs Fix</div><div style="font-size:11px;color:#B45309;margin-top:2px">Some lots show balance due even though contractor is fully paid. Tap Fix to redistribute via FIFO.</div></div><button onclick="rebalanceAll()" style="background:#F59E0B;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0">🔧 Fix Now</button></div></div>
+      <div id="fix-bar" style="display:none;margin:6px 0;background:#FFF7ED;border:1.5px solid #F59E0B;border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px"><div><div style="font-size:13px;font-weight:700;color:#92400E">⚠️ Payment entries need rebalancing</div><div style="font-size:11px;color:#B45309;margin-top:2px">Some lots show wrong balance due to old lump-sum entries. Tap to fix.</div></div><button onclick="rebalanceAll()" style="background:#F59E0B;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0">🔧 Fix Now</button></div>
       <div class="sh"><h2>Recent Lots</h2></div>
       <div id="hl"></div>
     </div>
@@ -514,6 +514,7 @@ function render(){
 }
 
 function renderHome(){
+  var fb=document.getElementById("fix-bar");if(fb){var needsFix=S.lots.some(function(l){return l.piecesReceived!=null&&bal(l)<-1;});fb.style.display=needsFix?"flex":"none";}
   var ta=S.lots.reduce(function(s,l){return s+adv(l.id);},0);
   var tb=S.lots.reduce(function(s,l){return s+payable(l);},0)-ta;
   document.getElementById('hs').innerHTML=
@@ -523,10 +524,6 @@ function renderHome(){
     '<div class="sc"><div class="sl">Balance Due</div><div class="sv red">'+fmt(tb)+'</div></div>';
   var rec=[].concat(S.lots).reverse().slice(0,5);
   document.getElementById('hl').innerHTML=rec.length?rec.map(function(l){return lotCard(l,true);}).join(''):'<div class="empty"><div class="ei">📦</div><p>No lots yet</p></div>';
-  // Show rebalance button if any contractor has mismatched statuses
-  var needsFix=S.lots.some(function(l){return l.piecesReceived!=null&&l.status!=='SETTLED'&&bal(l)<=0;});
-  var fixDiv=document.getElementById('fix-payments-bar');
-  if(fixDiv){fixDiv.style.display=needsFix?'block':'none';}
 }
 
 function getNames(){
@@ -1210,95 +1207,69 @@ function shareWA(){
 }
 
 // ═══════════════════════════════════════════
-//  PAYMENT REBALANCER — fixes lump-sum entries
+//  PAYMENT REBALANCER
 // ═══════════════════════════════════════════
-function rebalanceContractor(name) {
-  var lots = contractorLots(name);
+function rebalanceAll(){
+  // Get all contractor names
+  var names=[];
+  S.lots.forEach(function(l){if(l.contractorName&&names.indexOf(l.contractorName)<0)names.push(l.contractorName);});
 
-  // Step 1: Collect all payment records for this contractor
-  // Group S.pays by batchId to reconstruct original payment events
-  var cPays = contractorPays(name);
-  var batches = {};
-  cPays.forEach(function(p) {
-    var k = p.batchId || p.id;
-    if (!batches[k]) batches[k] = {date: p.date, mode: p.mode||'Cash', remarks: p.remarks||'', amount: 0};
-    // Only count non-advance pays OR advances (all are real money)
-    batches[k].amount += p.amount;
-  });
+  var results=[];
+  names.forEach(function(name){
+    var lots=contractorLots(name);
 
-  // Also collect lump-sum advancePaid on individual lots (old format)
-  // These were entered directly as lot.advancePaid without going through allocatePayment
-  lots.forEach(function(lot) {
-    if (lot.advancePaid && +lot.advancePaid > 0) {
-      // Check if this advancePaid is already accounted for in S.pays
-      var alreadyCounted = cPays.some(function(p) {
-        return p.lotId === lot.id && p.isAdvance;
-      });
-      if (!alreadyCounted) {
-        // Old lump-sum entry — add as a payment event
-        var k = 'LEGACY-' + lot.id;
-        if (!batches[k]) batches[k] = {
-          date: lot.dateReceived || lot.dateIssued || td(),
-          mode: 'Cash',
-          remarks: 'Legacy payment (auto-rebalanced)',
-          amount: 0
-        };
-        batches[k].amount += +lot.advancePaid;
+    // Step 1: Collect ALL money ever paid for this contractor
+    // a) From S.pays (new FIFO entries)
+    var payBatches={};
+    S.pays.filter(function(p){return payContractorName(p)===name;}).forEach(function(p){
+      var k=p.batchId||p.id;
+      if(!payBatches[k])payBatches[k]={date:p.date,mode:p.mode||'Cash',remarks:p.remarks||'',amount:0};
+      payBatches[k].amount+=p.amount;
+    });
+
+    // b) From lot.advancePaid (old lump-sum entries stored directly on lot)
+    lots.forEach(function(lot){
+      var ap=+(lot.advancePaid||0);
+      if(ap>0){
+        // Check if this is already represented in S.pays for this lot
+        var alreadyInPays=S.pays.some(function(p){return p.lotId===lot.id&&!p.isAdvance;});
+        if(!alreadyInPays){
+          var k='LEGACY-'+lot.id;
+          if(!payBatches[k])payBatches[k]={date:lot.dateReceived||lot.dateIssued||td(),mode:'Cash',remarks:'Rebalanced from legacy entry',amount:0};
+          payBatches[k].amount+=ap;
+        }
       }
-    }
-  });
+    });
 
-  // Step 2: Remove all S.pays for this contractor
-  S.pays = S.pays.filter(function(p) {
-    return payContractorName(p) !== name;
-  });
+    var totalMoney=Object.values(payBatches).reduce(function(s,b){return s+b.amount;},0);
+    if(totalMoney<=0){results.push({name:name,batches:0,total:0});return;}
 
-  // Step 3: Clear lot.advancePaid on all lots for this contractor
-  lots.forEach(function(lot) {
-    if (lot.advancePaid) lot.advancePaid = 0;
-  });
+    // Step 2: Wipe S.pays for this contractor
+    S.pays=S.pays.filter(function(p){return payContractorName(p)!==name;});
 
-  // Reset lot statuses to RECEIVED (not SETTLED) so FIFO can re-settle them
-  lots.forEach(function(lot) {
-    if (lot.piecesReceived != null) lot.status = 'RECEIVED';
-  });
+    // Step 3: Zero out lot.advancePaid on all lots
+    lots.forEach(function(l){l.advancePaid=0;});
 
-  // Step 4: Sort batches by date and re-run FIFO allocation
-  var sortedBatches = Object.values(batches)
-    .filter(function(b) { return b.amount > 0; })
-    .sort(function(a, b) { return a.date.localeCompare(b.date); });
+    // Step 4: Reset all received lots to RECEIVED so FIFO can re-settle
+    lots.forEach(function(l){if(l.piecesReceived!=null)l.status='RECEIVED';});
 
-  var totalReallocated = 0;
-  sortedBatches.forEach(function(b) {
-    var result = allocatePayment(name, b.amount, b.date, b.mode, b.remarks);
-    totalReallocated += b.amount;
+    // Step 5: Sort payment batches by date ascending and re-run FIFO
+    var sorted=Object.values(payBatches).sort(function(a,b){return a.date.localeCompare(b.date);});
+    sorted.forEach(function(b){
+      if(b.amount>0) allocatePayment(name,b.amount,b.date,b.mode,b.remarks);
+    });
+
+    results.push({name:name,batches:sorted.length,total:totalMoney});
   });
 
   refreshAllStatuses();
-  return {
-    contractor: name,
-    batches: sortedBatches.length,
-    totalReallocated: totalReallocated
-  };
-}
-
-function rebalanceAll() {
-  // Get unique contractor names
-  var names = [];
-  S.lots.forEach(function(l) {
-    if (l.contractorName && names.indexOf(l.contractorName) === -1) names.push(l.contractorName);
-  });
-
-  var results = names.map(function(n) { return rebalanceContractor(n); });
-  var total = results.reduce(function(s, r) { return s + r.batches; }, 0);
-
   save();
   render();
-  if (curCon) renderDet(curCon);
+  if(curCon)renderDet(curCon);
 
-  var msg = '✅ Rebalanced payments for ' + names.length + ' contractor(s)\n\n';
-  results.forEach(function(r) {
-    msg += '• ' + r.contractor + ': ' + r.batches + ' payment batch(es) · ' + fmt(r.totalReallocated) + ' reallocated\n';
+  var msg='✅ Payments rebalanced for '+names.length+' contractor(s)\n\n';
+  results.forEach(function(r){
+    if(r.batches>0) msg+='• '+r.name+': '+r.batches+' payment(s) · Rs.'+Math.round(r.total).toLocaleString('en-IN')+' reallocated\n';
   });
   alert(msg);
 }
