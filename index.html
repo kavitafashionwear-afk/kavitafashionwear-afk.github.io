@@ -192,7 +192,6 @@ input:focus,select:focus{border-color:var(--n)}
     </div>
   </div>
 
-  <div class="cs" id="cs-day"><div class="pg"><div class="sh"><h2>📋 Daybook</h2><input type="date" id="db-date" value="" onchange="renderDaybook()" style="padding:6px 10px;border:1.5px solid #DDD;border-radius:8px;font-size:13px"></div><div id="dbl"></div></div></div>
   <div class="cs" id="cs-bin">
     <div class="pg">
       <div style="background:#FFF7ED;border:1px solid #FDE68A;border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:13px;color:#92400E">
@@ -378,7 +377,7 @@ function fmtN(n){return new Intl.NumberFormat('en-IN').format(Math.round(n||0));
 function fmtD(d){return d?new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}):'-';}
 function td(){return new Date().toISOString().split('T')[0];}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-function adv(lid){var lot=S.lots.find(function(l){return l.id===lid;});if(!lot||lot.piecesReceived==null)return 0;var fromPays=S.pays.filter(function(p){return p.lotId===lid;}).reduce(function(s,p){return s+p.amount;},0);var legacy=lot.advancePaid?+lot.advancePaid:0;return Math.round((fromPays+legacy)*100)/100;}
+function adv(lid){var lot=S.lots.find(function(l){return l.id===lid;});if(!lot||lot.piecesReceived==null)return 0;return Math.round(S.pays.filter(function(p){return p.lotId===lid;}).reduce(function(s,p){return s+p.amount;},0)*100)/100;}
 function payable(lot){return lot&&lot.piecesReceived!=null?Math.round(lot.piecesReceived*lot.rate*100)/100:0;}
 function bal(lot){return Math.round((payable(lot)-adv(lot.id))*100)/100;}
 function lotSortVal(lot){return new Date((lot.dateReceived||lot.dateIssued||'1970-01-01')+'T00:00:00').getTime()||0;}
@@ -388,7 +387,7 @@ function contractorPays(name){return S.pays.filter(function(p){return payContrac
 function contractorPayable(name){return contractorLots(name).reduce(function(s,l){return s+payable(l);},0);}
 function contractorAdvances(name){return (S.advances||[]).filter(function(a){return a.contractorName===name;});}
 function contractorAdvancePool(name){return Math.round(contractorAdvances(name).reduce(function(s,a){return s+(a.amount-(a.used||0));},0)*100)/100;}
-function contractorPaid(name){var fromPays=contractorPays(name).reduce(function(s,p){return s+p.amount;},0);var legacy=contractorLots(name).reduce(function(s,l){return s+(l.advancePaid?+l.advancePaid:0);},0);return Math.round((fromPays+legacy)*100)/100;}
+function contractorPaid(name){return Math.round(contractorPays(name).reduce(function(s,p){return s+p.amount;},0)*100)/100;}
 function contractorBal(name){return Math.max(0,contractorPayable(name)-contractorPaid(name)-contractorAdvancePool(name));}
 function contractorReceivedDue(name){return contractorLots(name).filter(function(l){return l.piecesReceived!=null&&bal(l)>0.01;}).reduce(function(s,l){return s+bal(l);},0);}
 function nextAdvanceLot(name){var lots=contractorLots(name).filter(function(l){return l.piecesReceived==null;}).sort(function(a,b){return lotSortVal(a)-lotSortVal(b)||(a.lotNumber||0)-(b.lotNumber||0)||a.id.localeCompare(b.id);});return lots[0]||null;}
@@ -599,7 +598,7 @@ function goTab(tab){
   var nt=document.getElementById('nt-'+tab);if(nt)nt.classList.add('on');
   document.getElementById('bb').className='';
   document.getElementById('fab').style.display='flex';
-  var ti={home:'🧵 Contractor Tracker',con:'👷 Contractors',lots:'📦 All Lots',pays:'💵 Payments',day:'📋 Daybook',bin:'🗑️ Recycle Bin'};
+  var ti={home:'🧵 Contractor Tracker',con:'👷 Contractors',lots:'📦 All Lots',pays:'💵 Payments',bin:'🗑️ Recycle Bin'};
   document.getElementById('tbt').textContent=ti[tab]||'Contractor Tracker';
   render();
 }
@@ -619,109 +618,24 @@ function render(){
   else if(curTab==='con')renderCon();
   else if(curTab==='lots')renderLots();
   else if(curTab==='pays')renderPays();
-  else if(curTab==='day')renderDaybook();
   else if(curTab==='bin')renderBin();
   if(curCon)renderDet(curCon);
   updateBinBadge();
 }
 
 function renderHome(){
-  var totalPayable=S.lots.reduce(function(s,l){return s+payable(l);},0);
-  var totalPaid=S.lots.reduce(function(s,l){return s+adv(l.id);},0);
-  var due=Math.max(0,totalPayable-totalPaid);
+  var paid=S.lots.reduce(function(s,l){return s+adv(l.id);},0);
+  var due=S.lots.reduce(function(s,l){return s+Math.max(0,bal(l));},0);
   var pool=(S.advances||[]).reduce(function(s,a){return s+(a.amount-(a.used||0));},0);
   document.getElementById('hs').innerHTML=
     '<div class="sc"><div class="sl">Total Lots</div><div class="sv">'+S.lots.length+'</div></div>'+
     '<div class="sc"><div class="sl">Pending</div><div class="sv warn">'+S.lots.filter(function(l){return l.status==='PENDING';}).length+'</div></div>'+
     '<div class="sc"><div class="sl">Advance Pool</div><div class="sv" style="color:#7C3AED">'+fmt(pool)+'</div></div>'+
-    '<div class="sc"><div class="sl">Balance Due</div><div class="sv '+(due>0.01?'red':'')+'" >'+fmt(due)+'</div></div>';
-
-  // ── TODAY'S DETAILED DAYBOOK ────────────────────────────────────
-  var today=td();
-
-  // Lots issued today
-  var issuedToday=S.lots.filter(function(l){return l.dateIssued===today;});
-  // Receivals today
-  var recvToday=[];
-  S.lots.forEach(function(l){
-    if(l.receivals&&l.receivals.length){
-      l.receivals.forEach(function(r){
-        if(r.date===today)recvToday.push({lot:l,pieces:r.pieces,bags:r.bags||0});
-      });
-    } else if(l.dateReceived===today&&l.piecesReceived!=null){
-      recvToday.push({lot:l,pieces:l.piecesReceived,bags:l.bagsReturned||0});
-    }
-  });
-  // Payments today
-  var paidToday=S.pays.filter(function(p){return p.date===today;});
-  // Advances today
-  var advToday=(S.advances||[]).filter(function(a){return a.date===today;});
-
-  var hasActivity=issuedToday.length||recvToday.length||paidToday.length||advToday.length;
-  var db='';
-
-  if(hasActivity){
-    db+='<div class="sh" style="margin-top:4px"><h2>📋 Today\'s Activity — '+fmtD(today)+'</h2></div>';
-
-    // ── ISSUED ──
-    if(issuedToday.length){
-      db+='<div style="margin-bottom:14px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><div style="width:28px;height:28px;border-radius:50%;background:#EFF6FF;display:flex;align-items:center;justify-content:center;font-size:14px">📤</div><div style="font-size:14px;font-weight:700;color:#1E40AF">Lots Issued ('+issuedToday.length+')</div></div>';
-      issuedToday.forEach(function(l){
-        db+='<div style="background:#F8FBFF;border:1px solid #DBEAFE;border-radius:10px;padding:10px 14px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:13px;font-weight:700;color:#1E40AF">'+esc(l.id)+(l.lotNumber?' · Lot '+l.lotNumber:'')+'</div><div style="font-size:12px;color:#555">'+esc(l.contractorName)+' · '+esc(l.item)+'</div></div><div style="text-align:right"><div style="font-size:14px;font-weight:700">'+fmtN(l.piecesIssued)+' pcs</div><div style="font-size:11px;color:#888">'+fmt(l.piecesIssued*l.rate)+'</div></div></div>';
-      });
-      db+='</div>';
-    }
-
-    // ── RECEIVED ──
-    if(recvToday.length){
-      var recvTotal=recvToday.reduce(function(s,r){return s+r.pieces;},0);
-      db+='<div style="margin-bottom:14px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><div style="width:28px;height:28px;border-radius:50%;background:#F0FFF4;display:flex;align-items:center;justify-content:center;font-size:14px">📥</div><div style="font-size:14px;font-weight:700;color:#065F46">Received ('+recvToday.length+' receival'+(recvToday.length>1?'s':'')+' · '+fmtN(recvTotal)+' pcs total)</div></div>';
-      recvToday.forEach(function(r){
-        var ms=r.lot.piecesIssued-r.pieces;
-        db+='<div style="background:#F0FFF4;border:1px solid #BBF7D0;border-radius:10px;padding:10px 14px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:13px;font-weight:700;color:#065F46">'+esc(r.lot.id)+' · '+esc(r.lot.contractorName)+'</div><div style="font-size:12px;color:#555">'+esc(r.lot.item)+(r.bags?' · '+r.bags+' bags':'')+'</div></div><div style="text-align:right"><div style="font-size:14px;font-weight:700;color:#065F46">'+fmtN(r.pieces)+' pcs</div></div></div>';
-      });
-      db+='</div>';
-    }
-
-    // ── PAYMENTS ──
-    if(paidToday.length){
-      var payTotal=paidToday.reduce(function(s,p){return s+p.amount;},0);
-      db+='<div style="margin-bottom:14px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><div style="width:28px;height:28px;border-radius:50%;background:#ECFDF5;display:flex;align-items:center;justify-content:center;font-size:14px">💵</div><div style="font-size:14px;font-weight:700;color:#059669">Payments ('+paidToday.length+' · '+fmt(payTotal)+' total)</div></div>';
-      // Group by contractor
-      var payMap={};
-      paidToday.forEach(function(p){
-        var n=p.contractorName||'?';
-        if(!payMap[n])payMap[n]={amount:0,lots:[],mode:p.mode||'Cash'};
-        payMap[n].amount+=p.amount;
-        if(payMap[n].lots.indexOf(p.lotId)<0)payMap[n].lots.push(p.lotId);
-      });
-      Object.keys(payMap).forEach(function(n){
-        var g=payMap[n];
-        db+='<div style="background:#ECFDF5;border:1px solid #A7F3D0;border-radius:10px;padding:10px 14px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:13px;font-weight:700;color:#059669">'+esc(n)+'</div><div style="font-size:12px;color:#555">'+g.lots.join(', ')+' · '+esc(g.mode)+'</div></div><div style="font-size:16px;font-weight:700;color:#059669">'+fmt(g.amount)+'</div></div>';
-      });
-      db+='</div>';
-    }
-
-    // ── ADVANCES ──
-    if(advToday.length){
-      var advTotal=advToday.reduce(function(s,a){return s+a.amount;},0);
-      db+='<div style="margin-bottom:14px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><div style="width:28px;height:28px;border-radius:50%;background:#F5F3FF;display:flex;align-items:center;justify-content:center;font-size:14px">⭐</div><div style="font-size:14px;font-weight:700;color:#7C3AED">Advances ('+advToday.length+' · '+fmt(advTotal)+')</div></div>';
-      advToday.forEach(function(a){
-        db+='<div style="background:#F5F3FF;border:1px solid #DDD6FE;border-radius:10px;padding:10px 14px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:13px;font-weight:700;color:#7C3AED">'+esc(a.contractorName)+'</div><div style="font-size:12px;color:#555">'+esc(a.remarks||'No note')+'</div></div><div style="font-size:16px;font-weight:700;color:#7C3AED">'+fmt(a.amount)+'</div></div>';
-      });
-      db+='</div>';
-    }
-  } else {
-    db+='<div class="sh" style="margin-top:4px"><h2>📋 Today\'s Activity</h2></div>'+
-      '<div style="background:#F9FAFB;border:1.5px dashed #D1D5DB;border-radius:12px;padding:16px;text-align:center;margin-bottom:14px"><div style="font-size:24px;margin-bottom:6px">☕</div><div style="font-size:13px;color:#888">No activity today yet</div></div>';
-  }
-
-  // Recent lots below
+    '<div class="sc"><div class="sl">Balance Due</div><div class="sv '+(due>0.01?'red':'')+'">'+fmt(due)+'</div></div>';
   var rec=[].concat(S.lots).reverse().slice(0,5);
-  document.getElementById('hl').innerHTML=db+
-    '<div class="sh"><h2>Recent Lots</h2></div>'+
-    (rec.length?rec.map(function(l){return lotCard(l,true);}).join(''):'<div class="empty"><div class="ei">📦</div><p>No lots yet</p></div>');
+  document.getElementById('hl').innerHTML=rec.length?rec.map(function(l){return lotCard(l,true);}).join(''):'<div class="empty"><div class="ei">📦</div><p>No lots yet</p></div>';
 }
+
 function getNames(){
   var ns=[...new Set(S.lots.map(function(l){return l.contractorName;}))];
   return ns.sort(function(a,b){return contractorBal(b)-contractorBal(a);});
@@ -763,7 +677,7 @@ function renderDet(name){
   ph=timeline.length?timeline.slice(0,6).map(function(g,i){
     if(g.isAdvanceRecord){
       var rem=g.amount-g.used;
-      return '<div style="background:'+(i%2?'#FAF5FF':'#fff')+';border:1px solid #E9D5FF;border-radius:10px;padding:10px 14px;margin-bottom:6px;display:flex;align-items:center;gap:10px"><div style="width:8px;height:8px;border-radius:50%;background:#7C3AED;flex-shrink:0"></div><div style="flex:1"><div style="font-size:14px;font-weight:700;color:#7C3AED">⭐ Advance + '+fmt(g.amount)+'</div><div style="font-size:11px;color:#888">'+fmtD(g.date)+' &middot; '+esc(g.mode)+(rem>0.01?' &middot; Unused: '+fmt(rem):' &middot; Fully used')+'</div>'+(g.remarks?'<div style="font-size:10px;color:#AAA;font-style:italic">'+esc(g.remarks)+'</div>':'')+'<div style="display:flex;gap:6px;margin-top:6px"><button class="btn sm" style="font-size:11px;padding:3px 10px" onclick="editAdvance(&#39;'+esc(g.id)+'&#39;)">💰 Edit</button><button class="btn sm" style="font-size:11px;padding:3px 10px" onclick="editAdvanceNote(&#39;'+esc(g.id)+'&#39;)">📝 Note</button></div></div></div>';
+      return '<div style="background:'+(i%2?'#FAF5FF':'#fff')+';border:1px solid #E9D5FF;border-radius:10px;padding:10px 14px;margin-bottom:6px;display:flex;align-items:center;gap:10px"><div style="width:8px;height:8px;border-radius:50%;background:#7C3AED;flex-shrink:0"></div><div style="flex:1"><div style="font-size:14px;font-weight:700;color:#7C3AED">⭐ Advance + '+fmt(g.amount)+'</div><div style="font-size:11px;color:#888">'+fmtD(g.date)+' &middot; '+esc(g.mode)+(rem>0.01?' &middot; Unused: '+fmt(rem):' &middot; Fully used')+'</div>'+(g.remarks?'<div style="font-size:10px;color:#AAA;font-style:italic">'+esc(g.remarks)+'</div>':'')+'<div style="display:flex;gap:6px;margin-top:6px"><button class="btn sm" style="font-size:11px;padding:3px 10px" onclick="editAdvance(&#39;'+esc(g.id)+'&#39;)">💰 Edit Amount</button><button class="btn sm" style="font-size:11px;padding:3px 10px" onclick="editAdvanceNote(&#39;'+esc(g.id)+'&#39;)">📝 Edit Note</button><button class="btn sm red" style="font-size:11px;padding:3px 10px" onclick="deleteAdvance(&#39;'+esc(g.id)+'&#39;)">🗑</button></div></div></div>';
     }
     return '<div style="background:'+(i%2?'#FAFAFA':'#fff')+';border:1px solid #E8E8E8;border-radius:10px;padding:10px 14px;margin-bottom:6px;display:flex;align-items:center;gap:10px"><div style="width:8px;height:8px;border-radius:50%;background:var(--g);flex-shrink:0"></div><div style="flex:1"><div style="font-size:14px;font-weight:700;color:var(--g)">+ '+fmt(g.amount)+'</div><div style="font-size:11px;color:#888">'+fmtD(g.date)+' &middot; '+esc(g.mode)+'</div><div style="font-size:10px;color:#AAA">Settled: '+g.alloc+'</div>'+(g.remarks?'<div style="font-size:10px;color:#AAA;font-style:italic">'+esc(g.remarks)+'</div>':'')+'</div></div>';
   }).join('')+(timeline.length>6?'<div style="text-align:center;font-size:12px;color:#888;padding:6px">+ '+(timeline.length-6)+' more</div>':''):'<div class="empty" style="padding:1.5rem"><div class="ei" style="font-size:32px">💵</div><p>No payments</p></div>';
@@ -1673,74 +1587,27 @@ function saveLotPay(){
 
 function editAdvance(advId){
   var a=(S.advances||[]).find(function(x){return x.id===advId;});if(!a)return;
-  var newAmt=prompt('Edit advance amount for '+a.contractorName+'\nCurrent: Rs.'+Math.round(a.amount)+'\nUsed: Rs.'+Math.round(a.used||0)+'\n\nEnter new total (0 to delete):',a.amount);
+  var newAmt=prompt('Edit advance for '+a.contractorName+'\n\nCurrent amount: Rs.'+Math.round(a.amount)+'\nUsed so far: Rs.'+Math.round(a.used||0)+'\n\nEnter new amount:',a.amount);
   if(newAmt===null)return;
   newAmt=+newAmt;
-  if(newAmt<=0){
-    if(!confirm('Delete this advance entry?'))return;
-    S.advances=S.advances.filter(function(x){return x.id!==advId;});
-  } else {
-    a.amount=Math.round(newAmt*100)/100;
-    if((a.used||0)>a.amount)a.used=a.amount;
-  }
+  if(isNaN(newAmt)||newAmt<0){alert('Invalid amount.');return;}
+  if(newAmt===0){deleteAdvance(advId);return;}
+  a.amount=Math.round(newAmt*100)/100;
+  if((a.used||0)>a.amount)a.used=a.amount;
   save();render();if(curCon)renderDet(curCon);
 }
 function editAdvanceNote(advId){
   var a=(S.advances||[]).find(function(x){return x.id===advId;});if(!a)return;
-  var newNote=prompt('Edit note:',a.remarks||'');
+  var newNote=prompt('Edit note for this advance:',a.remarks||'');
   if(newNote===null)return;
   a.remarks=newNote;
   save();render();if(curCon)renderDet(curCon);
 }
-
-function renderDaybook(){
-  var dp=document.getElementById('db-date');if(dp&&!dp.value)dp.value=td();
-  var day=dp?dp.value:td();
-  var el=document.getElementById('dbl');if(!el)return;
-  var items=[];
-
-  S.lots.filter(function(l){return l.dateIssued===day;}).forEach(function(l){
-    items.push({type:'issued',icon:'📤',bg:'#F8FBFF',border:'#DBEAFE',color:'#1E40AF',
-      title:l.id+(l.lotNumber?' · Lot '+l.lotNumber:''),
-      sub:l.contractorName+' · '+l.item,
-      val:fmtN(l.piecesIssued)+' pcs',
-      val2:fmt(l.piecesIssued*l.rate)});
-  });
-
-  S.lots.forEach(function(l){
-    if(l.receivals&&l.receivals.length){
-      l.receivals.forEach(function(r){
-        if(r.date===day)items.push({type:'recv',icon:'📥',bg:'#F0FFF4',border:'#BBF7D0',color:'#065F46',
-          title:l.id+' · '+l.contractorName,sub:l.item+(r.bags?' · '+r.bags+' bags':''),
-          val:fmtN(r.pieces)+' pcs',val2:fmt(r.pieces*l.rate)});
-      });
-    } else if(l.dateReceived===day&&l.piecesReceived!=null){
-      items.push({type:'recv',icon:'📥',bg:'#F0FFF4',border:'#BBF7D0',color:'#065F46',
-        title:l.id+' · '+l.contractorName,sub:l.item,
-        val:fmtN(l.piecesReceived)+' pcs',val2:fmt(payable(l))});
-    }
-  });
-
-  S.pays.filter(function(p){return p.date===day;}).forEach(function(p){
-    items.push({type:'pay',icon:'💵',bg:'#ECFDF5',border:'#A7F3D0',color:'#059669',
-      title:p.contractorName||'?',sub:p.lotId+' · '+(p.mode||'Cash')+(p.remarks?' · '+p.remarks:''),
-      val:fmt(p.amount),val2:''});
-  });
-
-  (S.advances||[]).filter(function(a){return a.date===day;}).forEach(function(a){
-    items.push({type:'adv',icon:'⭐',bg:'#F5F3FF',border:'#DDD6FE',color:'#7C3AED',
-      title:a.contractorName,sub:a.remarks||'Advance',
-      val:fmt(a.amount),val2:''});
-  });
-
-  if(!items.length){
-    el.innerHTML='<div style="background:#F9FAFB;border:1.5px dashed #D1D5DB;border-radius:12px;padding:20px;text-align:center;margin-top:12px"><div style="font-size:28px;margin-bottom:6px">☕</div><div style="font-size:13px;color:#888">No activity on '+fmtD(day)+'</div></div>';
-    return;
-  }
-
-  el.innerHTML='<div style="margin-top:10px">'+items.map(function(it){
-    return '<div style="background:'+it.bg+';border:1px solid '+it.border+';border-radius:10px;padding:10px 14px;margin-bottom:6px;display:flex;align-items:center;gap:10px"><div style="font-size:18px">'+it.icon+'</div><div style="flex:1"><div style="font-size:13px;font-weight:700;color:'+it.color+'">'+esc(it.title)+'</div><div style="font-size:11px;color:#555">'+esc(it.sub)+'</div></div><div style="text-align:right"><div style="font-size:14px;font-weight:700;color:'+it.color+'">'+it.val+'</div>'+(it.val2?'<div style="font-size:11px;color:#888">'+it.val2+'</div>':'')+'</div></div>';
-  }).join('')+'</div>';
+function deleteAdvance(advId){
+  var a=(S.advances||[]).find(function(x){return x.id===advId;});if(!a)return;
+  if(!confirm('Delete advance of '+fmt(a.amount)+' to '+a.contractorName+'?'))return;
+  S.advances=S.advances.filter(function(x){return x.id!==advId;});
+  save();render();if(curCon)renderDet(curCon);
 }
 </script>
 
