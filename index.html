@@ -283,9 +283,10 @@ input:focus,select:focus{border-color:var(--n)}
       <div id="pay-advnote" class="ibox green" style="display:none"></div>
       <label>Select lots to settle</label>
       <div id="pay-lotlist" style="max-height:240px;overflow-y:auto;border:1px solid #E8E8E8;border-radius:10px;padding:6px;margin-bottom:10px"></div>
-      <div style="display:flex;justify-content:space-between;align-items:center;background:#EFF6FF;border-radius:8px;padding:8px 12px;margin-bottom:12px">
-        <span style="font-size:13px;color:#555">Selected total due:</span>
-        <strong id="pay-seltotal" style="color:var(--n);font-size:15px">Rs.0</strong>
+      <div id="pay-breakdown" style="background:#EFF6FF;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:13px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="color:#555">Selected lots total:</span><strong id="pay-seltotal" style="color:var(--n)">Rs.0</strong></div>
+        <div id="pay-advrow" style="display:none;justify-content:space-between;margin-bottom:3px"><span style="color:#7C3AED">Less: advance available</span><strong id="pay-advamt" style="color:#7C3AED">- Rs.0</strong></div>
+        <div id="pay-recrow" style="display:none;justify-content:space-between;border-top:1px dashed #BFD3F0;padding-top:5px;margin-top:5px"><span style="color:#065F46;font-weight:700">💡 You need to pay:</span><strong id="pay-recamt" style="color:#065F46;font-size:15px">Rs.0</strong></div>
       </div>
       <div class="fr"><div><label>Date *</label><input id="pd" type="date"></div><div><label>Amount Paying (Rs.) *</label><input id="pa" type="number" inputmode="decimal" oninput="pvP()" placeholder="0"></div></div>
       <div class="fg"><label>Mode</label><select id="pm2"><option>Cash</option><option>UPI</option><option>Bank Transfer</option><option>Cheque</option></select></div>
@@ -313,11 +314,21 @@ input:focus,select:focus{border-color:var(--n)}
   <div class="mhd"><div><h3 id="rv-title">Receive Lot</h3><div style="font-size:12px;color:#888" id="rvs"></div></div><button class="xb" onclick="closeModal('rv')">&#10005;</button></div>
   <div class="mbd">
     <div class="ibox blue" id="rvi" style="margin-bottom:12px"></div>
-    <div class="fr"><div><label>Pieces Received *</label><input id="rp" type="number" inputmode="numeric" oninput="pvR()"></div><div><label>Date *</label><input id="rd" type="date"></div></div>
-    <div class="fr"><div><label>Bags Returned</label><input id="rbg" type="number" inputmode="numeric" placeholder="No. of bags"></div><div><label>Pay Now for This Lot (Rs.)</label><input id="radv" type="number" inputmode="decimal" placeholder="0"></div></div>
+
+    <!-- Existing receival parts -->
+    <div id="rv-parts"></div>
+
+    <!-- Add a receival part -->
+    <div style="border:1.5px dashed #BFD3F0;border-radius:10px;padding:12px;margin-bottom:12px;background:#F8FBFF">
+      <div style="font-size:12px;font-weight:700;color:var(--n);margin-bottom:8px">➕ Add a receival</div>
+      <div class="fr" style="margin-bottom:8px"><div><label>Pieces Received *</label><input id="rp" type="number" inputmode="numeric" oninput="pvR()" placeholder="e.g. 400"></div><div><label>Date *</label><input id="rd" type="date"></div></div>
+      <div class="fr" style="margin-bottom:0"><div><label>Bags Returned</label><input id="rbg" type="number" inputmode="numeric" placeholder="optional"></div><div><label>&nbsp;</label><button type="button" class="btn" style="width:100%;justify-content:center;background:#EFF6FF;color:var(--n);border-color:#BFD3F0;font-weight:700" onclick="addReceivalPart()">+ Add this part</button></div></div>
+    </div>
+
+    <div class="fg"><label>Pay Now for This Lot (Rs.) — optional</label><input id="radv" type="number" inputmode="decimal" placeholder="0"></div>
     <div class="ibox green" id="rvp" style="display:none"></div>
   </div>
-  <div class="mft"><button class="btn" style="flex:1;justify-content:center" onclick="closeModal('rv')">Cancel</button><button class="btn pri" style="flex:1;justify-content:center" onclick="recvLot()">Confirm</button></div>
+  <div class="mft"><button class="btn" style="flex:1;justify-content:center" onclick="closeModal('rv')">Cancel</button><button class="btn pri" style="flex:1;justify-content:center" onclick="recvLot()">Save & Confirm</button></div>
 </div></div>
 
 <!-- CONFIRM DELETE -->
@@ -693,7 +704,7 @@ function lotCard(lot,showCon){
   var ms=lot.piecesReceived!=null?lot.piecesIssued-lot.piecesReceived:null;
   // Build action buttons using data attributes - NO INLINE FUNCTIONS WITH ARGS
   var ap=lot.status==='RECEIVED'?'<button class="btn sm" data-action="payLot" data-id="'+esc(lot.id)+'">💵 Pay</button>':'';
-  var ar=lot.status==='PENDING'?'<button class="btn sm" data-action="recv" data-id="'+esc(lot.id)+'">📥 Receive</button>':(lot.status==='RECEIVED'||lot.status==='SETTLED')?'<button class="btn sm" style="background:#FFF7ED;color:#D97706;border-color:#FDE68A" data-action="recv" data-id="'+esc(lot.id)+'">✏️ Edit Rcvd</button>':'';
+  var ar=lot.status==='PENDING'?'<button class="btn sm" data-action="recv" data-id="'+esc(lot.id)+'">📥 Receive</button>':'';
   var as=lot.status==='RECEIVED'?'<button class="btn sm grn" data-action="settle" data-id="'+esc(lot.id)+'">✓ Settle</button>':'';
   var aclr='';
   var vc=showCon?'<button class="btn sm" data-action="viewCon" data-name="'+esc(lot.contractorName)+'">👷</button>':'';
@@ -709,6 +720,7 @@ function lotCard(lot,showCon){
     '<div class="lmeta">'+
     (ms!=null?'<span class="'+(ms>0?'ms':'ok')+'">'+(ms>0?'⚠ ':'✓ ')+'Rcvd '+fmtN(lot.piecesReceived)+(ms>0?' ('+ms+' short)':'')+'</span>':'')+
     (lot.remarks?'<span style="font-style:italic;color:#AAA">'+esc(lot.remarks)+'</span>':'')+'</div>'+
+    ((lot.receivals&&lot.receivals.length>1)?'<div style="background:#F8FBFF;border:1px solid #E0EAFB;border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:11px;color:#555"><strong style="color:var(--n)">📥 Received in '+lot.receivals.length+' parts:</strong> '+lot.receivals.map(function(r){return fmtN(r.pieces)+' on '+fmtD(r.date);}).join(' &middot; ')+'</div>':'')+
     '<div class="lacts">'+ap+ar+as+
     '<button class="btn sm pur" data-action="print" data-id="'+esc(lot.id)+'">🖨 Print</button>'+
     '<button class="btn sm" data-action="shareLot" data-id="'+esc(lot.id)+'">📤 Share</button>'+
@@ -787,6 +799,14 @@ function openLotFor(name){openModal('aL');document.getElementById('fc').value=na
 function openPayModal(lid){var lot=S.lots.find(function(l){return l.id===lid;});if(!lot)return;openPayFor(lot.contractorName);setTimeout(function(){var cb=document.querySelector('.paylotcb[value="'+lot.id+'"]');if(cb){cb.checked=true;onLotSelToggle();}},50);}
 function closeModal(t){var el=document.getElementById('mo-'+t);el.classList.remove('show');el.style.display='none';}
 document.querySelectorAll('.ov').forEach(function(o){o.addEventListener('click',function(e){if(e.target===o){o.classList.remove('show');o.style.display='none';}});});
+var stagedReceivals=[]; // working copy of receival parts while modal is open
+function lotReceivals(lot){
+  // Returns array of {date,pieces,bags}. Backward compatible with old single-value lots.
+  if(lot.receivals&&lot.receivals.length)return lot.receivals;
+  if(lot.piecesReceived!=null)return [{date:lot.dateReceived,pieces:lot.piecesReceived,bags:lot.bagsReturned||0}];
+  return [];
+}
+function totalReceived(lot){return lotReceivals(lot).reduce(function(s,r){return s+(+r.pieces||0);},0);}
 function openRv(lid){
   rvId=lid;
   var lot=S.lots.find(function(l){return l.id===lid;});
@@ -794,15 +814,48 @@ function openRv(lid){
   document.getElementById('rv-title').textContent=isEdit?'Edit Received Lot':'Receive Lot';
   document.getElementById('rvs').textContent=lot.id+' - '+lot.contractorName;
   document.getElementById('rvi').textContent='Issued: '+fmtN(lot.piecesIssued)+' pcs @ Rs.'+lot.rate+' = '+fmt(lot.piecesIssued*lot.rate);
-  // Pre-fill if editing
-  document.getElementById('rp').value=isEdit?lot.piecesReceived:'';
-  document.getElementById('rd').value=isEdit?lot.dateReceived:td();
-  document.getElementById('rbg').value=isEdit?(lot.bagsReturned||''):'';
-  document.getElementById('radv').value=isEdit?(lot.advancePaid||''):'';
+  // Load existing receivals into staging
+  stagedReceivals=lotReceivals(lot).map(function(r){return {date:r.date,pieces:+r.pieces||0,bags:+r.bags||0};});
+  renderReceivalParts();
+  document.getElementById('rp').value='';
+  document.getElementById('rd').value=td();
+  document.getElementById('rbg').value='';
+  document.getElementById('radv').value='';
   document.getElementById('rvp').style.display='none';
-  if(isEdit){pvR();}
   var el=document.getElementById('mo-rv');el.classList.add('show');el.style.display='flex';
 }
+function renderReceivalParts(){
+  var lot=S.lots.find(function(l){return l.id===rvId;});
+  var el=document.getElementById('rv-parts');
+  if(!stagedReceivals.length){el.innerHTML='';document.getElementById('rvp').style.display='none';return;}
+  var total=stagedReceivals.reduce(function(s,r){return s+(+r.pieces||0);},0);
+  var rows=stagedReceivals.map(function(r,i){
+    return '<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:#F7F7F7;border-radius:8px;margin-bottom:6px">'+
+      '<div style="flex:1"><div style="font-size:13px;font-weight:700">'+fmtN(r.pieces)+' pcs</div>'+
+      '<div style="font-size:11px;color:#888">'+fmtD(r.date)+(r.bags?' &middot; '+r.bags+' bags':'')+'</div></div>'+
+      '<button type="button" class="btn sm red" onclick="removeReceivalPart('+i+')" style="background:#FEF2F2">🗑</button></div>';
+  }).join('');
+  var miss=lot.piecesIssued-total;
+  el.innerHTML='<div style="font-size:12px;font-weight:700;color:#555;margin-bottom:6px">Receivals so far</div>'+rows+
+    '<div style="display:flex;justify-content:space-between;background:#EFF6FF;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:13px">'+
+    '<span style="color:#555">Total received:</span><strong style="color:'+(miss>0?'#DC2626':'#065F46')+'">'+fmtN(total)+' / '+fmtN(lot.piecesIssued)+' pcs'+(miss>0?' ('+miss+' short)':' ✓')+'</strong></div>';
+}
+function addReceivalPart(){
+  var raw=document.getElementById('rp').value,p=+raw,d=document.getElementById('rd').value,bg=+document.getElementById('rbg').value||0;
+  if(raw===''||p<=0){alert('Enter pieces received (greater than 0).');return;}
+  if(!d){alert('Enter the date for this receival.');return;}
+  var lot=S.lots.find(function(l){return l.id===rvId;});
+  var already=stagedReceivals.reduce(function(s,r){return s+(+r.pieces||0);},0);
+  if(already+p>lot.piecesIssued){
+    if(!confirm('This exceeds the issued count ('+fmtN(lot.piecesIssued)+'). Add anyway?'))return;
+  }
+  stagedReceivals.push({date:d,pieces:p,bags:bg});
+  stagedReceivals.sort(function(a,b){return a.date.localeCompare(b.date);});
+  document.getElementById('rp').value='';
+  document.getElementById('rbg').value='';
+  renderReceivalParts();
+}
+function removeReceivalPart(i){stagedReceivals.splice(i,1);renderReceivalParts();}
 function openEL(lid){eLId=lid;var lot=S.lots.find(function(l){return l.id===lid;});if(!lot)return;document.getElementById('els').textContent=lid;document.getElementById('eln').value=lot.lotNumber||'';document.getElementById('ebg').value=lot.bags||'';document.getElementById('ec').value=lot.contractorName;document.getElementById('ei').value=lot.item;document.getElementById('ep').value=lot.piecesIssued;document.getElementById('er').value=lot.rate;document.getElementById('ed').value=lot.dateIssued;document.getElementById('em').value=lot.remarks||'';document.getElementById('elp').style.display='none';var el=document.getElementById('mo-eL');el.classList.add('show');el.style.display='flex';}
 function openEC(name){eCName=name;document.getElementById('ecs').textContent=name;document.getElementById('en').value=name;var el=document.getElementById('mo-eC');el.classList.add('show');el.style.display='flex';}
 
@@ -845,10 +898,24 @@ function onLotSelToggle(){
   var total=0;
   document.querySelectorAll('.paylotcb:checked').forEach(function(cb){total+=+cb.dataset.due;cb.closest('.lotsel').classList.add('sel');});
   document.querySelectorAll('.paylotcb:not(:checked)').forEach(function(cb){cb.closest('.lotsel').classList.remove('sel');});
+  var name=document.getElementById('pl2').value;
+  var pool=name?contractorAdvancePool(name):0;
+  var applied=Math.min(pool,total);
+  var recommended=Math.max(0,total-applied);
   document.getElementById('pay-seltotal').textContent=fmt(total);
-  // auto-fill amount with selected total if empty
+  // Advance + recommended rows
+  var advRow=document.getElementById('pay-advrow'),recRow=document.getElementById('pay-recrow');
+  if(applied>0.01&&total>0){
+    advRow.style.display='flex';document.getElementById('pay-advamt').textContent='- '+fmt(applied);
+    recRow.style.display='flex';document.getElementById('pay-recamt').textContent=fmt(recommended);
+  } else {
+    advRow.style.display='none';
+    if(total>0){recRow.style.display='flex';document.getElementById('pay-recamt').textContent=fmt(recommended);}
+    else recRow.style.display='none';
+  }
+  // Auto-fill the amount field with the RECOMMENDED amount (after advance)
   var amtEl=document.getElementById('pa');
-  if(!amtEl.value||+amtEl.value===0||amtEl.dataset.auto==='1'){amtEl.value=total>0?Math.round(total):'';amtEl.dataset.auto='1';}
+  if(!amtEl.value||+amtEl.value===0||amtEl.dataset.auto==='1'){amtEl.value=recommended>0?Math.round(recommended):'';amtEl.dataset.auto='1';}
   pvP();
 }
 function pvP(){
@@ -871,7 +938,16 @@ function pvP(){
     b.textContent='No lots selected. Select lots above, or use the Advance tab.';
   }
 }
-function pvR(){var lot=S.lots.find(function(l){return l.id===rvId;}),raw=document.getElementById('rp').value,b=document.getElementById('rvp');if(raw===''||!lot){b.style.display='none';return;}var p=+raw;if(p<0){b.style.display='block';b.className='ibox red';b.textContent='Received pieces cannot be negative.';return;}if(p===0){b.style.display='block';b.className='ibox yellow';b.textContent='0 received = nothing submitted yet. Lot stays Pending.';return;}var m=lot.piecesIssued-p;b.style.display='block';if(m>0){b.className='ibox red';b.textContent='Warning: '+m+' pcs short - Payable: '+fmt(p*lot.rate);}else{b.className='ibox green';b.textContent='All received - Payable: '+fmt(p*lot.rate);}}
+function pvR(){
+  var lot=S.lots.find(function(l){return l.id===rvId;}),raw=document.getElementById('rp').value,b=document.getElementById('rvp');
+  if(raw===''||!lot){b.style.display='none';return;}
+  var p=+raw;if(p<0){b.style.display='block';b.className='ibox red';b.textContent='Cannot be negative.';return;}
+  var already=stagedReceivals.reduce(function(s,r){return s+(+r.pieces||0);},0);
+  var newTotal=already+p;var miss=lot.piecesIssued-newTotal;
+  b.style.display='block';
+  if(miss>0){b.className='ibox yellow';b.textContent='After adding: '+fmtN(newTotal)+' / '+fmtN(lot.piecesIssued)+' pcs ('+miss+' still short) — Payable so far '+fmt(newTotal*lot.rate);}
+  else{b.className='ibox green';b.textContent='After adding: '+fmtN(newTotal)+' pcs (full) — Payable '+fmt(newTotal*lot.rate);}
+}
 
 function addLot(){
   var c=document.getElementById('fc').value.trim(),i=document.getElementById('fi').value.trim(),p=+document.getElementById('fp').value,r=+document.getElementById('fr').value,d=document.getElementById('fd').value,m=document.getElementById('fm').value.trim();
@@ -908,25 +984,36 @@ function savePay(){
   if(res.note)setTimeout(function(){/* silent */},10);
 }
 function recvLot(){
-  var raw=document.getElementById('rp').value,p=+raw,d=document.getElementById('rd').value;
-  if(raw===''||!d){alert('Fill all required fields.');return;}
-  if(p<0){alert('Pieces received cannot be negative.');return;}
   var lot=S.lots.find(function(l){return l.id===rvId;});if(!lot)return;
-  if(p===0){
-    // 0 received = nothing submitted, reset to pending
-    lot.piecesReceived=null;lot.dateReceived=null;lot.status='PENDING';delete lot.bagsReturned;
-  } else {
-    lot.piecesReceived=p;lot.dateReceived=d;
-    var _rbg=+document.getElementById('rbg').value||0;
-    if(_rbg>0)lot.bagsReturned=_rbg;else delete lot.bagsReturned;
-    refreshLotStatus(lot);
-    // Optional payment on receive — settle THIS lot directly
-    var _radv=+document.getElementById('radv').value||0;
-    if(_radv>0){payLots(lot.contractorName,[lot.id],_radv,d,'Cash','Paid on receive');}
+  // If user typed a part but didn't click "Add", include it automatically
+  var raw=document.getElementById('rp').value,p=+raw,d=document.getElementById('rd').value,bg=+document.getElementById('rbg').value||0;
+  if(raw!==''&&p>0){
+    if(!d){alert('Enter the date for the receival you typed, or clear it.');return;}
+    stagedReceivals.push({date:d,pieces:p,bags:bg});
+    stagedReceivals.sort(function(a,b){return a.date.localeCompare(b.date);});
   }
-  delete lot.advancePaid; // never store advance on lot anymore
+  var total=stagedReceivals.reduce(function(s,r){return s+(+r.pieces||0);},0);
+  if(total<=0){
+    // Nothing received — reset to pending
+    lot.piecesReceived=null;lot.dateReceived=null;lot.status='PENDING';
+    delete lot.receivals;delete lot.bagsReturned;
+    save();closeModal('rv');render();if(curCon)renderDet(curCon);
+    return;
+  }
+  // Save receivals array
+  lot.receivals=stagedReceivals.map(function(r){return {date:r.date,pieces:+r.pieces||0,bags:+r.bags||0};});
+  lot.piecesReceived=total;
+  // dateReceived = date of the LAST (most recent) receival
+  lot.dateReceived=lot.receivals[lot.receivals.length-1].date;
+  var totalBags=lot.receivals.reduce(function(s,r){return s+(+r.bags||0);},0);
+  if(totalBags>0)lot.bagsReturned=totalBags;else delete lot.bagsReturned;
+  delete lot.advancePaid;
+  refreshLotStatus(lot);
+  // Optional payment on receive
+  var _radv=+document.getElementById('radv').value||0;
+  if(_radv>0){payLots(lot.contractorName,[lot.id],_radv,lot.dateReceived,'Cash','Paid on receive');}
   save();closeModal('rv');render();if(curCon)renderDet(curCon);
-  if(lot.piecesReceived!=null)setTimeout(function(){printReturn(lot.id);},400);
+  setTimeout(function(){printReturn(lot.id);},400);
 }
 function settleLot(id){var lot=S.lots.find(function(l){return l.id===id;});if(!lot)return;var due=bal(lot);if(due>0.01&&!confirm('This lot still has '+fmt(due)+' due. Mark as settled anyway?'))return;lot.status='SETTLED';save();render();if(curCon)renderDet(curCon);}
 function saveEL(){
@@ -1150,6 +1237,7 @@ function printReturn(lid){
     +'<div class="row"><span class="rk">Item \/ Work<\/span><span class="rv">'+esc(lot.item)+'<\/span><\/div>'
     +'<div class="row"><span class="rk">Pieces Issued<\/span><span class="rv">'+fmtN(lot.piecesIssued)+' pcs<\/span><\/div>'
     +'<div class="row"><span class="rk">Date Returned<\/span><span class="rv">'+fmtD(lot.dateReceived)+'<\/span><\/div>'
+    +((lot.receivals&&lot.receivals.length>1)?'<div class="row" style="flex-direction:column;align-items:flex-start;gap:2px"><span class="rk">Received in '+lot.receivals.length+' parts<\/span><span class="rv" style="font-size:9px;font-weight:600">'+lot.receivals.map(function(r){return fmtN(r.pieces)+' on '+fmtD(r.date);}).join(' · ')+'<\/span><\/div>':'')
     +(daysTaken!=null?'<div class="row"><span class="rk">Days Taken<\/span><span class="rv">'+daysTaken+' days<\/span><\/div>':'')
     +(lot.bagsReturned?'<div class="row"><span class="rk">Bags Returned<\/span><span class="rv">'+lot.bagsReturned+' bags<\/span><\/div>':'')
     // Pieces submitted
@@ -1438,8 +1526,8 @@ function openEditMenu(lid){
   var payBtn=document.getElementById('em-pay');
   // Edit Received
   recvBtn.onclick=function(){closeModal('em');openRv(lid);};
-  recvBtn.style.opacity=lot.piecesReceived!=null?'1':'.5';
-  recvBtn.firstChild&&0;
+  recvBtn.style.opacity='1';
+  recvBtn.textContent=lot.piecesReceived!=null?'📥  Edit Received Pieces':'📥  Receive Pieces';
   // Edit Challan
   document.getElementById('em-challan').onclick=function(){closeModal('em');openEL(lid);};
   // Edit Payment
