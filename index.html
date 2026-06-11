@@ -192,12 +192,7 @@ input:focus,select:focus{border-color:var(--n)}
     </div>
   </div>
 
-  <div class="cs" id="cs-day">
-    <div class="pg">
-      <div class="sh"><h2>📋 Daybook</h2><input type="date" id="db-date" onchange="renderDaybook()" style="padding:6px 10px;border:1.5px solid #DDD;border-radius:8px;font-size:13px"></div>
-      <div id="dbl"></div>
-    </div>
-  </div>
+  <div class="cs" id="cs-day"><div class="pg"><div class="sh"><h2>📋 Daybook</h2><input type="date" id="db-date" onchange="renderDaybook()" style="padding:6px 10px;border:1.5px solid #DDD;border-radius:8px;font-size:13px;font-family:inherit"></div><div id="dbl"></div></div></div>
   <div class="cs" id="cs-bin">
     <div class="pg">
       <div style="background:#FFF7ED;border:1px solid #FDE68A;border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:13px;color:#92400E">
@@ -577,7 +572,7 @@ document.addEventListener('click',function(e){
   if(action==='openCon')openContractor(name);
   else if(action==='pay')openPayFor(name);
   else if(action==='newLot')openLotFor(name);
-  else if(action==='editCon')openEC(name);
+  else if(action==='editCon')openConEditMenu(name);
   else if(action==='report')printReport(name);
   else if(action==='payLot')openPayModal(id);
   else if(action==='recv')openRv(id);
@@ -1546,45 +1541,7 @@ function openEditMenu(lid){
     payBtn.style.opacity='.5';
     payBtn.onclick=function(){alert('Receive the lot first before editing its payment.');};
   }
-  // Edit Advances for this contractor
-  var advBtn=document.getElementById('em-adv');
-  if(advBtn){
-    var conAdvs=(S.advances||[]).filter(function(a){return a.contractorName===lot.contractorName;});
-    if(conAdvs.length){
-      advBtn.style.opacity='1';
-      advBtn.onclick=function(){closeModal('em');openAdvList(lot.contractorName);};
-    } else {
-      advBtn.style.opacity='.5';
-      advBtn.onclick=function(){alert('No advances recorded for '+lot.contractorName+' yet.');};
-    }
-  }
   var el=document.getElementById('mo-em');el.classList.add('show');el.style.display='flex';
-}
-
-// ── ADVANCE LIST MODAL ─────────────────────────────────────────────────
-function openAdvList(name){
-  var advs=(S.advances||[]).filter(function(a){return a.contractorName===name;}).sort(function(a,b){return b.date.localeCompare(a.date);});
-  document.getElementById('al-sub').textContent=name+' — '+advs.length+' advance(s)';
-  var el=document.getElementById('al-list');
-  if(!advs.length){
-    el.innerHTML='<div style="text-align:center;color:#888;padding:16px">No advances recorded</div>';
-  } else {
-    el.innerHTML=advs.map(function(a){
-      var rem=a.amount-(a.used||0);
-      return '<div style="background:#FAF5FF;border:1px solid #E9D5FF;border-radius:10px;padding:10px 14px;margin-bottom:8px">'+
-        '<div style="display:flex;justify-content:space-between;align-items:center">'+
-        '<div><div style="font-size:14px;font-weight:700;color:#7C3AED">'+fmt(a.amount)+'</div>'+
-        '<div style="font-size:11px;color:#888">'+fmtD(a.date)+' · '+esc(a.mode||'Cash')+(rem>0.01?' · Unused: '+fmt(rem):' · Fully used')+'</div>'+
-        (a.remarks?'<div style="font-size:10px;color:#AAA;font-style:italic">'+esc(a.remarks)+'</div>':'')+'</div>'+
-        '</div>'+
-        '<div style="display:flex;gap:6px;margin-top:8px">'+
-        '<button class="btn sm" style="font-size:11px" onclick="closeModal(&#39;aList&#39;);editAdvance(&#39;'+esc(a.id)+'&#39;)">💰 Edit Amount</button>'+
-        '<button class="btn sm" style="font-size:11px" onclick="closeModal(&#39;aList&#39;);editAdvanceNote(&#39;'+esc(a.id)+'&#39;)">📝 Note</button>'+
-        '<button class="btn sm red" style="font-size:11px;margin-left:auto" onclick="closeModal(&#39;aList&#39;);deleteAdvance(&#39;'+esc(a.id)+'&#39;)">🗑 Delete</button>'+
-        '</div></div>';
-    }).join('');
-  }
-  var m=document.getElementById('mo-aList');m.classList.add('show');m.style.display='flex';
 }
 
 // ── EDIT LOT PAYMENT (set exact paid amount for one lot) ───────────────
@@ -1663,16 +1620,16 @@ function renderDaybook(){
   var el=document.getElementById('dbl');if(!el)return;
   var html='';
 
-  // ISSUED
+  // Lots issued
   var issued=S.lots.filter(function(l){return l.dateIssued===day;});
   if(issued.length){
-    html+='<div style="margin:12px 0 6px;font-size:14px;font-weight:700;color:#1E40AF">📤 Lots Issued ('+issued.length+')</div>';
+    html+='<div style="margin:12px 0 8px;font-size:14px;font-weight:700;color:#1E40AF">📤 Lots Issued ('+issued.length+')</div>';
     issued.forEach(function(l){
       html+='<div style="background:#F8FBFF;border:1px solid #DBEAFE;border-radius:10px;padding:10px 14px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:13px;font-weight:700;color:#1E40AF">'+esc(l.id)+(l.lotNumber?' · Lot '+l.lotNumber:'')+'</div><div style="font-size:12px;color:#555">'+esc(l.contractorName)+' · '+esc(l.item)+'</div></div><div style="text-align:right"><div style="font-size:14px;font-weight:700">'+fmtN(l.piecesIssued)+' pcs</div><div style="font-size:11px;color:#888">'+fmt(l.piecesIssued*l.rate)+'</div></div></div>';
     });
   }
 
-  // RECEIVED (handles multi-part receivals)
+  // Receivals
   var recv=[];
   S.lots.forEach(function(l){
     if(l.receivals&&l.receivals.length){
@@ -1683,17 +1640,17 @@ function renderDaybook(){
   });
   if(recv.length){
     var rt=recv.reduce(function(s,r){return s+r.pieces;},0);
-    html+='<div style="margin:12px 0 6px;font-size:14px;font-weight:700;color:#065F46">📥 Received ('+recv.length+' · '+fmtN(rt)+' pcs)</div>';
+    html+='<div style="margin:12px 0 8px;font-size:14px;font-weight:700;color:#065F46">📥 Received ('+recv.length+' receival'+(recv.length>1?'s':'')+' · '+fmtN(rt)+' pcs)</div>';
     recv.forEach(function(r){
       html+='<div style="background:#F0FFF4;border:1px solid #BBF7D0;border-radius:10px;padding:10px 14px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:13px;font-weight:700;color:#065F46">'+esc(r.lot.id)+' · '+esc(r.lot.contractorName)+'</div><div style="font-size:12px;color:#555">'+esc(r.lot.item)+(r.bags?' · '+r.bags+' bags':'')+'</div></div><div style="font-size:14px;font-weight:700;color:#065F46">'+fmtN(r.pieces)+' pcs</div></div>';
     });
   }
 
-  // PAYMENTS
+  // Payments
   var pays=S.pays.filter(function(p){return p.date===day;});
   if(pays.length){
     var pt=pays.reduce(function(s,p){return s+p.amount;},0);
-    html+='<div style="margin:12px 0 6px;font-size:14px;font-weight:700;color:#059669">💵 Payments ('+fmt(pt)+')</div>';
+    html+='<div style="margin:12px 0 8px;font-size:14px;font-weight:700;color:#059669">💵 Payments ('+fmt(pt)+')</div>';
     var pm={};
     pays.forEach(function(p){var n=p.contractorName||'?';if(!pm[n])pm[n]={amount:0,lots:[],mode:p.mode||'Cash'};pm[n].amount+=p.amount;if(pm[n].lots.indexOf(p.lotId)<0)pm[n].lots.push(p.lotId);});
     Object.keys(pm).forEach(function(n){
@@ -1702,23 +1659,23 @@ function renderDaybook(){
     });
   }
 
-  // ADVANCES
+  // Advances
   var advs=(S.advances||[]).filter(function(a){return a.date===day;});
   if(advs.length){
     var at=advs.reduce(function(s,a){return s+a.amount;},0);
-    html+='<div style="margin:12px 0 6px;font-size:14px;font-weight:700;color:#7C3AED">⭐ Advances ('+fmt(at)+')</div>';
+    html+='<div style="margin:12px 0 8px;font-size:14px;font-weight:700;color:#7C3AED">⭐ Advances ('+fmt(at)+')</div>';
     advs.forEach(function(a){
-      html+='<div style="background:#F5F3FF;border:1px solid #DDD6FE;border-radius:10px;padding:10px 14px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center"><div style="flex:1"><div style="font-size:13px;font-weight:700;color:#7C3AED">'+esc(a.contractorName)+'</div><div style="font-size:12px;color:#555">'+esc(a.remarks||'Advance')+(a.used>0.01?' · Used: '+fmt(a.used):'')+'</div></div><div style="display:flex;align-items:center;gap:8px"><div style="font-size:16px;font-weight:700;color:#7C3AED">'+fmt(a.amount)+'</div><button class="btn sm" style="font-size:11px;padding:3px 8px" onclick="editAdvance(&#39;'+esc(a.id)+'&#39;)">✏️</button></div></div>';
+      html+='<div style="background:#F5F3FF;border:1px solid #DDD6FE;border-radius:10px;padding:10px 14px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:13px;font-weight:700;color:#7C3AED">'+esc(a.contractorName)+'</div><div style="font-size:12px;color:#555">'+esc(a.remarks||'Advance')+'</div></div><div style="font-size:16px;font-weight:700;color:#7C3AED">'+fmt(a.amount)+'</div></div>';
     });
   }
 
-  // ALL ADVANCE HISTORY section (always shown below)
+  // All advances history section (full list, any date)
   var allAdv=(S.advances||[]).slice().sort(function(a,b){return b.date.localeCompare(a.date);});
   if(allAdv.length){
-    html+='<div style="margin:18px 0 6px;font-size:14px;font-weight:700;color:#6B7280;border-top:1.5px dashed #E5E7EB;padding-top:14px">⭐ All Advance History ('+allAdv.length+')</div>';
+    html+='<div style="margin:20px 0 8px;font-size:14px;font-weight:700;color:#7C3AED;border-top:2px solid #EDE9FE;padding-top:14px">⭐ All Advances History ('+allAdv.length+')</div>';
     allAdv.forEach(function(a){
       var rem=a.amount-(a.used||0);
-      html+='<div style="background:#FAFAFA;border:1px solid #E5E7EB;border-radius:10px;padding:10px 14px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center"><div style="flex:1"><div style="font-size:13px;font-weight:700">'+esc(a.contractorName)+'</div><div style="font-size:11px;color:#888">'+fmtD(a.date)+' · '+esc(a.mode||'Cash')+(rem>0.01?' · Unused: '+fmt(rem):' · Fully used')+'</div>'+(a.remarks?'<div style="font-size:10px;color:#AAA;font-style:italic">'+esc(a.remarks)+'</div>':'')+'</div><div style="display:flex;align-items:center;gap:6px"><div style="font-size:14px;font-weight:700;color:#7C3AED">'+fmt(a.amount)+'</div><button class="btn sm" style="font-size:11px;padding:3px 8px" onclick="editAdvance(&#39;'+esc(a.id)+'&#39;)">✏️</button><button class="btn sm red" style="font-size:11px;padding:3px 8px" onclick="deleteAdvance(&#39;'+esc(a.id)+'&#39;)">🗑</button></div></div>';
+      html+='<div style="background:#FAF5FF;border:1px solid #E9D5FF;border-radius:10px;padding:10px 14px;margin-bottom:6px"><div style="display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:13px;font-weight:700;color:#7C3AED">'+esc(a.contractorName)+' — '+fmt(a.amount)+'</div><div style="font-size:11px;color:#888">'+fmtD(a.date)+' · '+esc(a.mode||'Cash')+(rem>0.01?' · Unused: '+fmt(rem):' · Fully used')+'</div>'+(a.remarks?'<div style="font-size:10px;color:#AAA;font-style:italic">'+esc(a.remarks)+'</div>':'')+'</div><div style="display:flex;gap:6px"><button class="btn sm" style="font-size:11px;padding:3px 10px" onclick="editAdvance(&#39;'+esc(a.id)+'&#39;)">💰</button><button class="btn sm red" style="font-size:11px;padding:3px 10px" onclick="deleteAdvance(&#39;'+esc(a.id)+'&#39;)">🗑</button></div></div></div>';
     });
   }
 
@@ -1726,6 +1683,76 @@ function renderDaybook(){
     html='<div style="background:#F9FAFB;border:1.5px dashed #D1D5DB;border-radius:12px;padding:20px;text-align:center;margin-top:12px"><div style="font-size:28px;margin-bottom:6px">☕</div><div style="font-size:13px;color:#888">No activity on '+fmtD(day)+'</div></div>';
   }
   el.innerHTML=html;
+}
+
+// ── CONTRACTOR EDIT MENU ───────────────────────────────────────────────
+function openConEditMenu(name){
+  document.getElementById('cem-sub').textContent=name;
+  document.getElementById('cem-name').onclick=function(){closeModal('cem');openEC(name);};
+  document.getElementById('cem-adv').onclick=function(){closeModal('cem');openAdvList(name);};
+  var el=document.getElementById('mo-cem');el.classList.add('show');el.style.display='flex';
+}
+
+function openAdvList(name){
+  document.getElementById('advList-sub').textContent=name;
+  renderAdvList(name);
+  var el=document.getElementById('mo-advList');el.classList.add('show');el.style.display='flex';
+}
+
+function renderAdvList(name){
+  var body=document.getElementById('advList-body');
+  var advs=contractorAdvances(name).slice().sort(function(a,b){return b.date.localeCompare(a.date);});
+  var pool=contractorAdvancePool(name);
+  var html='<div class="ibox blue" style="margin-bottom:12px">Current advance pool: <strong>'+fmt(pool)+'</strong></div>';
+  if(!advs.length){
+    html+='<div style="text-align:center;padding:20px;color:#888;font-size:13px">No advances recorded for this contractor.</div>';
+  } else {
+    advs.forEach(function(a){
+      var rem=a.amount-(a.used||0);
+      html+='<div style="background:#FAF5FF;border:1px solid #E9D5FF;border-radius:10px;padding:12px 14px;margin-bottom:8px">'+
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start">'+
+        '<div style="flex:1"><div style="font-size:15px;font-weight:700;color:#7C3AED">'+fmt(a.amount)+'</div>'+
+        '<div style="font-size:11px;color:#888">'+fmtD(a.date)+' &middot; '+esc(a.mode||'Cash')+'</div>'+
+        '<div style="font-size:11px;color:'+(rem>0.01?'#7C3AED':'#059669')+';margin-top:2px">'+(rem>0.01?'Unused: '+fmt(rem):'✓ Fully used')+'</div>'+
+        (a.remarks?'<div style="font-size:11px;color:#AAA;font-style:italic;margin-top:2px">'+esc(a.remarks)+'</div>':'')+
+        '</div></div>'+
+        '<div style="display:flex;gap:6px;margin-top:8px">'+
+        '<button class="btn sm" style="flex:1;justify-content:center" onclick="advListEdit(&#39;'+esc(a.id)+'&#39;,&#39;'+esc(name)+'&#39;)">💰 Edit Amount</button>'+
+        '<button class="btn sm" style="flex:1;justify-content:center" onclick="advListNote(&#39;'+esc(a.id)+'&#39;,&#39;'+esc(name)+'&#39;)">📝 Note</button>'+
+        '<button class="btn sm red" onclick="advListDel(&#39;'+esc(a.id)+'&#39;,&#39;'+esc(name)+'&#39;)">🗑</button>'+
+        '</div></div>';
+    });
+  }
+  body.innerHTML=html;
+}
+
+function advListEdit(advId,name){
+  var a=(S.advances||[]).find(function(x){return x.id===advId;});if(!a)return;
+  var v=prompt('Edit advance amount\nCurrent: Rs.'+Math.round(a.amount)+'\nUsed: Rs.'+Math.round(a.used||0)+'\n\nNew amount (0 to delete):',a.amount);
+  if(v===null)return;
+  v=+v;
+  if(isNaN(v)||v<0){alert('Invalid amount.');return;}
+  if(v===0){
+    if(!confirm('Delete this advance?'))return;
+    S.advances=S.advances.filter(function(x){return x.id!==advId;});
+  } else {
+    a.amount=Math.round(v*100)/100;
+    if((a.used||0)>a.amount)a.used=a.amount;
+  }
+  save();render();if(curCon)renderDet(curCon);renderAdvList(name);
+}
+function advListNote(advId,name){
+  var a=(S.advances||[]).find(function(x){return x.id===advId;});if(!a)return;
+  var v=prompt('Edit note:',a.remarks||'');
+  if(v===null)return;
+  a.remarks=v;
+  save();render();if(curCon)renderDet(curCon);renderAdvList(name);
+}
+function advListDel(advId,name){
+  var a=(S.advances||[]).find(function(x){return x.id===advId;});if(!a)return;
+  if(!confirm('Delete advance of '+fmt(a.amount)+'?'))return;
+  S.advances=S.advances.filter(function(x){return x.id!==advId;});
+  save();render();if(curCon)renderDet(curCon);renderAdvList(name);
 }
 </script>
 
@@ -1802,8 +1829,7 @@ function renderDaybook(){
     <div style="font-size:13px;color:#888;margin-bottom:14px" id="em-sub"></div>
     <button class="btn" style="width:100%;justify-content:flex-start;padding:14px;margin-bottom:10px;font-size:14px" id="em-recv">📥 &nbsp;Edit Received Pieces</button>
     <button class="btn" style="width:100%;justify-content:flex-start;padding:14px;margin-bottom:10px;font-size:14px" id="em-challan">📦 &nbsp;Edit Challan (lot details)</button>
-    <button class="btn" style="width:100%;justify-content:flex-start;padding:14px;margin-bottom:10px;font-size:14px" id="em-pay">💰 &nbsp;Edit Payment History</button>
-    <button class="btn" style="width:100%;justify-content:flex-start;padding:14px;font-size:14px" id="em-adv">⭐ &nbsp;Edit Advances</button>
+    <button class="btn" style="width:100%;justify-content:flex-start;padding:14px;font-size:14px" id="em-pay">💰 &nbsp;Edit Payment History</button>
   </div>
 </div></div>
 
@@ -1820,11 +1846,23 @@ function renderDaybook(){
   <div class="mft"><button class="btn" style="flex:1;justify-content:center" onclick="closeModal('lPay')">Cancel</button><button class="btn pri" style="flex:1;justify-content:center" onclick="saveLotPay()">✓ Save</button></div>
 </div></div>
 
-<!-- ADVANCE LIST -->
-<div class="ov" id="mo-aList"><div class="mb"><div class="mh"></div>
-  <div class="mhd"><div><h3>⭐ Advance History</h3><div style="font-size:12px;color:#888" id="al-sub"></div></div><button class="xb" onclick="closeModal('aList')">&#10005;</button></div>
-  <div class="mbd"><div id="al-list" style="max-height:380px;overflow-y:auto"></div></div>
-  <div class="mft"><button class="btn" style="flex:1;justify-content:center" onclick="closeModal('aList')">Close</button></div>
+<!-- CONTRACTOR EDIT MENU -->
+<div class="ov" id="mo-cem"><div class="mb"><div class="mh"></div>
+  <div class="mhd"><h3>✏️ Edit Contractor</h3><button class="xb" onclick="closeModal('cem')">&#10005;</button></div>
+  <div class="mbd">
+    <div style="font-size:13px;color:#888;margin-bottom:14px" id="cem-sub"></div>
+    <button class="btn" style="width:100%;justify-content:flex-start;padding:14px;margin-bottom:10px;font-size:14px" id="cem-name">👷 &nbsp;Edit Contractor Name</button>
+    <button class="btn" style="width:100%;justify-content:flex-start;padding:14px;font-size:14px" id="cem-adv">⭐ &nbsp;Edit Advance History</button>
+  </div>
+</div></div>
+
+<!-- ADVANCE HISTORY EDITOR -->
+<div class="ov" id="mo-advList"><div class="mb"><div class="mh"></div>
+  <div class="mhd"><div><h3>⭐ Advance History</h3><div style="font-size:12px;color:#888" id="advList-sub"></div></div><button class="xb" onclick="closeModal('advList')">&#10005;</button></div>
+  <div class="mbd">
+    <div id="advList-body"></div>
+  </div>
+  <div class="mft"><button class="btn" style="flex:1;justify-content:center" onclick="closeModal('advList')">Close</button></div>
 </div></div>
 </body>
 </html>
