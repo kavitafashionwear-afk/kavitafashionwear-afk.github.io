@@ -220,7 +220,7 @@ input:focus,select:focus{border-color:var(--n)}
   </nav>
 </div>
 
-<button class="fab" id="fab" onclick="fabAdd()">+</button>
+<button class="fab" id="fab" onclick="openModal('aL')">+</button>
 
 <div class="umenu" id="um">
   <div class="umh"><div style="font-size:14px;font-weight:700" id="un"></div><div style="font-size:11px;color:#888" id="ue"></div></div>
@@ -254,34 +254,6 @@ input:focus,select:focus{border-color:var(--n)}
     <div class="ibox blue" id="elp" style="display:none"></div>
   </div>
   <div class="mft"><button class="btn" style="flex:1;justify-content:center" onclick="closeModal('eL')">Cancel</button><button class="btn pri" style="flex:1;justify-content:center" onclick="saveEL()">&#10003; Save</button></div>
-</div></div>
-
-<!-- ADD FABRIC LOT -->
-<div class="ov" id="mo-aF"><div class="mb"><div class="mh"></div>
-  <div class="mhd"><h3>🧵 New Fabric Processing Lot</h3><button class="xb" onclick="closeModal('aF')">&#10005;</button></div>
-  <div class="mbd">
-    <div class="fr"><div><label>Contractor *</label><input id="ffc" oninput="pvF()"></div><div><label>Fabric / Item *</label><input id="ffi" oninput="pvF()" placeholder="e.g. Cotton greige"></div></div>
-    <div class="fr"><div><label>Quantity *</label><input id="ffq" type="number" inputmode="decimal" oninput="pvF()" placeholder="e.g. 500"></div><div><label>Unit *</label><select id="ffu" onchange="pvF()"><option value="kg">kg</option><option value="mtr">meter</option><option value="pcs">pieces</option></select></div></div>
-    <div class="fr"><div><label>Rate (Rs./unit) *</label><input id="ffr" type="number" inputmode="decimal" oninput="pvF()" placeholder="e.g. 2"></div><div><label>Lot No. *</label><input id="ffln" type="number" inputmode="numeric" placeholder="e.g. 1"></div></div>
-    <div class="fg"><label>Date Issued *</label><input id="ffd" type="date"></div>
-    <div class="fg"><label>Remarks</label><input id="ffm"></div>
-    <div class="ibox blue" id="fp" style="display:none"></div>
-  </div>
-  <div class="mft"><button class="btn" style="flex:1;justify-content:center" onclick="closeModal('aF')">Cancel</button><button class="btn pri" style="flex:1;justify-content:center" onclick="addFabricLot()">Create Fabric Lot</button></div>
-</div></div>
-
-<!-- ALLOT FABRIC LOT TO CUTTING -->
-<div class="ov" id="mo-al"><div class="mb"><div class="mh"></div>
-  <div class="mhd"><div><h3>➡️ Allot to Cutting Contractor</h3><div style="font-size:12px;color:#888" id="alsrc"></div></div><button class="xb" onclick="closeModal('al')">&#10005;</button></div>
-  <div class="mbd">
-    <div style="background:#F5F3FF;border:1px solid #DDD6FE;border-radius:10px;padding:10px 12px;font-size:12px;color:#6D28D9;margin-bottom:10px">The processed fabric becomes a fresh cutting lot. Enter the pieces and per-piece rate for the cutting contractor.</div>
-    <div class="fr"><div><label>Cutting Contractor *</label><input id="alc" placeholder="Type a contractor name"></div><div><label>Item *</label><input id="ali" placeholder="e.g. Leggings"></div></div>
-    <div class="fr"><div><label>Pieces *</label><input id="alp" type="number" inputmode="numeric" oninput="pvAl()"></div><div><label>Rate (Rs./pc) *</label><input id="alr" type="number" inputmode="decimal" oninput="pvAl()"></div></div>
-    <div class="fr"><div><label>Lot No. *</label><input id="alln" type="number" inputmode="numeric" placeholder="e.g. 1"></div><div><label>Date Issued *</label><input id="ald" type="date"></div></div>
-    <div class="fg"><label>Remarks</label><input id="alm"></div>
-    <div class="ibox blue" id="alp2" style="display:none"></div>
-  </div>
-  <div class="mft"><button class="btn" style="flex:1;justify-content:center" onclick="closeModal('al')">Cancel</button><button class="btn pri" style="flex:1;justify-content:center" onclick="saveAllot()">Create Cutting Lot</button></div>
 </div></div>
 
 <!-- EDIT CONTRACTOR -->
@@ -406,9 +378,6 @@ function fmtD(d){return d?new Date(d+'T00:00:00').toLocaleDateString('en-IN',{da
 function td(){return new Date().toISOString().split('T')[0];}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function adv(lid){var lot=S.lots.find(function(l){return l.id===lid;});if(!lot||lot.piecesReceived==null)return 0;return Math.round(S.pays.filter(function(p){return p.lotId===lid;}).reduce(function(s,p){return s+p.amount;},0)*100)/100;}
-// Unit label: fabric lots carry kg/mtr/pcs; cutting lots are always pieces.
-function lotUnit(lot){return (lot&&lot.unit)?lot.unit:'pcs';}
-function isFabric(lot){return !!(lot&&lot.kind==='fabric');}
 function payable(lot){return lot&&lot.piecesReceived!=null?Math.round(lot.piecesReceived*lot.rate*100)/100:0;}
 function bal(lot){return Math.round((payable(lot)-adv(lot.id))*100)/100;}
 function lotSortVal(lot){return new Date((lot.dateReceived||lot.dateIssued||'1970-01-01')+'T00:00:00').getTime()||0;}
@@ -600,12 +569,11 @@ document.addEventListener('click',function(e){
   var action=t.dataset.action,id=t.dataset.id,name=t.dataset.name;
   if(action==='openCon')openContractor(name);
   else if(action==='pay')openPayFor(name);
-  else if(action==='newLot'){if(contractorIsFabric(name))openFabricLotFor(name);else openLotFor(name);}
+  else if(action==='newLot')openLotFor(name);
   else if(action==='editCon')openEC(name);
   else if(action==='report')printReport(name);
   else if(action==='payLot')openPayModal(id);
   else if(action==='recv')openRv(id);
-  else if(action==='allot')openAllot(id);
   else if(action==='settle')settleLot(id);
   else if(action==='print')openPrintChoice(id);
   else if(action==='printReturn')printReturn(id);
@@ -672,41 +640,22 @@ function getNames(){
   var ns=[...new Set(S.lots.map(function(l){return l.contractorName;}))];
   return ns.sort(function(a,b){return contractorBal(b)-contractorBal(a);});
 }
-// A contractor is "fabric" if they have at least one fabric lot, "cutting" otherwise.
-function contractorIsFabric(name){return S.lots.some(function(l){return l.contractorName===name&&isFabric(l);});}
-function getNamesByKind(kind){
-  return getNames().filter(function(n){return kind==='fabric'?contractorIsFabric(n):!contractorIsFabric(n);});
-}
-var conSubTab='cutting';
-function setConSub(k){conSubTab=k;renderCon();}
 
 function renderCon(){
   var el=document.getElementById('cl');
-  var cutting=getNamesByKind('cutting'), fabric=getNamesByKind('fabric');
-  var tabs='<div class="consub" style="display:flex;gap:8px;margin-bottom:14px">'+
-    '<button class="btn sm '+(conSubTab==='cutting'?'pri':'')+'" style="flex:1;justify-content:center" onclick="setConSub(\'cutting\')">✂️ Cutting ('+cutting.length+')</button>'+
-    '<button class="btn sm '+(conSubTab==='fabric'?'pri':'')+'" style="flex:1;justify-content:center" onclick="setConSub(\'fabric\')">🧵 Fabric Processing ('+fabric.length+')</button>'+
-  '</div>';
-  var addBtn='<button class="btn sm pri" style="width:100%;justify-content:center;margin-bottom:12px" onclick="'+(conSubTab==='fabric'?'openFabricLotFor(null)':'openLotFor(null)')+'">+ '+(conSubTab==='fabric'?'New Fabric Lot':'New Cutting Lot')+'</button>';
-  var ns=conSubTab==='fabric'?fabric:cutting;
-  var rows;
-  if(!ns.length){
-    rows='<div class="empty"><div class="ei">'+(conSubTab==='fabric'?'🧵':'👷')+'</div><p>No '+(conSubTab==='fabric'?'fabric-processing':'cutting')+' contractors yet</p></div>';
-  } else {
-    rows=ns.map(function(n,i){
-      var ls=S.lots.filter(function(l){return l.contractorName===n;});
-      var pd=ls.filter(function(l){return l.status==='PENDING';}).length;
-      var tb=contractorBal(n);
-      var div=document.createElement('div');
-      div.className='crow';div.dataset.action='openCon';div.dataset.name=n;
-      var badge=conSubTab==='fabric'?'<span style="background:#EDE9FE;color:#6D28D9;font-size:9px;font-weight:700;padding:1px 7px;border-radius:10px;margin-left:6px">FABRIC</span>':'';
-      div.innerHTML='<div class="cav" style="background:'+(conSubTab==='fabric'?'#6D28D9':avc(i))+'">'+esc(ini(n))+'</div>'+
-        '<div class="cinfo"><div class="cname">'+esc(n)+badge+'</div><div class="cmeta">'+ls.length+' lot(s) &middot; '+pd+' pending</div></div>'+
-        '<div style="text-align:right"><div class="cbal '+(tb>0?'red':'zero')+'">'+fmt(tb)+'</div><div style="font-size:10px;color:#AAA">'+(tb>0?'due':'clear')+'</div></div>';
-      return div.outerHTML;
-    }).join('');
-  }
-  el.innerHTML=tabs+addBtn+rows;
+  var ns=getNames();
+  if(!ns.length){el.innerHTML='<div class="empty"><div class="ei">👷</div><p>No contractors yet</p></div>';return;}
+  el.innerHTML=ns.map(function(n,i){
+    var ls=S.lots.filter(function(l){return l.contractorName===n;});
+    var pd=ls.filter(function(l){return l.status==='PENDING';}).length;
+    var tb=contractorBal(n);
+    var div=document.createElement('div');
+    div.className='crow';div.dataset.action='openCon';div.dataset.name=n;
+    div.innerHTML='<div class="cav" style="background:'+avc(i)+'">'+esc(ini(n))+'</div>'+
+      '<div class="cinfo"><div class="cname">'+esc(n)+'</div><div class="cmeta">'+ls.length+' lot(s) &middot; '+pd+' pending</div></div>'+
+      '<div style="text-align:right"><div class="cbal '+(tb>0?'red':'zero')+'">'+fmt(tb)+'</div><div style="font-size:10px;color:#AAA">'+(tb>0?'due':'clear')+'</div></div>';
+    return div.outerHTML;
+  }).join('');
 }
 
 function renderDet(name){
@@ -753,34 +702,26 @@ function renderDet(name){
 function lotCard(lot,showCon){
   var a=adv(lot.id),p=payable(lot),b=p-a;
   var ms=lot.piecesReceived!=null?lot.piecesIssued-lot.piecesReceived:null;
-  var u=lotUnit(lot), fab=isFabric(lot);
-  // Action buttons
+  // Build action buttons using data attributes - NO INLINE FUNCTIONS WITH ARGS
   var ap=lot.status==='RECEIVED'?'<button class="btn sm" data-action="payLot" data-id="'+esc(lot.id)+'">💵 Pay</button>':'';
   var ar=lot.status==='PENDING'?'<button class="btn sm" data-action="recv" data-id="'+esc(lot.id)+'">📥 Receive</button>':'';
   var as=lot.status==='RECEIVED'?'<button class="btn sm grn" data-action="settle" data-id="'+esc(lot.id)+'">✓ Settle</button>':'';
-  // A received fabric lot can be allotted onward to a cutting contractor
-  var aAllot=(fab&&lot.piecesReceived!=null)?'<button class="btn sm" style="color:#6D28D9;border-color:#DDD6FE" data-action="allot" data-id="'+esc(lot.id)+'">➡️ Allot to Cutting</button>':'';
+  var aclr='';
   var vc=showCon?'<button class="btn sm" data-action="viewCon" data-name="'+esc(lot.contractorName)+'">👷</button>':'';
-  // "Alloted from" mask for cutting lots that originated from a fabric lot
-  var allotBanner=lot.allottedFrom?'<div style="background:#F5F3FF;border:1px solid #DDD6FE;border-radius:8px;padding:7px 10px;margin-bottom:10px;font-size:11px;color:#6D28D9;font-weight:600">🧵 Alloted from <strong>'+esc(lot.allottedFrom)+'</strong>'+(lot.allottedFromLot?' &middot; '+esc(lot.allottedFromLot):'')+'</div>':'';
-  // Fabric badge + onward-allotment indicator
-  var kindBadge=fab?'<span style="background:#EDE9FE;color:#6D28D9;font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;margin-left:6px">FABRIC</span>':'';
-  var allotOutNote=(lot.allottedTo&&lot.allottedTo.length)?'<div style="background:#ECFDF5;border:1px solid #A7F3D0;border-radius:8px;padding:7px 10px;margin-bottom:10px;font-size:11px;color:#047857;font-weight:600">➡️ Alloted to: '+lot.allottedTo.map(function(x){return esc(x.contractor)+' ('+esc(x.lotId)+')';}).join(', ')+'</div>':'';
   return '<div class="lc">'+
-    '<div class="lch"><div style="display:flex;align-items:center;gap:8px"><span class="lid">'+esc(lot.id)+'</span><div><div class="lname">'+(showCon?esc(lot.contractorName):esc(lot.item))+kindBadge+'</div><div class="lsub">'+(showCon?esc(lot.item):fmtD(lot.dateIssued))+'</div></div></div><span class="sbdg sp-'+lot.status+'">'+lot.status+'</span></div>'+
-    allotBanner+allotOutNote+
+    '<div class="lch"><div style="display:flex;align-items:center;gap:8px"><span class="lid">'+esc(lot.id)+'</span><div><div class="lname">'+(showCon?esc(lot.contractorName):esc(lot.item))+'</div><div class="lsub">'+(showCon?esc(lot.item):fmtD(lot.dateIssued))+'</div></div></div><span class="sbdg sp-'+lot.status+'">'+lot.status+'</span></div>'+
     '<div class="lnums">'+
-    '<div class="nb"><div class="nl">📤 Issued</div><div class="nv">'+fmtN(lot.piecesIssued)+' '+u+'</div><div style="font-size:9px;color:#AAA;margin-top:2px">'+fmtD(lot.dateIssued)+'</div></div>'+
-    '<div class="nb"><div class="nl">'+(lot.piecesReceived!=null?'📥 Received':'📥 Pending')+'</div><div class="nv '+(ms!=null&&ms>0?'red':'ok')+'">'+( lot.piecesReceived!=null?fmtN(lot.piecesReceived)+' '+u:'-')+'</div><div style="font-size:9px;color:#AAA;margin-top:2px">'+(lot.dateReceived?fmtD(lot.dateReceived):'-')+'</div></div>'+
-    '<div class="nb"><div class="nl">Payable</div><div class="nv">'+fmt(p)+'</div><div style="font-size:9px;color:#AAA;margin-top:2px">'+(lot.piecesReceived!=null?fmtN(lot.piecesReceived)+' x Rs.'+lot.rate+'/'+u:'After receive')+'</div></div>'+
+    '<div class="nb"><div class="nl">📤 Issued</div><div class="nv">'+fmtN(lot.piecesIssued)+' pcs</div><div style="font-size:9px;color:#AAA;margin-top:2px">'+fmtD(lot.dateIssued)+'</div></div>'+
+    '<div class="nb"><div class="nl">'+(lot.piecesReceived!=null?'📥 Received':'📥 Pending')+'</div><div class="nv '+(ms!=null&&ms>0?'red':'ok')+'">'+( lot.piecesReceived!=null?fmtN(lot.piecesReceived)+' pcs':'-')+'</div><div style="font-size:9px;color:#AAA;margin-top:2px">'+(lot.dateReceived?fmtD(lot.dateReceived):'-')+'</div></div>'+
+    '<div class="nb"><div class="nl">Payable</div><div class="nv">'+fmt(p)+'</div><div style="font-size:9px;color:#AAA;margin-top:2px">'+(lot.piecesReceived!=null?fmtN(lot.piecesReceived)+' x Rs.'+lot.rate:'After receive')+'</div></div>'+
     '<div class="nb"><div class="nl">Paid</div><div class="nv '+(a>0?'warn':'')+'">'+fmt(a)+'</div></div>'+
     '<div class="nb"><div class="nl">Balance</div><div class="nv '+(b>0?'red':'')+'">'+fmt(b)+'</div></div>'+
     '</div>'+
     '<div class="lmeta">'+
-    (ms!=null?'<span class="'+(ms>0?'ms':'ok')+'">'+(ms>0?'⚠ ':'✓ ')+'Rcvd '+fmtN(lot.piecesReceived)+' '+u+(ms>0?' ('+ms+' short)':'')+'</span>':'')+
+    (ms!=null?'<span class="'+(ms>0?'ms':'ok')+'">'+(ms>0?'⚠ ':'✓ ')+'Rcvd '+fmtN(lot.piecesReceived)+(ms>0?' ('+ms+' short)':'')+'</span>':'')+
     (lot.remarks?'<span style="font-style:italic;color:#AAA">'+esc(lot.remarks)+'</span>':'')+'</div>'+
     ((lot.receivals&&lot.receivals.length>1)?'<div style="background:#F8FBFF;border:1px solid #E0EAFB;border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:11px;color:#555"><strong style="color:var(--n)">📥 Received in '+lot.receivals.length+' parts:</strong> '+lot.receivals.map(function(r){return fmtN(r.pieces)+' on '+fmtD(r.date);}).join(' &middot; ')+'</div>':'')+
-    '<div class="lacts">'+ap+ar+as+aAllot+
+    '<div class="lacts">'+ap+ar+as+
     '<button class="btn sm pur" data-action="print" data-id="'+esc(lot.id)+'">🖨 Print</button>'+
     '<button class="btn sm" data-action="shareLot" data-id="'+esc(lot.id)+'">📤 Share</button>'+
     '<button class="btn sm" style="color:#059669;border-color:#6EE7B7" data-action="editMenu" data-id="'+esc(lot.id)+'">✏️ Edit</button>'+vc+
@@ -855,11 +796,6 @@ function openPayFor(name){
   onPayConChange();
 }
 function openLotFor(name){openModal('aL');document.getElementById('fc').value=name;}
-// FAB: on the Contractors → Fabric sub-tab, add a fabric lot; otherwise a cutting lot.
-function fabAdd(){
-  if(curTab==='con'&&conSubTab==='fabric'){openFabricLotFor(null);}
-  else{openModal('aL');}
-}
 function openPayModal(lid){var lot=S.lots.find(function(l){return l.id===lid;});if(!lot)return;openPayFor(lot.contractorName);setTimeout(function(){var cb=document.querySelector('.paylotcb[value="'+lot.id+'"]');if(cb){cb.checked=true;onLotSelToggle();}},50);}
 function closeModal(t){var el=document.getElementById('mo-'+t);el.classList.remove('show');el.style.display='none';}
 document.querySelectorAll('.ov').forEach(function(o){o.addEventListener('click',function(e){if(e.target===o){o.classList.remove('show');o.style.display='none';}});});
@@ -877,11 +813,7 @@ function openRv(lid){
   var isEdit=lot.piecesReceived!=null;
   document.getElementById('rv-title').textContent=isEdit?'Edit Received Lot':'Receive Lot';
   document.getElementById('rvs').textContent=lot.id+' - '+lot.contractorName;
-  var _u=lotUnit(lot);
-  document.getElementById('rvi').textContent='Issued: '+fmtN(lot.piecesIssued)+' '+_u+' @ Rs.'+lot.rate+'/'+_u+' = '+fmt(lot.piecesIssued*lot.rate);
-  // Label the received-quantity field with the lot's unit
-  var rpLabel=document.querySelector('label[for="rp"]')||document.getElementById('rp').previousElementSibling;
-  if(rpLabel)rpLabel.textContent=(_u==='pcs'?'Pieces':_u.charAt(0).toUpperCase()+_u.slice(1))+' Received *';
+  document.getElementById('rvi').textContent='Issued: '+fmtN(lot.piecesIssued)+' pcs @ Rs.'+lot.rate+' = '+fmt(lot.piecesIssued*lot.rate);
   // Load existing receivals into staging
   stagedReceivals=lotReceivals(lot).map(function(r){return {date:r.date,pieces:+r.pieces||0,bags:+r.bags||0};});
   renderReceivalParts();
@@ -1023,71 +955,6 @@ function addLot(){
   if(p<=0||r<=0){alert('Pieces and rate must be greater than zero.');return;}
   S.lC++;var _ln=+document.getElementById('fln').value||S.lC;var _bg=+document.getElementById('fbg').value||0;S.lots.push({id:'LOT-'+pad(S.lC),lotNumber:_ln,bags:_bg,contractorName:c,item:i,piecesIssued:p,rate:r,dateIssued:d,piecesReceived:null,dateReceived:null,status:'PENDING',remarks:m});
   save();closeModal('aL');render();if(curCon)renderDet(curCon);
-}
-
-// ═══ FABRIC PROCESSING ═══
-function openFabricLotFor(name){
-  document.getElementById('ffc').value=name||'';
-  document.getElementById('ffi').value='';
-  document.getElementById('ffq').value='';
-  document.getElementById('ffu').value='kg';
-  document.getElementById('ffr').value='';
-  document.getElementById('ffln').value='';
-  document.getElementById('ffd').value=td();
-  document.getElementById('ffm').value='';
-  document.getElementById('fp').style.display='none';
-  openModal('aF');
-}
-function pvF(){
-  var q=+document.getElementById('ffq').value,r=+document.getElementById('ffr').value,u=document.getElementById('ffu').value;
-  var b=document.getElementById('fp');
-  if(q>0&&r>0){b.style.display='block';b.className='ibox blue';b.innerHTML='Payable on receive: <strong>'+fmt(q*r)+'</strong> ('+fmtN(q)+' '+u+' × Rs.'+r+'/'+u+')';}
-  else b.style.display='none';
-}
-function addFabricLot(){
-  var c=document.getElementById('ffc').value.trim(),i=document.getElementById('ffi').value.trim(),q=+document.getElementById('ffq').value,u=document.getElementById('ffu').value,r=+document.getElementById('ffr').value,d=document.getElementById('ffd').value,m=document.getElementById('ffm').value.trim();
-  if(!c||!i||!q||!r||!d){alert('Fill all required fields.');return;}
-  if(q<=0||r<=0){alert('Quantity and rate must be greater than zero.');return;}
-  S.lC++;var _ln=+document.getElementById('ffln').value||S.lC;
-  S.lots.push({id:'LOT-'+pad(S.lC),lotNumber:_ln,kind:'fabric',unit:u,contractorName:c,item:i,piecesIssued:q,rate:r,dateIssued:d,piecesReceived:null,dateReceived:null,status:'PENDING',remarks:m});
-  save();closeModal('aF');conSubTab='fabric';render();if(curCon)renderDet(curCon);
-}
-
-var allotSrcId=null;
-function openAllot(lid){
-  var lot=S.lots.find(function(l){return l.id===lid;});if(!lot)return;
-  allotSrcId=lid;
-  document.getElementById('alsrc').textContent='From '+lot.id+' · '+lot.contractorName+' · '+fmtN(lot.piecesReceived)+' '+lotUnit(lot)+' '+lot.item;
-  document.getElementById('alc').value='';
-  document.getElementById('ali').value=lot.item;
-  document.getElementById('alp').value='';
-  document.getElementById('alr').value='';
-  document.getElementById('alln').value='';
-  document.getElementById('ald').value=td();
-  document.getElementById('alm').value='';
-  document.getElementById('alp2').style.display='none';
-  openModal('al');
-}
-function pvAl(){
-  var p=+document.getElementById('alp').value,r=+document.getElementById('alr').value;
-  var b=document.getElementById('alp2');
-  if(p>0&&r>0){b.style.display='block';b.className='ibox blue';b.innerHTML='New cutting lot payable on receive: <strong>'+fmt(p*r)+'</strong> ('+fmtN(p)+' pcs × Rs.'+r+'/pc)';}
-  else b.style.display='none';
-}
-function saveAllot(){
-  var src=S.lots.find(function(l){return l.id===allotSrcId;});if(!src)return;
-  var c=document.getElementById('alc').value.trim(),i=document.getElementById('ali').value.trim(),p=+document.getElementById('alp').value,r=+document.getElementById('alr').value,d=document.getElementById('ald').value,m=document.getElementById('alm').value.trim();
-  if(!c||!i||!p||!r||!d){alert('Fill all required fields.');return;}
-  if(p<=0||r<=0){alert('Pieces and rate must be greater than zero.');return;}
-  S.lC++;var _ln=+document.getElementById('alln').value||S.lC;
-  var newId='LOT-'+pad(S.lC);
-  S.lots.push({id:newId,lotNumber:_ln,bags:0,contractorName:c,item:i,piecesIssued:p,rate:r,dateIssued:d,piecesReceived:null,dateReceived:null,status:'PENDING',remarks:m,
-    allottedFrom:src.contractorName,allottedFromLot:src.id});
-  // Record the onward allotment on the source fabric lot
-  if(!src.allottedTo)src.allottedTo=[];
-  src.allottedTo.push({contractor:c,lotId:newId,pieces:p,date:d});
-  save();closeModal('al');conSubTab='cutting';render();if(curCon)renderDet(curCon);
-  alert('✅ Created cutting lot '+newId+' for '+c+', alloted from '+src.contractorName+'.');
 }
 function savePay(){
   var name=document.getElementById('pl2').value;
