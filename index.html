@@ -234,6 +234,7 @@ input:focus,select:focus{border-color:var(--n)}
   <div class="mhd"><h3>New Cutting Lot</h3><button class="xb" onclick="closeModal('aL')">&#10005;</button></div>
   <div class="mbd">
     <div class="fr"><div><label>Contractor *</label><input id="fc" oninput="pvL()"></div><div><label>Item *</label><input id="fi" oninput="pvL()"></div></div>
+    <div class="fg"><label>Contractor Contact No. <span style="color:#AAA;font-weight:400">(optional, for new)</span></label><input id="fcph" type="tel" inputmode="tel" placeholder="e.g. 98xxxxxxxx"></div>
     <div class="fr"><div><label>Pieces *</label><input id="fp" type="number" inputmode="numeric" oninput="pvL()"></div><div><label>Rate (Rs./pc) *</label><input id="fr" type="number" inputmode="decimal" oninput="pvL()"></div></div>
     <div class="fr"><div><label>Lot No. *</label><input id="fln" type="number" inputmode="numeric" placeholder="e.g. 1" oninput="pvL()"></div><div><label>Bags</label><input id="fbg" type="number" inputmode="numeric" placeholder="No. of bags" oninput="pvL()"></div></div>
     <div class="fg"><label>Date Issued *</label><input id="fd" type="date"></div>
@@ -248,6 +249,7 @@ input:focus,select:focus{border-color:var(--n)}
   <div class="mhd"><h3>🧵 New Fabric Processing Lot</h3><button class="xb" onclick="closeModal('aF')">&#10005;</button></div>
   <div class="mbd">
     <div class="fr"><div><label>Contractor *</label><input id="ffc" oninput="pvF()"></div><div><label>Fabric / Item *</label><input id="ffi" oninput="pvF()" placeholder="e.g. Cotton greige"></div></div>
+    <div class="fg"><label>Contractor Contact No. <span style="color:#AAA;font-weight:400">(optional, for new)</span></label><input id="ffcph" type="tel" inputmode="tel" placeholder="e.g. 98xxxxxxxx"></div>
     <div class="fr"><div><label>Quantity *</label><input id="ffq" type="number" inputmode="decimal" oninput="pvF()" placeholder="e.g. 500"></div><div><label>Unit *</label><select id="ffu" onchange="pvF()"><option value="kg">kg</option><option value="mtr">meter</option><option value="pcs">pieces</option></select></div></div>
     <div class="fr"><div><label>Rate (Rs./unit) *</label><input id="ffr" type="number" inputmode="decimal" oninput="pvF()" placeholder="e.g. 2"></div><div><label>Lot No. *</label><input id="ffln" type="number" inputmode="numeric" placeholder="e.g. 1"></div></div>
     <div class="fg"><label>Date Issued *</label><input id="ffd" type="date"></div>
@@ -261,8 +263,14 @@ input:focus,select:focus{border-color:var(--n)}
 <div class="ov" id="mo-al"><div class="mb"><div class="mh"></div>
   <div class="mhd"><div><h3>➡️ Allot to Cutting Contractor</h3><div style="font-size:12px;color:#888" id="alsrc"></div></div><button class="xb" onclick="closeModal('al')">&#10005;</button></div>
   <div class="mbd">
-    <div style="background:#F5F3FF;border:1px solid #DDD6FE;border-radius:10px;padding:10px 12px;font-size:12px;color:#6D28D9;margin-bottom:10px">The processed fabric becomes a fresh cutting lot. Enter pieces and per-piece rate for the cutting contractor.</div>
-    <div class="fr"><div><label>Cutting Contractor *</label><input id="alc" placeholder="Type a contractor name"></div><div><label>Item *</label><input id="ali" placeholder="e.g. Leggings"></div></div>
+    <div style="background:#F5F3FF;border:1px solid #DDD6FE;border-radius:10px;padding:10px 12px;font-size:12px;color:#6D28D9;margin-bottom:10px">The processed fabric becomes a fresh cutting lot. Pick (or add) the cutting contractor, then enter pieces and per-piece rate.</div>
+    <div class="fg"><label>Cutting Contractor *</label>
+      <select id="alcSel" onchange="onAllotConChange()" style="width:100%"></select>
+    </div>
+    <div id="alNewWrap" style="display:none">
+      <div class="fr"><div><label>New Contractor Name *</label><input id="alc" placeholder="Contractor name"></div><div><label>Contact No.</label><input id="alcph" type="tel" inputmode="tel" placeholder="e.g. 98xxxxxxxx"></div></div>
+    </div>
+    <div class="fg"><label>Item *</label><input id="ali" placeholder="e.g. Leggings"></div>
     <div class="fr"><div><label>Pieces *</label><input id="alp" type="number" inputmode="numeric" oninput="pvAl()"></div><div><label>Rate (Rs./pc) *</label><input id="alr" type="number" inputmode="decimal" oninput="pvAl()"></div></div>
     <div class="fr"><div><label>Lot No. *</label><input id="alln" type="number" inputmode="numeric" placeholder="e.g. 1"></div><div><label>Date Issued *</label><input id="ald" type="date"></div></div>
     <div class="fg"><label>Remarks</label><input id="alm"></div>
@@ -290,6 +298,7 @@ input:focus,select:focus{border-color:var(--n)}
   <div class="mhd"><div><h3>&#9998; Edit Contractor</h3><div style="font-size:12px;color:#888" id="ecs"></div></div><button class="xb" onclick="closeModal('eC')">&#10005;</button></div>
   <div class="mbd">
     <div class="fg"><label>Contractor Name *</label><input id="en"></div>
+    <div class="fg"><label>Contact No.</label><input id="enph" type="tel" inputmode="tel" placeholder="e.g. 98xxxxxxxx"></div>
     <div style="background:#FFF7ED;border:1px solid #FDE68A;border-radius:10px;padding:12px;font-size:12px;color:#92400E;margin-top:4px">Renaming updates all lots automatically.</div>
   </div>
   <div class="mft"><button class="btn" style="flex:1;justify-content:center" onclick="closeModal('eC')">Cancel</button><button class="btn pri" style="flex:1;justify-content:center" onclick="saveEC()">&#10003; Save</button></div>
@@ -394,7 +403,7 @@ input:focus,select:focus{border-color:var(--n)}
 <script>
 firebase.initializeApp({apiKey:"AIzaSyDRfRBzqdg8LCUjZKdGRNIsKCBszbtM7ok",authDomain:"challan-manager-85768.firebaseapp.com",projectId:"challan-manager-85768",storageBucket:"challan-manager-85768.firebasestorage.app",messagingSenderId:"667915790046",appId:"1:667915790046:web:92b61ba86c9facd620444f"});
 var auth=firebase.auth(),db=firebase.firestore();
-var S={lots:[],pays:[],advances:[],lC:0,pC:0,aC:0,trash:[]},uid=null,unsubDB=null,ready=false;
+var S={lots:[],pays:[],advances:[],contacts:{},lC:0,pC:0,aC:0,trash:[]},uid=null,unsubDB=null,ready=false;
 var curTab='home',curCon=null,navStack=[],curFilter='ALL',rvId=null,eLId=null,eCName=null,impData=null;
 var AVC=['#1F3864','#065F46','#92400E','#6D28D9','#9D174D','#1E40AF','#047857'];
 
@@ -542,7 +551,7 @@ function sdot(s){var d=document.getElementById('sd');if(d)d.className='sdot'+(s=
 function subscribe(){
   sdot('busy');
   unsubDB=db.collection('users').doc(uid).collection('contractor').doc('main').onSnapshot(function(snap){
-    if(snap.exists){var d=snap.data();S.lots=d.lots||[];S.pays=d.pays||[];S.advances=d.advances||[];S.lC=d.lC||0;S.pC=d.pC||0;S.aC=d.aC||0;S.trash=d.trash||[];refreshAllStatuses();}
+    if(snap.exists){var d=snap.data();S.lots=d.lots||[];S.pays=d.pays||[];S.advances=d.advances||[];S.contacts=d.contacts||{};S.lC=d.lC||0;S.pC=d.pC||0;S.aC=d.aC||0;S.trash=d.trash||[];refreshAllStatuses();}
     var cleaned=cleanupTrash();
     sdot('ok');render();
     if(cleaned)save();
@@ -551,7 +560,7 @@ function subscribe(){
 function save(){
   if(!uid)return;sdot('busy');
   refreshAllStatuses();
-  db.collection('users').doc(uid).collection('contractor').doc('main').set({lots:S.lots,pays:S.pays,advances:S.advances||[],lC:S.lC,pC:S.pC,aC:S.aC||0,trash:S.trash||[],updated:new Date().toISOString()}).then(function(){sdot('ok');}).catch(function(e){sdot('err');alert('Sync error: '+e.message);});
+  db.collection('users').doc(uid).collection('contractor').doc('main').set({lots:S.lots,pays:S.pays,advances:S.advances||[],contacts:S.contacts||{},lC:S.lC,pC:S.pC,aC:S.aC||0,trash:S.trash||[],updated:new Date().toISOString()}).then(function(){sdot('ok');}).catch(function(e){sdot('err');alert('Sync error: '+e.message);});
 }
 
 function showApp(user){
@@ -676,6 +685,9 @@ function getNames(){
 }
 // A contractor is "fabric" if they have at least one fabric lot, else "cutting".
 function contractorIsFabric(name){return S.lots.some(function(l){return l.contractorName===name&&isFabric(l);});}
+// ── Contact numbers (contractors are derived from lots, so phones live in S.contacts) ──
+function getContact(name){return (S.contacts&&S.contacts[name])?S.contacts[name]:'';}
+function setContact(name,phone){if(!S.contacts)S.contacts={};phone=(phone||'').trim();if(phone)S.contacts[name]=phone;else delete S.contacts[name];}
 function getNamesByKind(kind){return getNames().filter(function(n){return kind==='fabric'?contractorIsFabric(n):!contractorIsFabric(n);});}
 var conSubTab='cutting';
 function setConSub(k){conSubTab=k;renderCon();}
@@ -701,7 +713,7 @@ function renderCon(){
       div.className='crow';div.dataset.action='openCon';div.dataset.name=n;
       var badge=conSubTab==='fabric'?'<span style="background:#EDE9FE;color:#6D28D9;font-size:9px;font-weight:700;padding:1px 7px;border-radius:10px;margin-left:6px">FABRIC</span>':'';
       div.innerHTML='<div class="cav" style="background:'+(conSubTab==='fabric'?'#6D28D9':avc(i))+'">'+esc(ini(n))+'</div>'+
-        '<div class="cinfo"><div class="cname">'+esc(n)+badge+'</div><div class="cmeta">'+ls.length+' lot(s) &middot; '+pd+' pending</div></div>'+
+        '<div class="cinfo"><div class="cname">'+esc(n)+badge+'</div><div class="cmeta">'+ls.length+' lot(s) &middot; '+pd+' pending'+(getContact(n)?' &middot; 📞 '+esc(getContact(n)):'')+'</div></div>'+
         '<div style="text-align:right"><div class="cbal '+(tb>0?'red':'zero')+'">'+fmt(tb)+'</div><div style="font-size:10px;color:#AAA">'+(tb>0?'due':'clear')+'</div></div>';
       return div.outerHTML;
     }).join('');
@@ -741,7 +753,7 @@ function renderDet(name){
     '<button class="cact" style="background:#FFF1F2;color:#DC2626;border:1.5px solid #FECACA;grid-column:1/-1;font-size:14px" data-action="delCon" data-name="'+esc(name)+'">🗑️ Delete Contractor &amp; All Lots</button>'+
   '</div>';
   el.innerHTML=
-    '<div class="cdh"><div style="display:flex;align-items:center;gap:12px"><div class="cav" style="background:'+avc(ci)+';width:44px;height:44px;font-size:16px">'+esc(ini(name))+'</div><div><div style="font-size:18px;font-weight:700;color:#fff">'+esc(name)+'</div><div style="font-size:12px;color:#B0C4DE">'+ls.length+' lots &middot; '+pd+' pending &middot; '+st+' settled</div></div></div></div>'+
+    '<div class="cdh"><div style="display:flex;align-items:center;gap:12px"><div class="cav" style="background:'+avc(ci)+';width:44px;height:44px;font-size:16px">'+esc(ini(name))+'</div><div><div style="font-size:18px;font-weight:700;color:#fff">'+esc(name)+'</div><div style="font-size:12px;color:#B0C4DE">'+ls.length+' lots &middot; '+pd+' pending &middot; '+st+' settled</div>'+(getContact(name)?'<div style="font-size:12px;color:#B0C4DE;margin-top:2px">📞 <a href="tel:'+esc(getContact(name))+'" style="color:#fff;text-decoration:underline">'+esc(getContact(name))+'</a></div>':'')+'</div></div></div>'+
     '<div class="stats" style="margin-bottom:14px"><div class="sc"><div class="sl">Total Billed</div><div class="sv">'+fmt(tb)+'</div></div><div class="sc"><div class="sl">Total Paid</div><div class="sv grn">'+fmt(tp)+'</div></div><div class="sc"><div class="sl">Balance Due</div><div class="sv '+(Math.max(0,tbal)>0.01?'red':'')+'">'+fmt(Math.max(0,tbal))+'</div></div><div class="sc"><div class="sl">Advance Pool</div><div class="sv" style="color:#7C3AED">'+fmt(pool)+'</div></div></div>'+
     acts+
     (Math.max(0,tbal)>0.01?'<div class="ibox red">Outstanding: <strong>'+fmt(Math.max(0,tbal))+'</strong>'+(pool>0.01?' &middot; Advance available: '+fmt(pool):'')+'</div>':(pool>0.01?'<div class="ibox blue">&#10003; No dues &middot; Advance in hand: <strong>'+fmt(pool)+'</strong></div>':'<div class="ibox green">&#10003; All settled — no outstanding balance</div>'))+
@@ -835,7 +847,7 @@ function renderPays(){
 }
 
 function openModal(t){
-  if(t==='aL'){['fc','fi','fp','fr','fln','fbg','fm'].forEach(function(id){document.getElementById(id).value='';});document.getElementById('fd').value=td();document.getElementById('lp').style.display='none';}
+  if(t==='aL'){['fc','fi','fp','fr','fln','fbg','fm','fcph'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});document.getElementById('fd').value=td();document.getElementById('lp').style.display='none';}
   if(t==='aP'){
     var s=document.getElementById('pl2');s.innerHTML='<option value="">Select contractor...</option>';
     getNames().forEach(function(n){var o=document.createElement('option');o.value=n;o.textContent=n;s.appendChild(o);});
@@ -920,7 +932,7 @@ function addReceivalPart(){
 }
 function removeReceivalPart(i){stagedReceivals.splice(i,1);renderReceivalParts();}
 function openEL(lid){eLId=lid;var lot=S.lots.find(function(l){return l.id===lid;});if(!lot)return;document.getElementById('els').textContent=lid;document.getElementById('eln').value=lot.lotNumber||'';document.getElementById('ebg').value=lot.bags||'';document.getElementById('ec').value=lot.contractorName;document.getElementById('ei').value=lot.item;document.getElementById('ep').value=lot.piecesIssued;document.getElementById('er').value=lot.rate;document.getElementById('ed').value=lot.dateIssued;document.getElementById('em').value=lot.remarks||'';document.getElementById('elp').style.display='none';var el=document.getElementById('mo-eL');el.classList.add('show');el.style.display='flex';}
-function openEC(name){eCName=name;document.getElementById('ecs').textContent=name;document.getElementById('en').value=name;var el=document.getElementById('mo-eC');el.classList.add('show');el.style.display='flex';}
+function openEC(name){eCName=name;document.getElementById('ecs').textContent=name;document.getElementById('en').value=name;document.getElementById('enph').value=getContact(name);var el=document.getElementById('mo-eC');el.classList.add('show');el.style.display='flex';}
 
 function pvL(){var p=+document.getElementById('fp').value,r=+document.getElementById('fr').value,b=document.getElementById('lp');if(p&&r){b.style.display='block';b.textContent='Estimated only. Payable is calculated after receive: '+fmt(p*r);}else b.style.display='none';}
 function pvEL(){var p=+document.getElementById('ep').value,r=+document.getElementById('er').value,b=document.getElementById('elp');if(p&&r){b.style.display='block';b.textContent='Estimated only. Payable is calculated after receive: '+fmt(p*r)+' ('+fmtN(p)+' pcs x Rs.'+r+')';}else b.style.display='none';}
@@ -1017,12 +1029,14 @@ function addLot(){
   if(!c||!i||!p||!r||!d){alert('Fill all required fields.');return;}
   if(p<=0||r<=0){alert('Pieces and rate must be greater than zero.');return;}
   S.lC++;var _ln=+document.getElementById('fln').value||S.lC;var _bg=+document.getElementById('fbg').value||0;S.lots.push({id:'LOT-'+pad(S.lC),lotNumber:_ln,bags:_bg,contractorName:c,item:i,piecesIssued:p,rate:r,dateIssued:d,piecesReceived:null,dateReceived:null,status:'PENDING',remarks:m});
+  var _ph=(document.getElementById('fcph').value||'').trim();if(_ph)setContact(c,_ph);
   save();closeModal('aL');render();if(curCon)renderDet(curCon);
 }
 
 // ═══ FABRIC PROCESSING ═══
 function openFabricLotFor(name){
   document.getElementById('ffc').value=name||'';
+  document.getElementById('ffcph').value=name?getContact(name):'';
   document.getElementById('ffi').value='';
   document.getElementById('ffq').value='';
   document.getElementById('ffu').value='kg';
@@ -1045,6 +1059,7 @@ function addFabricLot(){
   if(q<=0||r<=0){alert('Quantity and rate must be greater than zero.');return;}
   S.lC++;var _ln=+document.getElementById('ffln').value||S.lC;
   S.lots.push({id:'LOT-'+pad(S.lC),lotNumber:_ln,kind:'fabric',unit:u,bags:0,contractorName:c,item:i,piecesIssued:q,rate:r,dateIssued:d,piecesReceived:null,dateReceived:null,status:'PENDING',remarks:m});
+  var _ph=(document.getElementById('ffcph').value||'').trim();if(_ph)setContact(c,_ph);
   save();closeModal('aF');conSubTab='fabric';render();if(curCon)renderDet(curCon);
 }
 var allotSrcId=null;
@@ -1052,7 +1067,15 @@ function openAllot(lid){
   var lot=S.lots.find(function(l){return l.id===lid;});if(!lot)return;
   allotSrcId=lid;
   document.getElementById('alsrc').textContent='From '+lot.id+' · '+lot.contractorName+' · '+fmtN(lot.piecesReceived)+' '+lotUnit(lot)+' '+lot.item;
+  // Populate the cutting-contractor dropdown with existing cutting contractors + "add new"
+  var cutting=getNamesByKind('cutting');
+  var opts='<option value="">— Select contractor —</option>'+
+    cutting.map(function(n){return '<option value="'+esc(n)+'">'+esc(n)+(getContact(n)?' · '+esc(getContact(n)):'')+'</option>';}).join('')+
+    '<option value="__new__">➕ Add new contractor…</option>';
+  document.getElementById('alcSel').innerHTML=opts;
+  document.getElementById('alNewWrap').style.display='none';
   document.getElementById('alc').value='';
+  document.getElementById('alcph').value='';
   document.getElementById('ali').value=lot.item;
   document.getElementById('alp').value='';
   document.getElementById('alr').value='';
@@ -1062,6 +1085,12 @@ function openAllot(lid){
   document.getElementById('alpv').style.display='none';
   openModal('al');
 }
+function onAllotConChange(){
+  var v=document.getElementById('alcSel').value;
+  var nw=document.getElementById('alNewWrap');
+  if(v==='__new__'){nw.style.display='block';document.getElementById('alc').value='';document.getElementById('alc').focus();}
+  else{nw.style.display='none';}
+}
 function pvAl(){
   var p=+document.getElementById('alp').value,r=+document.getElementById('alr').value;
   var b=document.getElementById('alpv');
@@ -1070,9 +1099,22 @@ function pvAl(){
 }
 function saveAllot(){
   var src=S.lots.find(function(l){return l.id===allotSrcId;});if(!src)return;
-  var c=document.getElementById('alc').value.trim(),i=document.getElementById('ali').value.trim(),p=+document.getElementById('alp').value,r=+document.getElementById('alr').value,d=document.getElementById('ald').value,m=document.getElementById('alm').value.trim();
-  if(!c||!i||!p||!r||!d){alert('Fill all required fields.');return;}
+  // Resolve contractor: dropdown selection, or a freshly-typed new name
+  var sel=document.getElementById('alcSel').value;
+  var c, newPhone='';
+  if(sel==='__new__'){
+    c=document.getElementById('alc').value.trim();
+    newPhone=document.getElementById('alcph').value.trim();
+    if(!c){alert('Enter the new contractor name.');return;}
+  } else if(sel){
+    c=sel;
+  } else {
+    alert('Select a contractor (or add a new one).');return;
+  }
+  var i=document.getElementById('ali').value.trim(),p=+document.getElementById('alp').value,r=+document.getElementById('alr').value,d=document.getElementById('ald').value,m=document.getElementById('alm').value.trim();
+  if(!i||!p||!r||!d){alert('Fill all required fields.');return;}
   if(p<=0||r<=0){alert('Pieces and rate must be greater than zero.');return;}
+  if(newPhone)setContact(c,newPhone);
   S.lC++;var _ln=+document.getElementById('alln').value||S.lC;
   var newId='LOT-'+pad(S.lC);
   S.lots.push({id:newId,lotNumber:_ln,bags:0,contractorName:c,item:i,piecesIssued:p,rate:r,dateIssued:d,piecesReceived:null,dateReceived:null,status:'PENDING',remarks:m,allottedFrom:src.contractorName,allottedFromLot:src.id});
@@ -1153,7 +1195,11 @@ function saveEC(){
   if(!eCName)return;
   var n=document.getElementById('en').value.trim();
   if(!n){alert('Name required.');return;}
+  var ph=document.getElementById('enph').value.trim();
   S.lots.forEach(function(l){if(l.contractorName===eCName)l.contractorName=n;});
+  // Migrate contact to the (possibly new) name
+  if(eCName!==n&&S.contacts&&S.contacts[eCName]){delete S.contacts[eCName];}
+  setContact(n,ph);
   curCon=n;eCName=n;save();closeModal('eC');document.getElementById('tbt').textContent=n;render();renderDet(n);
 }
 function confirmDel(lid){
