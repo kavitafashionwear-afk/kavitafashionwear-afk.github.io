@@ -403,7 +403,7 @@ input:focus,select:focus{border-color:var(--n)}
 <script>
 firebase.initializeApp({apiKey:"AIzaSyDRfRBzqdg8LCUjZKdGRNIsKCBszbtM7ok",authDomain:"challan-manager-85768.firebaseapp.com",projectId:"challan-manager-85768",storageBucket:"challan-manager-85768.firebasestorage.app",messagingSenderId:"667915790046",appId:"1:667915790046:web:92b61ba86c9facd620444f"});
 var auth=firebase.auth(),db=firebase.firestore();
-var S={lots:[],pays:[],advances:[],contacts:{},lC:0,pC:0,aC:0,trash:[]},uid=null,unsubDB=null,ready=false;
+var S={lots:[],pays:[],advances:[],contacts:{},lC:0,pC:0,aC:0,trash:[]},uid=null,unsubDB=null,ready=false,loadedOnce=false;
 var curTab='home',curCon=null,navStack=[],curFilter='ALL',rvId=null,eLId=null,eCName=null,impData=null;
 var AVC=['#1F3864','#065F46','#92400E','#6D28D9','#9D174D','#1E40AF','#047857'];
 
@@ -551,16 +551,31 @@ function sdot(s){var d=document.getElementById('sd');if(d)d.className='sdot'+(s=
 function subscribe(){
   sdot('busy');
   unsubDB=db.collection('users').doc(uid).collection('contractor').doc('main').onSnapshot(function(snap){
+    // A successful snapshot (even an empty/new doc) means reads work — safe to save later.
+    loadedOnce=true;
     if(snap.exists){var d=snap.data();S.lots=d.lots||[];S.pays=d.pays||[];S.advances=d.advances||[];S.contacts=d.contacts||{};S.lC=d.lC||0;S.pC=d.pC||0;S.aC=d.aC||0;S.trash=d.trash||[];refreshAllStatuses();}
     var cleaned=cleanupTrash();
     sdot('ok');render();
     if(cleaned)save();
-  },function(){sdot('err');});
+  },function(e){
+    // Read failed (often a rules/permission or offline error). DO NOT mark loaded —
+    // that keeps save() from overwriting good cloud data with our empty in-memory state.
+    sdot('err');
+    console.warn('Read blocked:', e&&e.code);
+  });
 }
 function save(){
-  if(!uid)return;sdot('busy');
+  if(!uid)return;
+  // SAFETY: never write until we've confirmed a successful read this session.
+  // Prevents wiping cloud data if a rules/permission error blocked the initial load.
+  if(!loadedOnce){
+    sdot('err');
+    console.warn('Save skipped — initial cloud read has not succeeded yet (data left untouched).');
+    return;
+  }
+  sdot('busy');
   refreshAllStatuses();
-  db.collection('users').doc(uid).collection('contractor').doc('main').set({lots:S.lots,pays:S.pays,advances:S.advances||[],contacts:S.contacts||{},lC:S.lC,pC:S.pC,aC:S.aC||0,trash:S.trash||[],updated:new Date().toISOString()}).then(function(){sdot('ok');}).catch(function(e){sdot('err');alert('Sync error: '+e.message);});
+  db.collection('users').doc(uid).collection('contractor').doc('main').set({lots:S.lots,pays:S.pays,advances:S.advances||[],contacts:S.contacts||{},lC:S.lC,pC:S.pC,aC:S.aC||0,trash:S.trash||[],updated:new Date().toISOString()}).then(function(){sdot('ok');}).catch(function(e){sdot('err');console.warn('Sync deferred:',e&&e.code);});
 }
 
 function showApp(user){
@@ -597,7 +612,7 @@ function doLogin(){
     else{b.disabled=false;b.textContent='Continue with Google';m.textContent='Error: '+e.code;}
   });
 }
-function doLogout(){closeMenu();ready=false;auth.signOut().then(function(){showLogin();});}
+function doLogout(){closeMenu();ready=false;loadedOnce=false;auth.signOut().then(function(){showLogin();});}
 
 function toggleMenu(){document.getElementById('um').classList.toggle('open');}
 function closeMenu(){document.getElementById('um').classList.remove('open');}
