@@ -28,6 +28,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .av img{width:100%;height:100%;object-fit:cover;border-radius:50%}
 .sdot{width:8px;height:8px;border-radius:50%;background:#4ADE80;display:inline-block;margin-left:4px;vertical-align:middle}
 .sdot.busy{background:#FCD34D;animation:pulse .8s infinite}
+.sdot.offline{background:#9CA3AF}
+.sdot.err{background:#F87171}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 .bnav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #E0E0E0;display:flex;z-index:50}
 .nt{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 4px 10px;cursor:pointer;border:none;background:none;color:#999;font-size:10px;font-family:inherit;gap:2px}
@@ -403,6 +405,11 @@ input:focus,select:focus{border-color:var(--n)}
 <script>
 firebase.initializeApp({apiKey:"AIzaSyDRfRBzqdg8LCUjZKdGRNIsKCBszbtM7ok",authDomain:"challan-manager-85768.firebaseapp.com",projectId:"challan-manager-85768",storageBucket:"challan-manager-85768.firebasestorage.app",messagingSenderId:"667915790046",appId:"1:667915790046:web:92b61ba86c9facd620444f"});
 var auth=firebase.auth(),db=firebase.firestore();
+/* ── OFFLINE-FIRST: local cache so writes queue offline and auto-flush online ── */
+try{ db.enablePersistence({synchronizeTabs:true}).catch(function(err){console.warn('Offline persistence not enabled:',err&&err.code);}); }catch(e){console.warn('Persistence setup skipped',e);}
+var isOnline=(typeof navigator!=='undefined')?navigator.onLine:true;
+window.addEventListener('online',function(){isOnline=true;if(typeof updateSyncUI==='function')updateSyncUI();if(typeof flushPendingSave==='function')flushPendingSave();});
+window.addEventListener('offline',function(){isOnline=false;if(typeof updateSyncUI==='function')updateSyncUI();});
 var S={lots:[],pays:[],advances:[],contacts:{},lC:0,pC:0,aC:0,trash:[]},uid=null,unsubDB=null,ready=false,loadedOnce=false;
 var curTab='home',curCon=null,navStack=[],curFilter='ALL',rvId=null,eLId=null,eCName=null,impData=null;
 var AVC=['#1F3864','#065F46','#92400E','#6D28D9','#9D174D','#1E40AF','#047857'];
@@ -547,35 +554,38 @@ function paymentAllocationText(group){
 }
 function cleanupTrash(){if(!S.trash)S.trash=[];var before=S.trash.length,cutoff=Date.now()-30*86400000;S.trash=S.trash.filter(function(item){var t=new Date(item.deletedAt).getTime();return !isNaN(t)&&t>=cutoff;});return S.trash.length!==before;}
 
-function sdot(s){var d=document.getElementById('sd');if(d)d.className='sdot'+(s==='busy'?' busy':'');}
+function sdot(s){var d=document.getElementById('sd');if(d){d.className='sdot'+(s==='busy'?' busy':s==='offline'?' offline':s==='err'?' err':'');d.title=s==='busy'?'Saving…':s==='offline'?'Offline — saved on this device, will sync when back online':s==='err'?'Sync issue — saved locally, will retry':'Synced ✓';}}
+function updateSyncUI(){sdot(isOnline?'ok':'offline');}
+var LS_KEY=function(){return 'contractor_backup_'+(uid||'anon');};
+function saveLocal(){try{localStorage.setItem(LS_KEY(),JSON.stringify({lots:S.lots,pays:S.pays,advances:S.advances,contacts:S.contacts,lC:S.lC,pC:S.pC,aC:S.aC,trash:S.trash}));}catch(e){}}
+function loadLocal(){try{var raw=localStorage.getItem(LS_KEY());if(!raw)return false;var d=JSON.parse(raw);S.lots=d.lots||[];S.pays=d.pays||[];S.advances=d.advances||[];S.contacts=d.contacts||{};S.lC=d.lC||0;S.pC=d.pC||0;S.aC=d.aC||0;S.trash=d.trash||[];return true;}catch(e){return false;}}
+function flushPendingSave(){if(uid&&isOnline&&loadedOnce)save();}
 function subscribe(){
   sdot('busy');
-  unsubDB=db.collection('users').doc(uid).collection('contractor').doc('main').onSnapshot(function(snap){
+  unsubDB=db.collection('users').doc(uid).collection('contractor').doc('main').onSnapshot({includeMetadataChanges:true},function(snap){
     // A successful snapshot (even an empty/new doc) means reads work — safe to save later.
     loadedOnce=true;
-    if(snap.exists){var d=snap.data();S.lots=d.lots||[];S.pays=d.pays||[];S.advances=d.advances||[];S.contacts=d.contacts||{};S.lC=d.lC||0;S.pC=d.pC||0;S.aC=d.aC||0;S.trash=d.trash||[];refreshAllStatuses();}
+    if(snap.exists){var d=snap.data();S.lots=d.lots||[];S.pays=d.pays||[];S.advances=d.advances||[];S.contacts=d.contacts||{};S.lC=d.lC||0;S.pC=d.pC||0;S.aC=d.aC||0;S.trash=d.trash||[];refreshAllStatuses();saveLocal();}
     var cleaned=cleanupTrash();
-    sdot('ok');render();
+    var fromCache=snap.metadata&&snap.metadata.fromCache;
+    sdot(fromCache?(isOnline?'busy':'offline'):'ok');render();
     if(cleaned)save();
   },function(e){
-    // Read failed (often a rules/permission or offline error). DO NOT mark loaded —
+    // Read failed (rules/permission or offline). DO NOT mark loaded —
     // that keeps save() from overwriting good cloud data with our empty in-memory state.
-    sdot('err');
     console.warn('Read blocked:', e&&e.code);
+    if(loadLocal())render();
+    sdot(isOnline?'err':'offline');
   });
 }
 function save(){
   if(!uid)return;
   // SAFETY: never write until we've confirmed a successful read this session.
-  // Prevents wiping cloud data if a rules/permission error blocked the initial load.
-  if(!loadedOnce){
-    sdot('err');
-    console.warn('Save skipped — initial cloud read has not succeeded yet (data left untouched).');
-    return;
-  }
-  sdot('busy');
+  if(!loadedOnce){ sdot(isOnline?'err':'offline'); console.warn('Save skipped — initial cloud read not confirmed (data left untouched).'); return; }
+  saveLocal(); // instant on-device backup, never fails
+  sdot(isOnline?'busy':'offline');
   refreshAllStatuses();
-  db.collection('users').doc(uid).collection('contractor').doc('main').set({lots:S.lots,pays:S.pays,advances:S.advances||[],contacts:S.contacts||{},lC:S.lC,pC:S.pC,aC:S.aC||0,trash:S.trash||[],updated:new Date().toISOString()}).then(function(){sdot('ok');}).catch(function(e){sdot('err');console.warn('Sync deferred:',e&&e.code);});
+  db.collection('users').doc(uid).collection('contractor').doc('main').set({lots:S.lots,pays:S.pays,advances:S.advances||[],contacts:S.contacts||{},lC:S.lC,pC:S.pC,aC:S.aC||0,trash:S.trash||[],updated:new Date().toISOString()}).then(function(){sdot(isOnline?'ok':'offline');}).catch(function(e){sdot(isOnline?'err':'offline');console.warn('Sync deferred:',e&&e.code);});
 }
 
 function showApp(user){
@@ -590,6 +600,8 @@ function showApp(user){
   var a=document.getElementById('av');
   if(user.photoURL)a.innerHTML='<img src="'+user.photoURL+'" referrerpolicy="no-referrer">';
   else a.textContent=(user.displayName||'U')[0].toUpperCase();
+  if(typeof loadLocal==='function'&&loadLocal())render();
+  if(typeof updateSyncUI==='function')updateSyncUI();
   subscribe();
 }
 function showLogin(){
