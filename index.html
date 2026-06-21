@@ -408,7 +408,7 @@ var auth=firebase.auth(),db=firebase.firestore();
 /* ── OFFLINE-FIRST: local cache so writes queue offline and auto-flush online ── */
 try{ db.enablePersistence({synchronizeTabs:true}).catch(function(err){console.warn('Offline persistence not enabled:',err&&err.code);}); }catch(e){console.warn('Persistence setup skipped',e);}
 var isOnline=(typeof navigator!=='undefined')?navigator.onLine:true;
-window.addEventListener('online',function(){isOnline=true;if(typeof updateSyncUI==='function')updateSyncUI();if(typeof flushPendingSave==='function')flushPendingSave();});
+window.addEventListener('online',function(){isOnline=true;if(typeof updateSyncUI==='function')updateSyncUI();});
 window.addEventListener('offline',function(){isOnline=false;if(typeof updateSyncUI==='function')updateSyncUI();});
 var S={lots:[],pays:[],advances:[],contacts:{},lC:0,pC:0,aC:0,trash:[]},uid=null,unsubDB=null,ready=false,loadedOnce=false;
 var curTab='home',curCon=null,navStack=[],curFilter='ALL',rvId=null,eLId=null,eCName=null,impData=null;
@@ -417,13 +417,23 @@ var AVC=['#1F3864','#065F46','#92400E','#6D28D9','#9D174D','#1E40AF','#047857'];
 function avc(i){return AVC[i%AVC.length];}
 function ini(n){var w=(n||'').trim().split(' ');return(w.map(function(x){return x[0]||'';}).join('').toUpperCase().slice(0,2))||'?';}
 function pad(n){return String(n).padStart(3,'0');}
+// Collision-proof unique id (time + per-device tag + session counter + random) so two devices
+// creating records offline never produce the same document id and overwrite each other.
+var _idSeq=0;
+function _devTag(){ try{ var t=localStorage.getItem('ct_dev'); if(!t){ t=Math.random().toString(36).slice(2,6); localStorage.setItem('ct_dev',t); } return t; }catch(e){ return Math.random().toString(36).slice(2,6); } }
+function uniqId(prefix){ _idSeq++; return prefix+'-'+Date.now().toString(36)+_devTag()+_idSeq.toString(36)+Math.floor(Math.random()*1296).toString(36); }
+// Clean display labels (the document id is now a unique string, so show a tidy number instead).
+function lotLabel(lot){ if(!lot)return''; if(lot.dispNo!=null)return 'LOT-'+pad(lot.dispNo); if(/^LOT-\d+$/.test(lot.id||''))return lot.id; var m=/(\d+)/.exec(lot.id||''); return m?('LOT-'+pad(+m[1])):(lot.id||'LOT'); }
+function payLabel(p){ if(!p)return''; if(p.dispNo!=null)return 'PAY-'+pad(p.dispNo); if(/^PAY-\d+$/.test(p.id||''))return p.id; var m=/(\d+)/.exec(p.id||''); return m?('PAY-'+pad(+m[1])):(p.id||'PAY'); }
+// Resolve a lot's clean display label from its (possibly unique) id, for references shown to the user.
+function lotLabelById(id){ var l=(S.lots||[]).find(function(x){return x.id===id;}); return l?lotLabel(l):(id||''); }
 function fmt(n){return 'Rs.'+new Intl.NumberFormat('en-IN').format(Math.round(n||0));}
 function fmtN(n){return new Intl.NumberFormat('en-IN').format(Math.round(n||0));}
 function fmtD(d){return d?new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}):'-';}
 function td(){return new Date().toISOString().split('T')[0];}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-function adv(lid){var lot=S.lots.find(function(l){return l.id===lid;});if(!lot||lot.piecesReceived==null)return 0;var fromPays=S.pays.filter(function(p){return p.lotId===lid;}).reduce(function(s,p){return s+p.amount;},0);var legacy=lot.advancePaid?+lot.advancePaid:0;return Math.round((fromPays+legacy)*100)/100;}
-function payable(lot){return lot&&lot.piecesReceived!=null?Math.round(lot.piecesReceived*lot.rate*100)/100:0;}
+function adv(lid){var lot=S.lots.find(function(l){return l.id===lid;});if(!lot||lot.piecesReceived==null||lot.piecesReceived==='')return 0;var fromPays=S.pays.filter(function(p){return p.lotId===lid;}).reduce(function(s,p){return s+p.amount;},0);var legacy=lot.advancePaid?+lot.advancePaid:0;return Math.round((fromPays+legacy)*100)/100;}
+function payable(lot){var pr=lot?lot.piecesReceived:null;return (pr!=null&&pr!=='')?Math.round(pr*lot.rate*100)/100:0;}
 // Fabric processing helpers: fabric lots carry their own unit (kg/mtr/pcs); cutting lots are pieces.
 function lotUnit(lot){return (lot&&lot.unit)?lot.unit:'pcs';}
 function isFabric(lot){return !!(lot&&lot.kind==='fabric');}
@@ -439,7 +449,7 @@ function contractorPaid(name){var fromPays=contractorPays(name).reduce(function(
 function contractorBal(name){return Math.max(0,contractorPayable(name)-contractorPaid(name)-contractorAdvancePool(name));}
 function contractorReceivedDue(name){return contractorLots(name).filter(function(l){return l.piecesReceived!=null&&bal(l)>0.01;}).reduce(function(s,l){return s+bal(l);},0);}
 function nextAdvanceLot(name){var lots=contractorLots(name).filter(function(l){return l.piecesReceived==null;}).sort(function(a,b){return lotSortVal(a)-lotSortVal(b)||(a.lotNumber||0)-(b.lotNumber||0)||a.id.localeCompare(b.id);});return lots[0]||null;}
-function refreshLotStatus(lot){if(!lot)return;if(lot.piecesReceived==null){lot.status='PENDING';return;}lot.status=bal(lot)<=0.01?'SETTLED':'RECEIVED';}
+function refreshLotStatus(lot){if(!lot)return;if(lot.piecesReceived==null||lot.piecesReceived===''){lot.status='PENDING';return;}lot.status=bal(lot)<=0.01?'SETTLED':'RECEIVED';}
 function refreshAllStatuses(){S.lots.forEach(refreshLotStatus);}
 function shareText(lot){
   var lines=['Modrobe Impex Lot '+lot.id,'Contractor: '+lot.contractorName,'Item: '+lot.item,'Issued: '+fmtN(lot.piecesIssued)+' pcs on '+fmtD(lot.dateIssued)];
@@ -479,7 +489,7 @@ function payLots(name,lotIds,amount,date,mode,remarks){
       var use=Math.min(poolLeft,bal(lot));
       if(use<0.01)return;
       S.pC++;
-      created.push({id:'PAY-'+pad(S.pC),batchId:batchId,contractorName:name,lotId:lot.id,date:date,amount:use,mode:'Advance Adjustment',remarks:'Settled from advance pool',fromAdvance:true});
+      created.push({id:uniqId('PAY'),dispNo:S.pC,batchId:batchId,contractorName:name,lotId:lot.id,date:date,amount:use,mode:'Advance Adjustment',remarks:'Settled from advance pool',fromAdvance:true});
       poolLeft-=use;
     });
     var usedFromPool=pool-poolLeft;
@@ -496,14 +506,14 @@ function payLots(name,lotIds,amount,date,mode,remarks){
     if(due<0.01)return;
     var use=Math.min(left,due);
     S.pC++;
-    created.push({id:'PAY-'+pad(S.pC),batchId:batchId,contractorName:name,lotId:lot.id,date:date,amount:use,totalAmount:amount,mode:mode,remarks:remarks||''});
+    created.push({id:uniqId('PAY'),dispNo:S.pC,batchId:batchId,contractorName:name,lotId:lot.id,date:date,amount:use,totalAmount:amount,mode:mode,remarks:remarks||''});
     left-=use;
   });
 
   // Any leftover cash becomes an advance
   if(left>0.01){
     S.aC=(S.aC||0)+1;
-    S.advances.push({id:'ADV-'+pad(S.aC),contractorName:name,date:date,amount:left,used:0,mode:mode,remarks:(remarks?remarks+' — ':'')+'Extra from payment, kept as advance'});
+    S.advances.push({id:uniqId('ADV'),contractorName:name,date:date,amount:left,used:0,mode:mode,remarks:(remarks?remarks+' — ':'')+'Extra from payment, kept as advance'});
     advNote=(advNote||'')+' (Rs.'+fmtN(left)+' saved as advance)';
   }
 
@@ -515,7 +525,7 @@ function payLots(name,lotIds,amount,date,mode,remarks){
 // Record a pure advance — not tied to any lot
 function addAdvance(name,amount,date,mode,remarks){
   S.aC=(S.aC||0)+1;
-  S.advances.push({id:'ADV-'+pad(S.aC),contractorName:name,date:date,amount:Math.round(amount*100)/100,used:0,mode:mode,remarks:remarks||'Advance payment (no lot)'});
+  S.advances.push({id:uniqId('ADV'),contractorName:name,date:date,amount:Math.round(amount*100)/100,used:0,mode:mode,remarks:remarks||'Advance payment (no lot)'});
   return{ok:true};
 }
 
@@ -550,7 +560,7 @@ function paymentGroups(pays){
   return Object.keys(map).map(function(k){return map[k];}).sort(function(a,b){return (new Date(b.date)-new Date(a.date))||b.key.localeCompare(a.key);});
 }
 function paymentAllocationText(group){
-  return group.items.map(function(p){return (p.isAdvance?'Advance to ':'')+esc(p.lotId)+' '+fmt(p.amount);}).join(' | ');
+  return group.items.map(function(p){return (p.isAdvance?'Advance to ':'')+esc(lotLabelById(p.lotId))+' '+fmt(p.amount);}).join(' | ');
 }
 function cleanupTrash(){if(!S.trash)S.trash=[];var before=S.trash.length,cutoff=Date.now()-30*86400000;S.trash=S.trash.filter(function(item){var t=new Date(item.deletedAt).getTime();return !isNaN(t)&&t>=cutoff;});return S.trash.length!==before;}
 
@@ -558,34 +568,162 @@ function sdot(s){var d=document.getElementById('sd');if(d){d.className='sdot'+(s
 function updateSyncUI(){sdot(isOnline?'ok':'offline');}
 var LS_KEY=function(){return 'contractor_backup_'+(uid||'anon');};
 function saveLocal(){try{localStorage.setItem(LS_KEY(),JSON.stringify({lots:S.lots,pays:S.pays,advances:S.advances,contacts:S.contacts,lC:S.lC,pC:S.pC,aC:S.aC,trash:S.trash}));}catch(e){}}
-function loadLocal(){try{var raw=localStorage.getItem(LS_KEY());if(!raw)return false;var d=JSON.parse(raw);S.lots=d.lots||[];S.pays=d.pays||[];S.advances=d.advances||[];S.contacts=d.contacts||{};S.lC=d.lC||0;S.pC=d.pC||0;S.aC=d.aC||0;S.trash=d.trash||[];return true;}catch(e){return false;}}
-function flushPendingSave(){if(uid&&isOnline&&loadedOnce)save();}
+function loadLocal(){try{var raw=localStorage.getItem(LS_KEY());if(!raw)return false;var d=JSON.parse(raw);S.lots=(d.lots||[]).map(_repairLot);S.pays=d.pays||[];S.advances=d.advances||[];S.contacts=d.contacts||{};S.lC=d.lC||0;S.pC=d.pC||0;S.aC=d.aC||0;S.trash=d.trash||[];return true;}catch(e){return false;}}
+function flushPendingSave(){ /* no stale-push on reconnect; Firestore auto-flushes its own queue */ }
+
+/* ════════════════════════════════════════════════════════════════
+   PER-DOCUMENT STORAGE (multi-device offline safe)
+   Each lot / payment / advance is its OWN Firestore document, so two
+   devices editing DIFFERENT records offline write to DIFFERENT paths
+   and never overwrite each other. Contacts, trash and counters (low
+   frequency) live together in one small meta document.
+   Layout: users/{uid}/ct_lots|ct_pays|ct_advances/{id}
+           users/{uid}/ct_meta/state  { contacts, trash, lC, pC, aC }
+   (ct_ prefix keeps these separate from the other apps under the same account.)
+════════════════════════════════════════════════════════════════ */
+function _col(name){ return db.collection('users').doc(uid).collection(name); }
+var _lastSaved={ ct_lots:{}, ct_pays:{}, ct_advances:{} };
+var _subLots=null,_subPays=null,_subAdv=null,_subMeta=null,_repairDone=false;
+function _indexById(arr){ var m={}; (arr||[]).forEach(function(x){ if(x&&x.id!=null)m[x.id]=x; }); return m; }
+function _clean(o){ return JSON.parse(JSON.stringify(o)); } // JSON drops undefined; null is preserved (Firestore accepts null). NEVER convert null→'' — that breaks "not received yet" markers.
+// Repair data corrupted by the earlier _clean bug (null→''). An empty string in a numeric/date
+// field means it was originally null ("not received yet"), so restore it. This is safe: the receive
+// flow always stores a real number, so '' can only have come from a null that got mangled.
+function _repairLot(lot){
+  if(!lot||typeof lot!=='object')return lot;
+  if(lot.piecesReceived==='' || lot.piecesReceived===undefined) lot.piecesReceived=null;
+  if(lot.dateReceived==='') lot.dateReceived=null;
+  if(lot.advancePaid==='') lot.advancePaid=null;
+  if(lot.receivals==='') lot.receivals=null;
+  // If genuinely not received, status must not be SETTLED/RECEIVED.
+  if(lot.piecesReceived==null && (lot.status==='SETTLED'||lot.status==='RECEIVED')) lot.status='PENDING';
+  return lot;
+}
+
 function subscribe(){
   sdot('busy');
-  unsubDB=db.collection('users').doc(uid).collection('contractor').doc('main').onSnapshot({includeMetadataChanges:true},function(snap){
-    // A successful snapshot (even an empty/new doc) means reads work — safe to save later.
-    loadedOnce=true;
-    if(snap.exists){var d=snap.data();S.lots=d.lots||[];S.pays=d.pays||[];S.advances=d.advances||[];S.contacts=d.contacts||{};S.lC=d.lC||0;S.pC=d.pC||0;S.aC=d.aC||0;S.trash=d.trash||[];refreshAllStatuses();saveLocal();}
-    var cleaned=cleanupTrash();
-    var fromCache=snap.metadata&&snap.metadata.fromCache;
-    sdot(fromCache?(isOnline?'busy':'offline'):'ok');render();
-    if(cleaned)save();
-  },function(e){
-    // Read failed (rules/permission or offline). DO NOT mark loaded —
-    // that keeps save() from overwriting good cloud data with our empty in-memory state.
-    console.warn('Read blocked:', e&&e.code);
-    if(loadLocal())render();
-    sdot(isOnline?'err':'offline');
-  });
+  // Run the careful copy-only migration FIRST, then attach listeners (no empty flash).
+  migrateLegacyIfNeeded(function(){ attachListeners(); });
 }
+
+function attachListeners(){
+  var markLoaded=function(cache){
+    loadedOnce=true;
+    refreshAllStatuses();
+    reconcileCounters();
+    var cleaned=cleanupTrash();
+    saveLocal();
+    sdot(cache?(isOnline?'busy':'offline'):'ok');
+    render();
+    if(cleaned)save();
+  };
+  _subLots=_col('ct_lots').onSnapshot({includeMetadataChanges:true},function(snap){
+    var anyRepair=false;
+    S.lots=snap.docs.map(function(d){ var raw=d.data(); var fixed=_repairLot(JSON.parse(JSON.stringify(raw))); if(JSON.stringify(raw)!==JSON.stringify(fixed))anyRepair=true; return fixed; });
+    // Index _lastSaved from RAW so the repaired lots count as "changed" and get written back once.
+    _lastSaved.ct_lots=_indexById(snap.docs.map(function(d){return d.data();}));
+    markLoaded(snap.metadata&&snap.metadata.fromCache);
+    if(anyRepair && !_repairDone && loadedOnce && uid && isOnline){ _repairDone=true; console.log('Repairing lots corrupted by earlier null→empty bug (restoring not-received markers)…'); save(); }
+  },function(e){onSubErr('lots',e);});
+  _subPays=_col('ct_pays').onSnapshot({includeMetadataChanges:true},function(snap){
+    S.pays=snap.docs.map(function(d){return d.data();});
+    _lastSaved.ct_pays=_indexById(S.pays);
+    markLoaded(snap.metadata&&snap.metadata.fromCache);
+  },function(e){onSubErr('pays',e);});
+  _subAdv=_col('ct_advances').onSnapshot({includeMetadataChanges:true},function(snap){
+    S.advances=snap.docs.map(function(d){return d.data();});
+    _lastSaved.ct_advances=_indexById(S.advances);
+    markLoaded(snap.metadata&&snap.metadata.fromCache);
+  },function(e){onSubErr('advances',e);});
+  _subMeta=_col('ct_meta').doc('state').onSnapshot({includeMetadataChanges:true},function(snap){
+    if(snap.exists){var d=snap.data();S.contacts=d.contacts||{};S.trash=d.trash||[];S.lC=Math.max(S.lC||0,d.lC||0);S.pC=Math.max(S.pC||0,d.pC||0);S.aC=Math.max(S.aC||0,d.aC||0);}
+    markLoaded(snap.metadata&&snap.metadata.fromCache);
+  },function(e){onSubErr('meta',e);});
+  unsubDB=function(){ [_subLots,_subPays,_subAdv,_subMeta].forEach(function(u){try{u&&u();}catch(e){}}); };
+}
+
+function onSubErr(which,e){
+  console.warn('Read blocked ('+which+'):', e&&e.code);
+  if(!loadedOnce&&loadLocal())render();
+  sdot(isOnline?'err':'offline');
+}
+
+// Keep counters ahead of the highest existing display number (offline devices may drift).
+function reconcileCounters(){
+  var mx=function(arr,re){return (arr||[]).reduce(function(m,x){var a=re.exec(String(x.dispNo!=null?x.dispNo:''));var b=re.exec(x.id||'');var v=parseInt((a&&a[1])||(b&&b[1])||0,10);return v>m?v:m;},0);};
+  S.lC=Math.max(S.lC||0, mx(S.lots,/(\d+)/));
+  S.pC=Math.max(S.pC||0, mx(S.pays,/(\d+)/));
+  S.aC=Math.max(S.aC||0, mx(S.advances,/(\d+)/));
+}
+
+function diffWrite(coll,arr,lastIndex){
+  var nowIndex={};
+  (arr||[]).forEach(function(item){
+    if(!item||item.id==null)return;
+    var id=String(item.id); nowIndex[id]=item;
+    var prev=lastIndex[id];
+    if(!prev||JSON.stringify(prev)!==JSON.stringify(item))
+      _col(coll).doc(id).set(_clean(item)).catch(function(e){console.warn(coll+' write deferred:',e&&e.code);});
+  });
+  Object.keys(lastIndex).forEach(function(id){ if(!(id in nowIndex)) _col(coll).doc(id).delete().catch(function(e){console.warn(coll+' delete deferred:',e&&e.code);}); });
+  Object.keys(lastIndex).forEach(function(k){delete lastIndex[k];});
+  Object.assign(lastIndex,nowIndex);
+}
+
 function save(){
   if(!uid)return;
-  // SAFETY: never write until we've confirmed a successful read this session.
   if(!loadedOnce){ sdot(isOnline?'err':'offline'); console.warn('Save skipped — initial cloud read not confirmed (data left untouched).'); return; }
-  saveLocal(); // instant on-device backup, never fails
+  saveLocal();
   sdot(isOnline?'busy':'offline');
   refreshAllStatuses();
-  db.collection('users').doc(uid).collection('contractor').doc('main').set({lots:S.lots,pays:S.pays,advances:S.advances||[],contacts:S.contacts||{},lC:S.lC,pC:S.pC,aC:S.aC||0,trash:S.trash||[],updated:new Date().toISOString()}).then(function(){sdot(isOnline?'ok':'offline');}).catch(function(e){sdot(isOnline?'err':'offline');console.warn('Sync deferred:',e&&e.code);});
+  try{
+    diffWrite('ct_lots',     S.lots,     _lastSaved.ct_lots);
+    diffWrite('ct_pays',     S.pays,     _lastSaved.ct_pays);
+    diffWrite('ct_advances', S.advances, _lastSaved.ct_advances);
+    _col('ct_meta').doc('state').set(_clean({ contacts:S.contacts||{}, trash:S.trash||[], lC:S.lC||0, pC:S.pC||0, aC:S.aC||0, updated:new Date().toISOString() }))
+      .then(function(){sdot(isOnline?'ok':'offline');})
+      .catch(function(e){console.warn('meta write deferred:',e&&e.code);sdot(isOnline?'err':'offline');});
+  }catch(e){ console.warn('save threw:',e); sdot(isOnline?'err':'offline'); }
+}
+
+/* Copy-only migration from old contractor/main → per-document. Calls done() when finished.
+   The old document is NEVER modified or deleted (kept as a permanent backup). Partly-paid
+   lots get _recheck:true so you can verify each once after migrating. */
+function migrateLegacyIfNeeded(done){
+  done=done||function(){};
+  var legacy=db.collection('users').doc(uid).collection('contractor').doc('main');
+  var flag=_col('ct_meta').doc('migration');
+  flag.get().then(function(fs){
+    if(fs.exists&&fs.data().done){ done(); return; }
+    legacy.get().then(function(snap){
+      if(!snap.exists){ flag.set({done:true,note:'nothing',at:new Date().toISOString()}); done(); return; }
+      var d=snap.data();
+      _col('ct_lots').limit(1).get().then(function(probe){
+        if(!probe.empty){ flag.set({done:true,note:'already-present',at:new Date().toISOString()}); done(); return; }
+        var lots=d.lots||[], pays=d.pays||[], advances=d.advances||[];
+        if(!lots.length&&!pays.length&&!advances.length){ flag.set({done:true,note:'empty',at:new Date().toISOString()}); done(); return; }
+        console.log('Migrating',lots.length,'lots (copy-only; old data left untouched)…');
+        // Count payments per lot so partially-paid lots can be flagged for one-time review.
+        var payByLot={}; pays.forEach(function(p){ if(p&&p.lotId){(payByLot[p.lotId]=payByLot[p.lotId]||[]).push(p);} });
+        var writes=[];
+        lots.forEach(function(l){
+          if(!l||l.id==null)return;
+          var copy=_clean(l);
+          var paid=(payByLot[l.id]||[]).reduce(function(s,p){return s+(+p.amount||0);},0);
+          var payable=(l.piecesReceived!=null)?(l.piecesReceived*l.rate):0;
+          // Flag lots that are received and only partly paid (balance remaining) for verification.
+          if(l.piecesReceived!=null && paid>0 && paid < payable-0.01) copy._recheck=true;
+          writes.push(_col('ct_lots').doc(String(l.id)).set(copy));
+        });
+        pays.forEach(function(p){ if(p&&p.id!=null) writes.push(_col('ct_pays').doc(String(p.id)).set(_clean(p))); });
+        advances.forEach(function(a){ if(a&&a.id!=null) writes.push(_col('ct_advances').doc(String(a.id)).set(_clean(a))); });
+        writes.push(_col('ct_meta').doc('state').set(_clean({ contacts:d.contacts||{}, trash:d.trash||[], lC:d.lC||0, pC:d.pC||0, aC:d.aC||0, updated:new Date().toISOString() })));
+        Promise.all(writes).then(function(){ flag.set({done:true,note:'migrated',lots:lots.length,at:new Date().toISOString()}); console.log('Migration complete. Old data preserved untouched at contractor/main.'); })
+          .catch(function(e){ console.warn('migration write deferred:',e&&e.code); });
+        done();
+      }).catch(function(e){ console.warn('migration probe failed:',e&&e.code); done(); });
+    }).catch(function(e){ console.warn('legacy read skipped:',e&&e.code); done(); });
+  }).catch(function(e){ console.warn('migration flag read skipped:',e&&e.code); done(); });
 }
 
 function showApp(user){
@@ -657,7 +795,17 @@ document.addEventListener('click',function(e){
   else if(action==='editPay')openEditPay(id);
   else if(action==='editLotPay')openLotPayModal(id);
   else if(action==='filter')setFilter(id);
+  else if(action==='verifyLot')verifyLot(id);
 });
+
+// Clear the part-payment "recheck" flag once you've verified the lot's paid/balance is correct.
+function verifyLot(id){
+  var lot=S.lots.find(function(l){return l.id===id;});
+  if(!lot)return;
+  delete lot._recheck;
+  save();render();
+}
+function recheckCount(){return (S.lots||[]).filter(function(l){return l._recheck;}).length;}
 
 function goTab(tab){
   curTab=tab;curCon=null;navStack=[];
@@ -703,7 +851,9 @@ function renderHome(){
     '<div class="sc"><div class="sl">Advance Pool</div><div class="sv" style="color:#7C3AED">'+fmt(pool)+'</div></div>'+
     '<div class="sc"><div class="sl">Balance Due</div><div class="sv '+(due>0.01?'red':'')+'">'+fmt(due)+'</div></div>';
   var rec=[].concat(S.lots).reverse().slice(0,5);
-  document.getElementById('hl').innerHTML=rec.length?rec.map(function(l){return lotCard(l,true);}).join(''):'<div class="empty"><div class="ei">📦</div><p>No lots yet</p></div>';
+  var rc=recheckCount();
+  var banner=rc>0?'<div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:12px;padding:12px 14px;margin-bottom:12px"><div style="font-weight:700;color:#92400E;font-size:13px;margin-bottom:3px">⚠ '+rc+' part-payment lot'+(rc>1?'s':'')+' to verify</div><div style="font-size:12px;color:#92400E;opacity:.85">From your migrated data. Open each, confirm the paid/balance is right, then tap “✓ Verified”. Your original data is safely preserved.</div></div>':'';
+  document.getElementById('hl').innerHTML=banner+(rec.length?rec.map(function(l){return lotCard(l,true);}).join(''):'<div class="empty"><div class="ei">📦</div><p>No lots yet</p></div>');
 }
 
 function getNames(){
@@ -802,10 +952,13 @@ function lotCard(lot,showCon){
   var vc=showCon?'<button class="btn sm" data-action="viewCon" data-name="'+esc(lot.contractorName)+'">👷</button>':'';
   var kindBadge=fab?'<span style="background:#EDE9FE;color:#6D28D9;font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;margin-left:6px">FABRIC</span>':'';
   // "Alloted from" mask for cutting lots that originated from a fabric lot
-  var allotBanner=lot.allottedFrom?'<div style="background:#F5F3FF;border:1px solid #DDD6FE;border-radius:8px;padding:7px 10px;margin-bottom:10px;font-size:11px;color:#6D28D9;font-weight:600">🧵 Alloted from <strong>'+esc(lot.allottedFrom)+'</strong>'+(lot.allottedFromLot?' &middot; '+esc(lot.allottedFromLot):'')+'</div>':'';
-  var allotOutNote=(lot.allottedTo&&lot.allottedTo.length)?'<div style="background:#ECFDF5;border:1px solid #A7F3D0;border-radius:8px;padding:7px 10px;margin-bottom:10px;font-size:11px;color:#047857;font-weight:600">➡️ Alloted to: '+lot.allottedTo.map(function(x){return esc(x.contractor)+' ('+esc(x.lotId)+')';}).join(', ')+'</div>':'';
+  var allotBanner=lot.allottedFrom?'<div style="background:#F5F3FF;border:1px solid #DDD6FE;border-radius:8px;padding:7px 10px;margin-bottom:10px;font-size:11px;color:#6D28D9;font-weight:600">🧵 Alloted from <strong>'+esc(lot.allottedFrom)+'</strong>'+(lot.allottedFromLot?' &middot; '+esc(lotLabelById(lot.allottedFromLot)):'')+'</div>':'';
+  var allotOutNote=(lot.allottedTo&&lot.allottedTo.length)?'<div style="background:#ECFDF5;border:1px solid #A7F3D0;border-radius:8px;padding:7px 10px;margin-bottom:10px;font-size:11px;color:#047857;font-weight:600">➡️ Alloted to: '+lot.allottedTo.map(function(x){return esc(x.contractor)+' ('+esc(lotLabelById(x.lotId))+')';}).join(', ')+'</div>':'';
+  var recheckBadge=lot._recheck?'<div style="background:#FEF3C7;border:1px solid #FDE68A;border-radius:8px;padding:6px 10px;margin-bottom:10px;font-size:11px;color:#92400E;font-weight:600">⚠ Part-payment — please verify the paid/balance is correct, then tap “✓ Verified”.</div>':'';
+  var recheckBtn=lot._recheck?'<button class="btn sm" style="color:#92400E;border-color:#FDE68A;background:#FFFBEB" data-action="verifyLot" data-id="'+esc(lot.id)+'">✓ Verified</button>':'';
   return '<div class="lc">'+
-    '<div class="lch"><div style="display:flex;align-items:center;gap:8px"><span class="lid">'+esc(lot.id)+'</span><div><div class="lname">'+(showCon?esc(lot.contractorName):esc(lot.item))+kindBadge+'</div><div class="lsub">'+(showCon?esc(lot.item):fmtD(lot.dateIssued))+'</div></div></div><span class="sbdg sp-'+lot.status+'">'+lot.status+'</span></div>'+
+    '<div class="lch"><div style="display:flex;align-items:center;gap:8px"><span class="lid">'+esc(lotLabel(lot))+'</span><div><div class="lname">'+(showCon?esc(lot.contractorName):esc(lot.item))+kindBadge+'</div><div class="lsub">'+(showCon?esc(lot.item):fmtD(lot.dateIssued))+'</div></div></div><span class="sbdg sp-'+lot.status+'">'+lot.status+'</span></div>'+
+    recheckBadge+
     allotBanner+allotOutNote+
     '<div class="lnums">'+
     '<div class="nb"><div class="nl">📤 Issued</div><div class="nv">'+fmtN(lot.piecesIssued)+' '+u+'</div><div style="font-size:9px;color:#AAA;margin-top:2px">'+fmtD(lot.dateIssued)+'</div></div>'+
@@ -821,7 +974,7 @@ function lotCard(lot,showCon){
     '<div class="lacts">'+ap+ar+as+aAllot+
     '<button class="btn sm pur" data-action="print" data-id="'+esc(lot.id)+'">🖨 Print</button>'+
     '<button class="btn sm" data-action="shareLot" data-id="'+esc(lot.id)+'">📤 Share</button>'+
-    '<button class="btn sm" style="color:#059669;border-color:#6EE7B7" data-action="editMenu" data-id="'+esc(lot.id)+'">✏️ Edit</button>'+vc+
+    '<button class="btn sm" style="color:#059669;border-color:#6EE7B7" data-action="editMenu" data-id="'+esc(lot.id)+'">✏️ Edit</button>'+vc+recheckBtn+
     '<button class="btn sm red" style="margin-left:auto" data-action="del" data-id="'+esc(lot.id)+'">🗑</button></div>'+
   '</div>';
 }
@@ -861,9 +1014,9 @@ function renderPays(){
   var rows=[].concat(vp).reverse().map(function(p,i){
     var lot=S.lots.find(function(l){return l.id===p.lotId;});
     return '<tr class="'+(i%2?'alt':'')+'">'+
-      '<td style="color:#888">'+esc(p.id)+'</td>'+
+      '<td style="color:#888">'+esc(payLabel(p))+'</td>'+
       '<td>'+fmtD(p.date)+'</td>'+
-      '<td style="color:#1E40AF;font-weight:600">'+esc(p.lotId)+'</td>'+
+      '<td style="color:#1E40AF;font-weight:600">'+esc(lotLabelById(p.lotId))+'</td>'+
       '<td>'+esc(lot?lot.contractorName:'-')+'</td>'+
       '<td style="font-weight:600">'+fmt(p.amount)+'</td>'+
       '<td>'+esc(p.mode)+'</td>'+
@@ -1055,7 +1208,7 @@ function addLot(){
   var c=document.getElementById('fc').value.trim(),i=document.getElementById('fi').value.trim(),p=+document.getElementById('fp').value,r=+document.getElementById('fr').value,d=document.getElementById('fd').value,m=document.getElementById('fm').value.trim();
   if(!c||!i||!p||!r||!d){alert('Fill all required fields.');return;}
   if(p<=0||r<=0){alert('Pieces and rate must be greater than zero.');return;}
-  S.lC++;var _ln=+document.getElementById('fln').value||S.lC;var _bg=+document.getElementById('fbg').value||0;S.lots.push({id:'LOT-'+pad(S.lC),lotNumber:_ln,bags:_bg,contractorName:c,item:i,piecesIssued:p,rate:r,dateIssued:d,piecesReceived:null,dateReceived:null,status:'PENDING',remarks:m});
+  S.lC++;var _ln=+document.getElementById('fln').value||S.lC;var _bg=+document.getElementById('fbg').value||0;S.lots.push({id:uniqId('LOT'),dispNo:S.lC,lotNumber:_ln,bags:_bg,contractorName:c,item:i,piecesIssued:p,rate:r,dateIssued:d,piecesReceived:null,dateReceived:null,status:'PENDING',remarks:m});
   var _ph=(document.getElementById('fcph').value||'').trim();if(_ph)setContact(c,_ph);
   save();closeModal('aL');render();if(curCon)renderDet(curCon);
 }
@@ -1085,7 +1238,7 @@ function addFabricLot(){
   if(!c||!i||!q||!r||!d){alert('Fill all required fields.');return;}
   if(q<=0||r<=0){alert('Quantity and rate must be greater than zero.');return;}
   S.lC++;var _ln=+document.getElementById('ffln').value||S.lC;
-  S.lots.push({id:'LOT-'+pad(S.lC),lotNumber:_ln,kind:'fabric',unit:u,bags:0,contractorName:c,item:i,piecesIssued:q,rate:r,dateIssued:d,piecesReceived:null,dateReceived:null,status:'PENDING',remarks:m});
+  S.lots.push({id:uniqId('LOT'),dispNo:S.lC,lotNumber:_ln,kind:'fabric',unit:u,bags:0,contractorName:c,item:i,piecesIssued:q,rate:r,dateIssued:d,piecesReceived:null,dateReceived:null,status:'PENDING',remarks:m});
   var _ph=(document.getElementById('ffcph').value||'').trim();if(_ph)setContact(c,_ph);
   save();closeModal('aF');conSubTab='fabric';render();if(curCon)renderDet(curCon);
 }
@@ -1143,8 +1296,8 @@ function saveAllot(){
   if(p<=0||r<=0){alert('Pieces and rate must be greater than zero.');return;}
   if(newPhone)setContact(c,newPhone);
   S.lC++;var _ln=+document.getElementById('alln').value||S.lC;
-  var newId='LOT-'+pad(S.lC);
-  S.lots.push({id:newId,lotNumber:_ln,bags:0,contractorName:c,item:i,piecesIssued:p,rate:r,dateIssued:d,piecesReceived:null,dateReceived:null,status:'PENDING',remarks:m,allottedFrom:src.contractorName,allottedFromLot:src.id});
+  var newId=uniqId('LOT');var _disp=S.lC;
+  S.lots.push({id:newId,dispNo:_disp,lotNumber:_ln,bags:0,contractorName:c,item:i,piecesIssued:p,rate:r,dateIssued:d,piecesReceived:null,dateReceived:null,status:'PENDING',remarks:m,allottedFrom:src.contractorName,allottedFromLot:src.id});
   if(!src.allottedTo)src.allottedTo=[];
   src.allottedTo.push({contractor:c,lotId:newId,pieces:p,date:d});
   save();closeModal('al');conSubTab='cutting';render();if(curCon)renderDet(curCon);
@@ -1233,7 +1386,7 @@ function confirmDel(lid){
   var lot=S.lots.find(function(l){return l.id===lid;});if(!lot)return;
   var b=bal(lot),lotPays=S.pays.filter(function(p){return p.lotId===lid;});
   document.getElementById('cfm').innerHTML=
-    '<div style="margin-bottom:8px"><span class="lid">'+esc(lot.id)+'</span></div>'+
+    '<div style="margin-bottom:8px"><span class="lid">'+esc(lotLabel(lot))+'</span></div>'+
     '<div style="font-size:13px;color:#555">Contractor: <strong>'+esc(lot.contractorName)+'</strong><br>Item: <strong>'+esc(lot.item)+'</strong></div>'+
     (b>0?'<div class="ibox red" style="margin:10px 0">⚠️ Balance Due: <strong>'+fmt(b)+'</strong></div>':'<div class="ibox green" style="margin:10px 0">✅ No outstanding balance</div>')+
     '<div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:10px;font-size:12px;color:#1E40AF;margin-top:4px">📦 Lot will be moved to <strong>Recycle Bin</strong>. Restore anytime.</div>';
@@ -1333,7 +1486,7 @@ function printLot(lid){
     +'.sl{border-top:1px solid #1A1A1A;margin-top:15mm;padding-top:3px;font-size:9px;font-weight:600;text-align:center;color:#555}'
     +'.rmk{background:#FFF7ED;border-left:3px solid #F59E0B;padding:4px 8px;font-size:10px;color:#92400E;margin-top:4mm;border-radius:0 4px 4px 0}';
 
-  var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+esc(lot.id)+'<\/title><style>'+css+'<\/style><\/head><body>'
+  var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+esc(lotLabel(lot))+'<\/title><style>'+css+'<\/style><\/head><body>'
     +'<div class="pb">'
     +'<button onclick="window.print()" style="background:#fff;color:#1F3864">🖨 Print Front Slip (A5)<\/button>'
     +'<button onclick="window.close()" style="background:rgba(255,255,255,.2);color:#fff;margin-left:auto">✕<\/button>'
@@ -1347,7 +1500,7 @@ function printLot(lid){
     +'<\/div>'
     +'<div>'
     +'<div class="lbl">Lot ID<\/div>'
-    +'<div class="lotid">'+esc(lot.id)+'<\/div>'
+    +'<div class="lotid">'+esc(lotLabel(lot))+'<\/div>'
     +(lot.lotNumber?'<div style="font-size:9px;color:#888;text-align:right">Lot No. '+lot.lotNumber+'<\/div>':'')
     +'<\/div>'
     +'<\/div>'
@@ -1410,7 +1563,7 @@ function printReturn(lid){
     +'.sig{display:grid;grid-template-columns:1fr 1fr;gap:20mm;margin-top:8mm}'
     +'.sl{border-top:1px solid #1A1A1A;margin-top:15mm;padding-top:3px;font-size:9px;font-weight:600;text-align:center;color:#555}';
 
-  var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Return — '+esc(lot.id)+'<\/title><style>'+css+'<\/style><\/head><body>'
+  var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Return — '+esc(lotLabel(lot))+'<\/title><style>'+css+'<\/style><\/head><body>'
     +'<div class="pb">'
     +'<button onclick="window.print()" style="background:#fff;color:#065F46">🖨 Print Return Slip (A5 — Back Side)<\/button>'
     +'<button onclick="window.close()" style="background:rgba(255,255,255,.2);color:#fff;margin-left:auto">✕<\/button>'
@@ -1424,7 +1577,7 @@ function printReturn(lid){
     +'<\/div>'
     +'<div>'
     +'<div class="lbl">Lot ID<\/div>'
-    +'<div class="lotid">'+esc(lot.id)+'<\/div>'
+    +'<div class="lotid">'+esc(lotLabel(lot))+'<\/div>'
     +(lot.lotNumber?'<div style="font-size:9px;color:#888;text-align:right">Lot No. '+lot.lotNumber+'<\/div>':'')
     +'<\/div>'
     +'<\/div>'
@@ -1633,7 +1786,7 @@ function renderBin(){
       var py=payable(lot);
       var paid=pays.reduce(function(s,p){return s+p.amount;},0)+(lot.advancePaid?+lot.advancePaid:0);
       html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
-        +'<div style="display:flex;align-items:center;gap:8px"><span class="lid">'+esc(lot.id)+'</span><span class="sbdg sp-'+lot.status+'">'+lot.status+'</span></div>'
+        +'<div style="display:flex;align-items:center;gap:8px"><span class="lid">'+esc(lotLabel(lot))+'</span><span class="sbdg sp-'+lot.status+'">'+lot.status+'</span></div>'
         +'<span style="font-size:11px;color:'+(daysLeft<=5?'#DC2626':'#888')+'">🕒 '+daysLeft+'d left</span></div>'
         +'<div style="font-size:13px;color:#555;margin-bottom:6px"><strong>'+esc(lot.contractorName)+'</strong> &middot; '+esc(lot.item)+'</div>'
         +'<div style="font-size:12px;color:#888;margin-bottom:10px">📤 '+fmtD(lot.dateIssued)+' &middot; '+fmtN(lot.piecesIssued)+' pcs &middot; Payable: '+fmt(py)+' &middot; Paid: '+fmt(paid)+'</div>';
@@ -1778,7 +1931,7 @@ function saveLotPay(){
   S.pays=S.pays.filter(function(p){return p.lotId!==lid;});
   if(newAmt>0){
     S.pC++;
-    S.pays.push({id:'PAY-'+pad(S.pC),batchId:'EDIT-'+lid+'-'+Date.now(),lotId:lid,contractorName:lot.contractorName,date:d,amount:Math.round(newAmt*100)/100,mode:m,remarks:r||('Manual edit for '+lid)});
+    S.pays.push({id:uniqId('PAY'),dispNo:S.pC,batchId:'EDIT-'+lid+'-'+Date.now(),lotId:lid,contractorName:lot.contractorName,date:d,amount:Math.round(newAmt*100)/100,mode:m,remarks:r||('Manual edit for '+lid)});
   }
   refreshAllStatuses();save();closeModal('lPay');render();if(curCon)renderDet(curCon);
 }
