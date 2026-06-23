@@ -953,7 +953,11 @@ function lotCard(lot,showCon){
   var kindBadge=fab?'<span style="background:#EDE9FE;color:#6D28D9;font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;margin-left:6px">FABRIC</span>':'';
   // "Alloted from" mask for cutting lots that originated from a fabric lot
   var allotBanner=lot.allottedFrom?'<div style="background:#F5F3FF;border:1px solid #DDD6FE;border-radius:8px;padding:7px 10px;margin-bottom:10px;font-size:11px;color:#6D28D9;font-weight:600">🧵 Alloted from <strong>'+esc(lot.allottedFrom)+'</strong>'+(lot.allottedFromLot?' &middot; '+esc(lotLabelById(lot.allottedFromLot)):'')+'</div>':'';
-  var allotOutNote=(lot.allottedTo&&lot.allottedTo.length)?'<div style="background:#ECFDF5;border:1px solid #A7F3D0;border-radius:8px;padding:7px 10px;margin-bottom:10px;font-size:11px;color:#047857;font-weight:600">➡️ Alloted to: '+lot.allottedTo.map(function(x){return esc(x.contractor)+' ('+esc(lotLabelById(x.lotId))+')';}).join(', ')+'</div>':'';
+  // Derive the "Alloted to" list from the cutting lots that ACTUALLY still exist (children link
+  // back via allottedFromLot). This way a deleted/re-allotted cutting lot disappears automatically
+  // instead of leaving a stale entry, and labels come straight from the live lot.
+  var _children=(S.lots||[]).filter(function(l){return l.allottedFromLot===lot.id;});
+  var allotOutNote=_children.length?'<div style="background:#ECFDF5;border:1px solid #A7F3D0;border-radius:8px;padding:7px 10px;margin-bottom:10px;font-size:11px;color:#047857;font-weight:600">➡️ Alloted to: '+_children.map(function(l){return esc(l.contractorName)+' ('+esc(lotLabel(l))+')';}).join(', ')+'</div>':'';
   var recheckBadge=lot._recheck?'<div style="background:#FEF3C7;border:1px solid #FDE68A;border-radius:8px;padding:6px 10px;margin-bottom:10px;font-size:11px;color:#92400E;font-weight:600">⚠ Part-payment — please verify the paid/balance is correct, then tap “✓ Verified”.</div>':'';
   var recheckBtn=lot._recheck?'<button class="btn sm" style="color:#92400E;border-color:#FDE68A;background:#FFFBEB" data-action="verifyLot" data-id="'+esc(lot.id)+'">✓ Verified</button>':'';
   return '<div class="lc">'+
