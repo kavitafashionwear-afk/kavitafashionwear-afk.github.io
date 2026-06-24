@@ -406,7 +406,12 @@ input:focus,select:focus{border-color:var(--n)}
 firebase.initializeApp({apiKey:"AIzaSyDRfRBzqdg8LCUjZKdGRNIsKCBszbtM7ok",authDomain:"challan-manager-85768.firebaseapp.com",projectId:"challan-manager-85768",storageBucket:"challan-manager-85768.firebasestorage.app",messagingSenderId:"667915790046",appId:"1:667915790046:web:92b61ba86c9facd620444f"});
 var auth=firebase.auth(),db=firebase.firestore();
 /* ── OFFLINE-FIRST: local cache so writes queue offline and auto-flush online ── */
-try{ db.enablePersistence({synchronizeTabs:true}).catch(function(err){console.warn('Offline persistence not enabled:',err&&err.code);}); }catch(e){console.warn('Persistence setup skipped',e);}
+// Offline persistence keeps a local write queue so data entered offline (or on a flaky mobile
+// connection) is not lost — it syncs automatically when back online. Plain single-tab persistence
+// is the most widely-supported form across mobile browsers (synchronizeTabs fails on many of them).
+try{
+  db.enablePersistence().catch(function(err){ console.warn('Offline persistence not enabled:', err&&err.code); });
+}catch(e){ console.warn('Persistence setup skipped', e); }
 var isOnline=(typeof navigator!=='undefined')?navigator.onLine:true;
 window.addEventListener('online',function(){isOnline=true;if(typeof updateSyncUI==='function')updateSyncUI();});
 window.addEventListener('offline',function(){isOnline=false;if(typeof updateSyncUI==='function')updateSyncUI();});
@@ -584,6 +589,9 @@ function flushPendingSave(){ /* no stale-push on reconnect; Firestore auto-flush
 function _col(name){ return db.collection('users').doc(uid).collection(name); }
 var _lastSaved={ ct_lots:{}, ct_pays:{}, ct_advances:{} };
 var _subLots=null,_subPays=null,_subAdv=null,_subMeta=null,_repairDone=false;
+// Recovery: tracks when each collection's REAL server data (not cache) has arrived, so we can
+// safely detect locally-entered records that never reached the cloud and restore them.
+var _lotsServerLoaded=false,_paysServerLoaded=false,_metaServerLoaded=false,_recoveryDone=false;
 function _indexById(arr){ var m={}; (arr||[]).forEach(function(x){ if(x&&x.id!=null)m[x.id]=x; }); return m; }
 function _clean(o){ return JSON.parse(JSON.stringify(o)); } // JSON drops undefined; null is preserved (Firestore accepts null). NEVER convert null→'' — that breaks "not received yet" markers.
 // Repair data corrupted by the earlier _clean bug (null→''). An empty string in a numeric/date
@@ -624,11 +632,13 @@ function attachListeners(){
     _lastSaved.ct_lots=_indexById(snap.docs.map(function(d){return d.data();}));
     markLoaded(snap.metadata&&snap.metadata.fromCache);
     if(anyRepair && !_repairDone && loadedOnce && uid && isOnline){ _repairDone=true; console.log('Repairing lots corrupted by earlier null→empty bug (restoring not-received markers)…'); save(); }
+    if(snap.metadata && !snap.metadata.fromCache){ _lotsServerLoaded=true; tryRecover(); }
   },function(e){onSubErr('lots',e);});
   _subPays=_col('ct_pays').onSnapshot({includeMetadataChanges:true},function(snap){
     S.pays=snap.docs.map(function(d){return d.data();});
     _lastSaved.ct_pays=_indexById(S.pays);
     markLoaded(snap.metadata&&snap.metadata.fromCache);
+    if(snap.metadata && !snap.metadata.fromCache){ _paysServerLoaded=true; tryRecover(); }
   },function(e){onSubErr('pays',e);});
   _subAdv=_col('ct_advances').onSnapshot({includeMetadataChanges:true},function(snap){
     S.advances=snap.docs.map(function(d){return d.data();});
@@ -638,6 +648,7 @@ function attachListeners(){
   _subMeta=_col('ct_meta').doc('state').onSnapshot({includeMetadataChanges:true},function(snap){
     if(snap.exists){var d=snap.data();S.contacts=d.contacts||{};S.trash=d.trash||[];S.lC=Math.max(S.lC||0,d.lC||0);S.pC=Math.max(S.pC||0,d.pC||0);S.aC=Math.max(S.aC||0,d.aC||0);}
     markLoaded(snap.metadata&&snap.metadata.fromCache);
+    if(snap.metadata && !snap.metadata.fromCache){ _metaServerLoaded=true; tryRecover(); }
   },function(e){onSubErr('meta',e);});
   unsubDB=function(){ [_subLots,_subPays,_subAdv,_subMeta].forEach(function(u){try{u&&u();}catch(e){}}); };
 }
@@ -684,6 +695,35 @@ function save(){
       .then(function(){sdot(isOnline?'ok':'offline');})
       .catch(function(e){console.warn('meta write deferred:',e&&e.code);sdot(isOnline?'err':'offline');});
   }catch(e){ console.warn('save threw:',e); sdot(isOnline?'err':'offline'); }
+}
+
+// Only run recovery once the REAL server data for lots, pays AND meta(trash) has arrived — so we
+// never mistake "not loaded yet" for "missing" and never overwrite newer cloud data.
+function tryRecover(){ if(_lotsServerLoaded && _paysServerLoaded && _metaServerLoaded) recoverUnsynced(); }
+
+// Restore records that exist in this device's local backup but never made it to the cloud
+// (e.g. a write that didn't finish before the app closed on a flaky connection). Deleted lots
+// live in the recycle bin, so we skip anything sitting there — nothing deleted gets resurrected.
+function recoverUnsynced(){
+  if(_recoveryDone || !uid || !isOnline || !loadedOnce) return;
+  _recoveryDone=true;
+  var bk; try{ var raw=localStorage.getItem(LS_KEY()); if(!raw) return; bk=JSON.parse(raw); }catch(e){ return; }
+  if(!bk || !Array.isArray(bk.lots)) return;
+  var cloudLotIds={}; (S.lots||[]).forEach(function(l){ if(l&&l.id!=null) cloudLotIds[String(l.id)]=true; });
+  var trashedLotIds={}; (S.trash||[]).forEach(function(t){ if(t&&t.type==='lot'&&t.lot&&t.lot.id!=null) trashedLotIds[String(t.lot.id)]=true; });
+  var recoveredLots=[], recIdSet={};
+  (bk.lots||[]).forEach(function(l){ if(!l||l.id==null) return; var id=String(l.id);
+    if(!cloudLotIds[id] && !trashedLotIds[id]){ recoveredLots.push(_repairLot(JSON.parse(JSON.stringify(l)))); recIdSet[id]=true; } });
+  var cloudPayIds={}; (S.pays||[]).forEach(function(p){ if(p&&p.id!=null) cloudPayIds[String(p.id)]=true; });
+  var recoveredPays=[];
+  (bk.pays||[]).forEach(function(p){ if(!p||p.id==null) return;
+    if(recIdSet[String(p.lotId)] && !cloudPayIds[String(p.id)]) recoveredPays.push(JSON.parse(JSON.stringify(p))); });
+  if(recoveredLots.length || recoveredPays.length){
+    console.log('Recovering '+recoveredLots.length+' un-synced lot(s) + '+recoveredPays.length+' payment(s) from local backup…');
+    recoveredLots.forEach(function(l){ S.lots.push(l); });
+    recoveredPays.forEach(function(p){ S.pays.push(p); });
+    reconcileCounters(); refreshAllStatuses(); render(); save();
+  }
 }
 
 /* Copy-only migration from old contractor/main → per-document. Calls done() when finished.
@@ -1977,7 +2017,7 @@ function renderDaybook(){
   if(issued.length){
     html+='<div style="margin:12px 0 8px;font-size:14px;font-weight:700;color:#1E40AF">📤 Lots Issued ('+issued.length+')</div>';
     issued.forEach(function(l){
-      html+='<div style="background:#F8FBFF;border:1px solid #DBEAFE;border-radius:10px;padding:10px 14px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:13px;font-weight:700;color:#1E40AF">'+esc(l.id)+(l.lotNumber?' · Lot '+l.lotNumber:'')+'</div><div style="font-size:12px;color:#555">'+esc(l.contractorName)+' · '+esc(l.item)+'</div></div><div style="text-align:right"><div style="font-size:14px;font-weight:700">'+fmtN(l.piecesIssued)+' pcs</div><div style="font-size:11px;color:#888">'+fmt(l.piecesIssued*l.rate)+'</div></div></div>';
+      html+='<div style="background:#F8FBFF;border:1px solid #DBEAFE;border-radius:10px;padding:10px 14px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:13px;font-weight:700;color:#1E40AF">'+esc(lotLabel(l))+(l.lotNumber?' · Lot '+l.lotNumber:'')+'</div><div style="font-size:12px;color:#555">'+esc(l.contractorName)+' · '+esc(l.item)+'</div></div><div style="text-align:right"><div style="font-size:14px;font-weight:700">'+fmtN(l.piecesIssued)+' pcs</div><div style="font-size:11px;color:#888">'+fmt(l.piecesIssued*l.rate)+'</div></div></div>';
     });
   }
 
@@ -1994,7 +2034,7 @@ function renderDaybook(){
     var rt=recv.reduce(function(s,r){return s+r.pieces;},0);
     html+='<div style="margin:12px 0 8px;font-size:14px;font-weight:700;color:#065F46">📥 Received ('+recv.length+' receival'+(recv.length>1?'s':'')+' · '+fmtN(rt)+' pcs)</div>';
     recv.forEach(function(r){
-      html+='<div style="background:#F0FFF4;border:1px solid #BBF7D0;border-radius:10px;padding:10px 14px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:13px;font-weight:700;color:#065F46">'+esc(r.lot.id)+' · '+esc(r.lot.contractorName)+'</div><div style="font-size:12px;color:#555">'+esc(r.lot.item)+(r.bags?' · '+r.bags+' bags':'')+'</div></div><div style="font-size:14px;font-weight:700;color:#065F46">'+fmtN(r.pieces)+' pcs</div></div>';
+      html+='<div style="background:#F0FFF4;border:1px solid #BBF7D0;border-radius:10px;padding:10px 14px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:13px;font-weight:700;color:#065F46">'+esc(lotLabel(r.lot))+' · '+esc(r.lot.contractorName)+'</div><div style="font-size:12px;color:#555">'+esc(r.lot.item)+(r.bags?' · '+r.bags+' bags':'')+'</div></div><div style="font-size:14px;font-weight:700;color:#065F46">'+fmtN(r.pieces)+' pcs</div></div>';
     });
   }
 
@@ -2007,7 +2047,7 @@ function renderDaybook(){
     pays.forEach(function(p){var n=p.contractorName||'?';if(!pm[n])pm[n]={amount:0,lots:[],mode:p.mode||'Cash'};pm[n].amount+=p.amount;if(pm[n].lots.indexOf(p.lotId)<0)pm[n].lots.push(p.lotId);});
     Object.keys(pm).forEach(function(n){
       var g=pm[n];
-      html+='<div style="background:#ECFDF5;border:1px solid #A7F3D0;border-radius:10px;padding:10px 14px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:13px;font-weight:700;color:#059669">'+esc(n)+'</div><div style="font-size:12px;color:#555">'+g.lots.join(', ')+' · '+esc(g.mode)+'</div></div><div style="font-size:16px;font-weight:700;color:#059669">'+fmt(g.amount)+'</div></div>';
+      html+='<div style="background:#ECFDF5;border:1px solid #A7F3D0;border-radius:10px;padding:10px 14px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:13px;font-weight:700;color:#059669">'+esc(n)+'</div><div style="font-size:12px;color:#555">'+g.lots.map(function(_id){return lotLabelById(_id);}).join(', ')+' · '+esc(g.mode)+'</div></div><div style="font-size:16px;font-weight:700;color:#059669">'+fmt(g.amount)+'</div></div>';
     });
   }
 
