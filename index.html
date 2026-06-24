@@ -591,7 +591,7 @@ var _lastSaved={ ct_lots:{}, ct_pays:{}, ct_advances:{} };
 var _subLots=null,_subPays=null,_subAdv=null,_subMeta=null,_repairDone=false;
 // Recovery: tracks when each collection's REAL server data (not cache) has arrived, so we can
 // safely detect locally-entered records that never reached the cloud and restore them.
-var _lotsServerLoaded=false,_paysServerLoaded=false,_metaServerLoaded=false,_recoveryDone=false;
+var _lotsServerLoaded=false,_paysServerLoaded=false,_metaServerLoaded=false,_recoveryDone=false,_advServerLoaded=false,_advReconcileDone=false;
 function _indexById(arr){ var m={}; (arr||[]).forEach(function(x){ if(x&&x.id!=null)m[x.id]=x; }); return m; }
 function _clean(o){ return JSON.parse(JSON.stringify(o)); } // JSON drops undefined; null is preserved (Firestore accepts null). NEVER convert null→'' — that breaks "not received yet" markers.
 // Repair data corrupted by the earlier _clean bug (null→''). An empty string in a numeric/date
@@ -636,14 +636,18 @@ function attachListeners(){
   },function(e){onSubErr('lots',e);});
   _subPays=_col('ct_pays').onSnapshot({includeMetadataChanges:true},function(snap){
     S.pays=snap.docs.map(function(d){return d.data();});
-    _lastSaved.ct_pays=_indexById(S.pays);
+    // Build the change-tracking baseline from SEPARATE deep copies, not the same object references —
+    // otherwise an in-place edit (e.g. consuming an advance) mutates the baseline too and diffWrite
+    // can't tell anything changed, so the edit never reaches the cloud.
+    _lastSaved.ct_pays=_indexById(snap.docs.map(function(d){return JSON.parse(JSON.stringify(d.data()));}));
     markLoaded(snap.metadata&&snap.metadata.fromCache);
-    if(snap.metadata && !snap.metadata.fromCache){ _paysServerLoaded=true; tryRecover(); }
+    if(snap.metadata && !snap.metadata.fromCache){ _paysServerLoaded=true; tryRecover(); tryReconcileAdv(); }
   },function(e){onSubErr('pays',e);});
   _subAdv=_col('ct_advances').onSnapshot({includeMetadataChanges:true},function(snap){
     S.advances=snap.docs.map(function(d){return d.data();});
-    _lastSaved.ct_advances=_indexById(S.advances);
+    _lastSaved.ct_advances=_indexById(snap.docs.map(function(d){return JSON.parse(JSON.stringify(d.data()));}));
     markLoaded(snap.metadata&&snap.metadata.fromCache);
+    if(snap.metadata && !snap.metadata.fromCache){ _advServerLoaded=true; tryReconcileAdv(); }
   },function(e){onSubErr('advances',e);});
   _subMeta=_col('ct_meta').doc('state').onSnapshot({includeMetadataChanges:true},function(snap){
     if(snap.exists){var d=snap.data();S.contacts=d.contacts||{};S.trash=d.trash||[];S.lC=Math.max(S.lC||0,d.lC||0);S.pC=Math.max(S.pC||0,d.pC||0);S.aC=Math.max(S.aC||0,d.aC||0);}
@@ -695,6 +699,29 @@ function save(){
       .then(function(){sdot(isOnline?'ok':'offline');})
       .catch(function(e){console.warn('meta write deferred:',e&&e.code);sdot(isOnline?'err':'offline');});
   }catch(e){ console.warn('save threw:',e); sdot(isOnline?'err':'offline'); }
+}
+
+// Only run reconciliation once the real server data for both pays and advances has arrived.
+function tryReconcileAdv(){ if(_paysServerLoaded && _advServerLoaded) reconcileAdvanceUsage(); }
+
+// Repair advances whose `used` was not saved earlier (the diffWrite-baseline bug). For each
+// contractor, the total of their "Advance Adjustment" payments is exactly how much of their
+// advances should be marked used. If less is currently marked used, apply only the difference —
+// so already-correct advances are never double-counted.
+function reconcileAdvanceUsage(){
+  if(_advReconcileDone || !uid || !isOnline || !loadedOnce) return;
+  _advReconcileDone=true;
+  var byContractor={};
+  (S.pays||[]).forEach(function(p){ if(p && p.fromAdvance){ var n=p.contractorName||''; byContractor[n]=(byContractor[n]||0)+(+p.amount||0); } });
+  var changed=false;
+  Object.keys(byContractor).forEach(function(name){
+    var target=Math.round(byContractor[name]*100)/100;
+    var advs=contractorAdvances(name);
+    var current=Math.round(advs.reduce(function(s,a){return s+(+a.used||0);},0)*100)/100;
+    var missing=Math.round((target-current)*100)/100;
+    if(missing>0.01){ consumeAdvance(name, missing); changed=true; }
+  });
+  if(changed){ console.log('Reconciling advance-pool usage that was not saved by the earlier version…'); refreshAllStatuses(); render(); save(); }
 }
 
 // Only run recovery once the REAL server data for lots, pays AND meta(trash) has arrived — so we
