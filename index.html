@@ -1406,7 +1406,40 @@ function recvLot(){
   save();closeModal('rv');render();if(curCon)renderDet(curCon);
   setTimeout(function(){printReturn(lot.id);},400);
 }
-function settleLot(id){var lot=S.lots.find(function(l){return l.id===id;});if(!lot)return;var due=bal(lot);if(due>0.01&&!confirm('This lot still has '+fmt(due)+' due. Mark as settled anyway?'))return;lot.status='SETTLED';save();render();if(curCon)renderDet(curCon);}
+function settleLot(id){
+  var lot=S.lots.find(function(l){return l.id===id;});if(!lot)return;
+  if(lot.piecesReceived==null||lot.piecesReceived===''){alert('This lot has not been received yet, so there is nothing to settle.');return;}
+  var name=lot.contractorName;
+  var due=bal(lot);
+  var usedFromPool=0;
+  // Apply any available advance pool toward this lot FIRST (advance auto-deducts from lot payments).
+  var pool=contractorAdvancePool(name);
+  if(due>0.01 && pool>0.01){
+    var use=Math.min(due,pool);
+    if(use>0.01){
+      S.pC++;
+      var batchId='PAYB-'+Date.now()+'-'+Math.floor(Math.random()*1000);
+      var today=(new Date()).toISOString().slice(0,10);
+      S.pays.push({id:uniqId('PAY'),dispNo:S.pC,batchId:batchId,contractorName:name,lotId:lot.id,date:today,amount:use,mode:'Advance Adjustment',remarks:'Settled from advance pool',fromAdvance:true});
+      consumeAdvance(name,use);        // reduces the advance pool by `use`
+      usedFromPool=use;
+      refreshAllStatuses();
+      due=bal(lot);                    // recompute remaining balance
+    }
+  }
+  // If a balance still remains after the advance, confirm marking it settled anyway (write-off).
+  if(due>0.01){
+    if(!confirm('This lot still has '+fmt(due)+' due'+(usedFromPool>0.01?' (after applying '+fmt(usedFromPool)+' from the advance pool)':'')+'. Mark as settled anyway?')){
+      // Keep the advance we already applied (it's a real payment); just don't force-settle.
+      if(usedFromPool>0.01){ save(); render(); if(curCon)renderDet(curCon); }
+      return;
+    }
+    lot.status='SETTLED';
+  }
+  // If due is now <=0, refreshLotStatus already marked it SETTLED.
+  refreshAllStatuses();
+  save();render();if(curCon)renderDet(curCon);
+}
 function saveEL(){
   var lot=S.lots.find(function(l){return l.id===eLId;});if(!lot)return;
   var c=document.getElementById('ec').value.trim(),i=document.getElementById('ei').value.trim(),p=+document.getElementById('ep').value,r=+document.getElementById('er').value,d=document.getElementById('ed').value,m=document.getElementById('em').value.trim();
