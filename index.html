@@ -592,7 +592,7 @@ var _subLots=null,_subPays=null,_subAdv=null,_subMeta=null,_repairDone=false;
 // Recovery: tracks when each collection's REAL server data (not cache) has arrived, so we can
 // safely detect locally-entered records that never reached the cloud and restore them.
 var _lotsServerLoaded=false,_paysServerLoaded=false,_metaServerLoaded=false,_recoveryDone=false,_advServerLoaded=false,_advReconcileDone=false;
-function _indexById(arr){ var m={}; (arr||[]).forEach(function(x){ if(x&&x.id!=null)m[x.id]=x; }); return m; }
+function _indexById(arr){ var m={}; (arr||[]).forEach(function(x){ if(x&&x.id!=null)m[x.id]=JSON.parse(JSON.stringify(x)); }); return m; }
 function _clean(o){ return JSON.parse(JSON.stringify(o)); } // JSON drops undefined; null is preserved (Firestore accepts null). NEVER convert null→'' — that breaks "not received yet" markers.
 // Repair data corrupted by the earlier _clean bug (null→''). An empty string in a numeric/date
 // field means it was originally null ("not received yet"), so restore it. This is safe: the receive
@@ -675,7 +675,7 @@ function diffWrite(coll,arr,lastIndex){
   var nowIndex={};
   (arr||[]).forEach(function(item){
     if(!item||item.id==null)return;
-    var id=String(item.id); nowIndex[id]=item;
+    var id=String(item.id); nowIndex[id]=JSON.parse(JSON.stringify(item));
     var prev=lastIndex[id];
     if(!prev||JSON.stringify(prev)!==JSON.stringify(item))
       _col(coll).doc(id).set(_clean(item)).catch(function(e){console.warn(coll+' write deferred:',e&&e.code);});
