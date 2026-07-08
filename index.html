@@ -548,6 +548,66 @@ function consumeAdvance(name,amt){
   });
 }
 
+// Exact inverse of consumeAdvance: give `amt` back to the contractor's advances,
+// most-recently-consumed (newest date) first, never letting used go below 0.
+function unconsumeAdvance(name,amt){
+  var left=Math.round(amt*100)/100;
+  var advs=contractorAdvances(name).filter(function(a){return (a.used||0)>0.01;})
+    .sort(function(a,b){return b.date.localeCompare(a.date)||b.id.localeCompare(a.id);});
+  advs.forEach(function(a){
+    if(left<0.01)return;
+    var back=Math.min(left,a.used||0);
+    a.used=Math.round(((a.used||0)-back)*100)/100;
+    if(a.used<0.01)a.used=0;
+    left-=back;
+  });
+}
+
+// When payment rows are removed (delete / edit-replace), any fromAdvance rows must give
+// their money back to the advance pool — otherwise the pool leaks and books go out of balance.
+function restorePoolForPays(rows){
+  var byCon={};
+  (rows||[]).forEach(function(p){ if(p&&p.fromAdvance){ var n=p.contractorName||payContractorName(p); byCon[n]=(byCon[n]||0)+(+p.amount||0); } });
+  Object.keys(byCon).forEach(function(n){ unconsumeAdvance(n,byCon[n]); });
+}
+
+// Symmetric re-consume used when trashed pays are restored.
+function consumePoolForPays(rows){
+  var byCon={};
+  (rows||[]).forEach(function(p){ if(p&&p.fromAdvance){ var n=p.contractorName||payContractorName(p); byCon[n]=(byCon[n]||0)+(+p.amount||0); } });
+  Object.keys(byCon).forEach(function(n){ consumeAdvance(n,byCon[n]); });
+}
+
+// A lot must never hold more payment than its payable. If payable drops below paid
+// (received pieces reduced, rate edited down), trim allocations NEWEST first and move
+// the surplus into the contractor's advance pool — oldest settlement history is preserved.
+function moveOverpayToPool(lot,date){
+  if(!lot)return 0;
+  var over=Math.round((adv(lot.id)-payable(lot))*100)/100;
+  if(over<=0.01)return 0;
+  var surplus=over;
+  var rows=S.pays.filter(function(p){return p.lotId===lot.id;})
+    .sort(function(a,b){return (b.date||'').localeCompare(a.date||'')||b.id.localeCompare(a.id);});
+  var removedAdv=0;
+  rows.forEach(function(p){
+    if(over<0.01)return;
+    var cut=Math.min(over,p.amount);
+    p.amount=Math.round((p.amount-cut)*100)/100;
+    if(p.fromAdvance)removedAdv+=cut;
+    over-=cut;
+    if(p.amount<0.01)S.pays=S.pays.filter(function(x){return x.id!==p.id;});
+  });
+  // Money trimmed from fromAdvance rows simply returns to the pool it came from;
+  // trimmed cash rows become a new advance record so nothing is lost from the books.
+  if(removedAdv>0.01)unconsumeAdvance(lot.contractorName,removedAdv);
+  var cash=Math.round((surplus-removedAdv)*100)/100;
+  if(cash>0.01){
+    S.aC=(S.aC||0)+1;
+    S.advances.push({id:uniqId('ADV'),contractorName:lot.contractorName,date:date||td(),amount:cash,used:0,mode:'Adjustment',remarks:'Overpayment on '+lotLabel(lot)+' moved to advance pool'});
+  }
+  return surplus;
+}
+
 function allocatePayment(name,amount,date,mode,remarks){
   // Legacy fallback used by rebalance — distribute FIFO across all due lots
   var dueLots=contractorLots(name).filter(function(l){return l.piecesReceived!=null&&bal(l)>0.01;})
@@ -681,10 +741,9 @@ function diffWrite(coll,arr,lastIndex){
       _col(coll).doc(id).set(_clean(item)).catch(function(e){console.warn(coll+' write deferred:',e&&e.code);});
   });
   Object.keys(lastIndex).forEach(function(id){ if(!(id in nowIndex)) _col(coll).doc(id).delete().catch(function(e){console.warn(coll+' delete deferred:',e&&e.code);}); });
-  // CRITICAL: store DEEP COPIES (snapshots) in the baseline — never live references to S objects.
-  // If we kept references, the next in-place edit (e.g. receiving more pieces) would compare an
-  // object to itself, look unchanged, and never get written — silently losing the edit.
   Object.keys(lastIndex).forEach(function(k){delete lastIndex[k];});
+  // Deep-copy the baseline. NEVER keep live references here — an in-place edit would mutate the
+  // baseline too, diffWrite would see "no change", and the edit would never reach Firestore.
   Object.keys(nowIndex).forEach(function(id){ lastIndex[id]=JSON.parse(JSON.stringify(nowIndex[id])); });
 }
 
@@ -723,6 +782,14 @@ function reconcileAdvanceUsage(){
     var current=Math.round(advs.reduce(function(s,a){return s+(+a.used||0);},0)*100)/100;
     var missing=Math.round((target-current)*100)/100;
     if(missing>0.01){ consumeAdvance(name, missing); changed=true; }
+    else if(missing<-0.01){ unconsumeAdvance(name, -missing); changed=true; } // heal pool leaked by old delete paths
+  });
+  // Contractors whose fromAdvance pays were ALL deleted don't appear in byContractor — release their pool too.
+  var seen={}; Object.keys(byContractor).forEach(function(n){seen[n]=true;});
+  (S.advances||[]).forEach(function(a){
+    if(!a||seen[a.contractorName])return; seen[a.contractorName]=true;
+    var current=Math.round(contractorAdvances(a.contractorName).reduce(function(s,x){return s+(+x.used||0);},0)*100)/100;
+    if(current>0.01){ unconsumeAdvance(a.contractorName,current); changed=true; }
   });
   if(changed){ console.log('Reconciling advance-pool usage that was not saved by the earlier version…'); refreshAllStatuses(); render(); save(); }
 }
@@ -1009,6 +1076,20 @@ function renderDet(name){
     '<div style="height:20px"></div>';
 }
 
+// Permanent, per-lot settlement audit trail: every payment row that touched this lot,
+// oldest first, with its own date, amount and mode. Advance-pool settlements marked ⭐.
+function lotSettlementHistoryHTML(lot){
+  var rows=S.pays.filter(function(p){return p.lotId===lot.id;})
+    .sort(function(a,b){return (a.date||'').localeCompare(b.date||'')||a.id.localeCompare(b.id);});
+  var legacy=lot.advancePaid?+lot.advancePaid:0;
+  if(!rows.length&&legacy<=0)return '';
+  var items=rows.map(function(p){
+    return '<div style="display:flex;justify-content:space-between;gap:8px;padding:3px 0;border-bottom:1px dashed #EDE4F5"><span style="color:#555">'+(p.fromAdvance?'⭐ ':'💵 ')+fmtD(p.date)+' &middot; '+esc(p.mode||'Cash')+(p.remarks?' &middot; <span style=\'font-style:italic;color:#999\'>'+esc(p.remarks)+'</span>':'')+'</span><strong style="color:var(--g);white-space:nowrap">'+fmt(p.amount)+'</strong></div>';
+  });
+  if(legacy>0)items.unshift('<div style="display:flex;justify-content:space-between;gap:8px;padding:3px 0;border-bottom:1px dashed #EDE4F5"><span style="color:#555">💵 Earlier payment (before app history)</span><strong style="color:var(--g);white-space:nowrap">'+fmt(legacy)+'</strong></div>');
+  return '<div style="background:#FBFAFF;border:1px solid #E4DDF3;border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:11px"><strong style="color:#6D28D9">🧾 Settlement history ('+items.length+')</strong>'+items.join('')+'</div>';
+}
+
 function lotCard(lot,showCon){
   var a=adv(lot.id),p=payable(lot),b=p-a;
   var ms=lot.piecesReceived!=null?lot.piecesIssued-lot.piecesReceived:null;
@@ -1045,6 +1126,7 @@ function lotCard(lot,showCon){
     (ms!=null?'<span class="'+(ms>0?'ms':'ok')+'">'+(ms>0?'⚠ ':'✓ ')+'Rcvd '+fmtN(lot.piecesReceived)+' '+u+(ms>0?' ('+ms+' short)':'')+'</span>':'')+
     (lot.remarks?'<span style="font-style:italic;color:#AAA">'+esc(lot.remarks)+'</span>':'')+'</div>'+
     ((lot.receivals&&lot.receivals.length>1)?'<div style="background:#F8FBFF;border:1px solid #E0EAFB;border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:11px;color:#555"><strong style="color:var(--n)">📥 Received in '+lot.receivals.length+' parts:</strong> '+lot.receivals.map(function(r){return fmtN(r.pieces)+' on '+fmtD(r.date);}).join(' &middot; ')+'</div>':'')+
+    lotSettlementHistoryHTML(lot)+
     '<div class="lacts">'+ap+ar+as+aAllot+
     '<button class="btn sm pur" data-action="print" data-id="'+esc(lot.id)+'">🖨 Print</button>'+
     '<button class="btn sm" data-action="shareLot" data-id="'+esc(lot.id)+'">📤 Share</button>'+
@@ -1429,6 +1511,7 @@ function recvLot(){
   var totalBags=lot.receivals.reduce(function(s,r){return s+(+r.bags||0);},0);
   if(totalBags>0)lot.bagsReturned=totalBags;else delete lot.bagsReturned;
   delete lot.advancePaid;
+  moveOverpayToPool(lot,lot.dateReceived); // payable may have dropped below what's already paid
   refreshLotStatus(lot);
   // Optional payment on receive
   var _radv=+document.getElementById('radv').value||0;
@@ -1476,6 +1559,8 @@ function saveEL(){
   if(!c||!i||!p||!r||!d){alert('Fill all required fields.');return;}
   if(p<=0||r<=0){alert('Pieces and rate must be greater than zero.');return;}
   lot.lotNumber=+document.getElementById('eln').value||lot.lotNumber||0;lot.bags=+document.getElementById('ebg').value||0;lot.contractorName=c;lot.item=i;lot.piecesIssued=p;lot.rate=r;lot.dateIssued=d;lot.remarks=m;
+  moveOverpayToPool(lot,td()); // rate edit can shrink payable below what's already paid
+  refreshAllStatuses();
   save();closeModal('eL');render();if(curCon)renderDet(curCon);
 }
 function saveEC(){
@@ -1503,6 +1588,7 @@ function confirmDel(lid){
     S.trash.unshift({type:'lot',deletedAt:new Date().toISOString(),lot:JSON.parse(JSON.stringify(lot)),pays:lotPays.map(function(p){return JSON.parse(JSON.stringify(p));})});
     S.lots=S.lots.filter(function(l){return l.id!==lid;});
     S.pays=S.pays.filter(function(p){return p.lotId!==lid;});
+    restorePoolForPays(lotPays); // fromAdvance money returns to the pool (re-consumed on restore)
     save();closeModal('cf');render();if(curCon)renderDet(curCon);
   };
   var el=document.getElementById('mo-cf');el.classList.add('show');el.style.display='flex';
@@ -1763,6 +1849,21 @@ function printReport(name){
     +'<table style="width:100%;border-collapse:collapse;font-size:12px">'
     +'<thead><tr style="background:#1F3864"><th style="color:#fff;padding:8px;text-align:left">Lot ID</th><th style="color:#fff;padding:8px;text-align:left">Date Out</th><th style="color:#fff;padding:8px;text-align:left">Item</th><th style="color:#fff;padding:8px;text-align:center">Pcs Rcvd/Issued</th><th style="color:#fff;padding:8px;text-align:right">Payable</th><th style="color:#fff;padding:8px;text-align:right">Paid</th><th style="color:#fff;padding:8px;text-align:right">Balance</th></tr></thead>'
     +'<tbody>'+rows+'</tbody></table>'
+    +(function(){
+      var gs=paymentGroups(ps);
+      if(!gs.length)return '';
+      var prow=gs.slice().sort(function(a,b){return a.date.localeCompare(b.date);}).map(function(g,i){
+        return '<tr style="background:'+(i%2?'#F9F9F9':'#fff')+'">'
+          +'<td style="padding:6px;border:1px solid #E0E0E0">'+fmtD(g.date)+'</td>'
+          +'<td style="padding:6px;border:1px solid #E0E0E0">'+g.items.map(function(p){return (p.fromAdvance?'⭐ ':'')+esc(lotLabelById(p.lotId))+' '+fmt(p.amount);}).join(' | ')+'</td>'
+          +'<td style="padding:6px;border:1px solid #E0E0E0">'+esc(g.mode)+'</td>'
+          +'<td style="padding:6px;border:1px solid #E0E0E0;text-align:right;font-weight:600;color:#059669">'+fmt(g.amount)+'</td></tr>';
+      }).join('');
+      return '<div style="font-size:13px;font-weight:700;color:#1F3864;margin:16px 0 6px">Payment History (⭐ = from advance pool)</div>'
+        +'<table style="width:100%;border-collapse:collapse;font-size:11px">'
+        +'<thead><tr style="background:#F1F5F9"><th style="padding:6px;border:1px solid #E0E0E0;text-align:left">Date</th><th style="padding:6px;border:1px solid #E0E0E0;text-align:left">Settled Lots</th><th style="padding:6px;border:1px solid #E0E0E0;text-align:left">Mode</th><th style="padding:6px;border:1px solid #E0E0E0;text-align:right">Amount</th></tr></thead>'
+        +'<tbody>'+prow+'</tbody></table>';
+    })()
     +'<div style="border:2px solid #1F3864;border-radius:8px;padding:13px;display:flex;justify-content:space-between;align-items:center;margin:14px 0;background:#EFF6FF">'
     +'<div style="font-size:13px;font-weight:600;color:#1F3864">NET OUTSTANDING</div>'
     +'<div style="font-size:22px;font-weight:700;color:'+(tbal>0?'#DC2626':'#059669')+'">'+fmt(Math.abs(tbal))+(tbal<=0?' (CLEAR)':'')+'</div></div>'
@@ -1795,6 +1896,7 @@ function confirmDelCon(name){
     var ids=lots.map(function(l){return l.id;});
     S.lots=S.lots.filter(function(l){return l.contractorName!==name;});
     S.pays=S.pays.filter(function(p){return ids.indexOf(p.lotId)===-1;});
+    restorePoolForPays(pays); // fromAdvance money returns to the pool (re-consumed on restore)
     if(curCon===name){curCon=null;goTab('con');}
     save();closeModal('cf');render();
   };
@@ -1813,7 +1915,10 @@ function confirmDelPay(pid){
     '<div style="background:#FFF7ED;border:1px solid #FDE68A;border-radius:8px;padding:10px;font-size:12px;color:#92400E;margin-top:10px">Deleting this payment will increase the balance due. Cannot be undone.</div>';
   document.getElementById('cfo').textContent='Delete Payment';
   document.getElementById('cfo').onclick=function(){
-    S.pays=S.pays.filter(function(p){return p.id!==pid;});refreshAllStatuses();
+    var removed=S.pays.filter(function(p){return p.id===pid;});
+    S.pays=S.pays.filter(function(p){return p.id!==pid;});
+    restorePoolForPays(removed); // fromAdvance money returns to the pool
+    refreshAllStatuses();
     save();closeModal('cf');render();if(curCon)renderDet(curCon);
   };
   var el=document.getElementById('mo-cf');el.classList.add('show');el.style.display='flex';
@@ -1831,7 +1936,10 @@ function confirmDelPayGroup(key){
   document.getElementById('cfo').textContent='Delete Payment';
   document.getElementById('cfo').onclick=function(){
     var ids=group.ids;
-    S.pays=S.pays.filter(function(p){return ids.indexOf(p.id)===-1;});refreshAllStatuses();
+    var removed=S.pays.filter(function(p){return ids.indexOf(p.id)!==-1;});
+    S.pays=S.pays.filter(function(p){return ids.indexOf(p.id)===-1;});
+    restorePoolForPays(removed); // fromAdvance money returns to the pool
+    refreshAllStatuses();
     save();closeModal('cf');render();if(curCon)renderDet(curCon);
   };
   var el=document.getElementById('mo-cf');el.classList.add('show');el.style.display='flex';
@@ -1841,6 +1949,7 @@ function confirmDelPayGroup(key){
 var editPayId=null;
 function openEditPay(pid){
   var pay=S.pays.find(function(p){return p.id===pid;});if(!pay)return;
+  if(pay.fromAdvance){alert('This entry is an Advance Adjustment (paid from the advance pool). To change it, delete it — the amount returns to the advance pool — then settle the lot again.');return;}
   editPayId=pid;
   document.getElementById('eps').textContent=pid+' · '+fmtD(pay.date)+' · '+fmt(pay.amount);
   var sel=document.getElementById('epl');
@@ -1854,19 +1963,67 @@ function openEditPay(pid){
   document.getElementById('epp').style.display='none';
   var el=document.getElementById('mo-ePay');el.classList.add('show');el.style.display='flex';
 }
+// Compute the deterministic allocation plan for editing a payment: the amount goes to the
+// chosen lot first (capped at its balance WITHOUT the payment being edited), overflows FIFO
+// to the contractor's other due lots, and any remainder becomes an advance.
+function _editPayPlan(editId,lid,amount){
+  var old=S.pays.find(function(p){return p.id===editId;});
+  var lot=S.lots.find(function(l){return l.id===lid;});
+  if(!lot)return null;
+  var name=lot.contractorName;
+  var exclAmt=function(l){ // paid on lot l excluding the row being edited
+    var fromPays=S.pays.filter(function(p){return p.lotId===l.id&&p.id!==editId;}).reduce(function(s,p){return s+p.amount;},0);
+    var legacy=l.advancePaid?+l.advancePaid:0;
+    return Math.round((payable(l)-fromPays-legacy)*100)/100; // = balance excluding edited row
+  };
+  var left=Math.round(amount*100)/100, steps=[];
+  var use=Math.min(left,Math.max(0,exclAmt(lot)));
+  if(use>0.005){steps.push({lot:lot,amount:Math.round(use*100)/100});left=Math.round((left-use)*100)/100;}
+  if(left>0.005){
+    contractorLots(name).filter(function(l){return l.id!==lid&&l.piecesReceived!=null&&exclAmt(l)>0.01;})
+      .sort(function(a,b){return lotSortVal(a)-lotSortVal(b)||(a.lotNumber||0)-(b.lotNumber||0)||a.id.localeCompare(b.id);})
+      .forEach(function(l){
+        if(left<0.005)return;
+        var u=Math.min(left,exclAmt(l));
+        if(u<0.005)return;
+        steps.push({lot:l,amount:Math.round(u*100)/100});left=Math.round((left-u)*100)/100;
+      });
+  }
+  return {name:name,steps:steps,toAdvance:left>0.005?left:0,old:old};
+}
 function pvEP(){
   var lid=document.getElementById('epl').value,a=+document.getElementById('epa').value,b=document.getElementById('epp');
-  if(lid&&a){b.style.display='block';b.textContent='Total advance for this lot after save: '+fmt(adv(lid)-( editPayId?S.pays.find(function(p){return p.id===editPayId;})||{amount:0}:{amount:0}).amount+a);}
-  else b.style.display='none';
+  if(!lid||!a||a<=0){b.style.display='none';return;}
+  var plan=_editPayPlan(editPayId,lid,a);
+  if(!plan){b.style.display='none';return;}
+  var parts=plan.steps.map(function(s){return lotLabel(s.lot)+' '+fmt(s.amount);});
+  if(plan.toAdvance>0.005)parts.push(fmt(plan.toAdvance)+' → Advance Pool');
+  b.style.display='block';b.className='ibox '+(plan.toAdvance>0.005?'yellow':'green');
+  b.textContent='Will allocate: '+(parts.join(' | ')||'nothing due — full amount goes to Advance Pool');
 }
 function saveEditPay(){
   var pay=S.pays.find(function(p){return p.id===editPayId;});if(!pay)return;
+  if(pay.fromAdvance){alert('Advance adjustments cannot be edited here. Delete it (returns to pool) and settle again.');closeModal('ePay');return;}
   var lid=document.getElementById('epl').value,d=document.getElementById('epd').value,a=+document.getElementById('epa').value,m=document.getElementById('epm').value,r=document.getElementById('epr').value.trim();
   if(!lid||!d||!a){alert('Fill all required fields.');return;}
   if(a<=0){alert('Payment amount must be greater than zero.');return;}
   var lot=S.lots.find(function(l){return l.id===lid;});
   if(!lot||lot.piecesReceived==null){alert('Payments can only be attached to received lots.');return;}
-  pay.lotId=lid;pay.date=d;pay.amount=a;pay.mode=m;pay.remarks=r;refreshAllStatuses();
+  var plan=_editPayPlan(editPayId,lid,a);
+  if(!plan){alert('Could not compute allocation.');return;}
+  // Replace the old row with the deterministic plan. A lot can never end up paid above payable,
+  // and no other lot's allocation is touched — FIFO stays intact.
+  var batchId=pay.batchId||('PAYB-'+Date.now()+'-'+Math.floor(Math.random()*1000));
+  S.pays=S.pays.filter(function(p){return p.id!==editPayId;});
+  plan.steps.forEach(function(s,i){
+    S.pC++;
+    S.pays.push({id:uniqId('PAY'),dispNo:S.pC,batchId:batchId,contractorName:plan.name,lotId:s.lot.id,date:d,amount:s.amount,totalAmount:a,mode:m,remarks:r||(i===0?'':'Overflow from edited payment')});
+  });
+  if(plan.toAdvance>0.005){
+    S.aC=(S.aC||0)+1;
+    S.advances.push({id:uniqId('ADV'),contractorName:plan.name,date:d,amount:plan.toAdvance,used:0,mode:m,remarks:(r?r+' — ':'')+'Extra from edited payment, kept as advance'});
+  }
+  refreshAllStatuses();
   save();closeModal('ePay');render();if(curCon)renderDet(curCon);
 }
 
@@ -1924,13 +2081,18 @@ function restoreItem(i){
   var item=S.trash[i];
   if(item.type==='lot'){
     if(!S.lots.find(function(l){return l.id===item.lot.id;}))S.lots.push(item.lot);
-    if(item.pays)(item.pays).forEach(function(p){if(!S.pays.find(function(x){return x.id===p.id;}))S.pays.push(p);});
+    var restoredL=[];
+    if(item.pays)(item.pays).forEach(function(p){if(!S.pays.find(function(x){return x.id===p.id;})){S.pays.push(p);restoredL.push(p);}});
+    consumePoolForPays(restoredL); // re-consume advance for restored fromAdvance pays
     alert('✅ Lot '+item.lot.id+' restored!');
   } else {
     (item.lots||[]).forEach(function(l){if(!S.lots.find(function(x){return x.id===l.id;}))S.lots.push(l);});
-    (item.pays||[]).forEach(function(p){if(!S.pays.find(function(x){return x.id===p.id;}))S.pays.push(p);});
+    var restoredC=[];
+    (item.pays||[]).forEach(function(p){if(!S.pays.find(function(x){return x.id===p.id;})){S.pays.push(p);restoredC.push(p);}});
+    consumePoolForPays(restoredC);
     alert('✅ Contractor "'+item.name+'" and all data restored!');
   }
+  refreshAllStatuses();
   S.trash.splice(i,1);
   save();render();renderBin();
 }
@@ -2021,7 +2183,7 @@ function pvLP(){
   var lot=S.lots.find(function(l){return l.id===lid;});if(!lot){b.style.display='none';return;}
   var p=payable(lot);b.style.display='block';
   if(a===0){b.className='ibox yellow';b.textContent='0 = no payment recorded for this lot.';}
-  else if(a>p){b.className='ibox yellow';b.textContent='Exceeds payable by '+fmt(a-p)+' — recorded as overpayment.';}
+  else if(a>p){b.className='ibox yellow';b.textContent='Exceeds payable by '+fmt(a-p)+' — the extra will be moved to the Advance Pool (a lot is never overpaid).';}
   else if(a===p){b.className='ibox green';b.textContent='✓ Exactly settles this lot.';}
   else if(a>0){b.className='ibox yellow';b.textContent='Partial — Balance remaining: '+fmt(p-a);}
   else{b.className='ibox red';b.textContent='Enter an amount (0 to clear).';}
@@ -2034,11 +2196,21 @@ function saveLotPay(){
   if(newAmt<0){alert('Cannot be negative.');return;}
   if(!d){alert('Enter a date.');return;}
   var lot=S.lots.find(function(l){return l.id===lid;});if(!lot||lot.piecesReceived==null)return;
-  // Remove all existing pays for this lot
+  // Remove all existing pays for this lot — advance-pool money in them goes back to the pool first.
+  var removed=S.pays.filter(function(p){return p.lotId===lid;});
   S.pays=S.pays.filter(function(p){return p.lotId!==lid;});
-  if(newAmt>0){
+  restorePoolForPays(removed);
+  // A lot can never hold more than its payable: cap here, surplus moves to the Advance Pool.
+  var cap=payable(lot);
+  var alloc=Math.min(Math.round(newAmt*100)/100,cap);
+  var surplus=Math.round((newAmt-alloc)*100)/100;
+  if(alloc>0){
     S.pC++;
-    S.pays.push({id:uniqId('PAY'),dispNo:S.pC,batchId:'EDIT-'+lid+'-'+Date.now(),lotId:lid,contractorName:lot.contractorName,date:d,amount:Math.round(newAmt*100)/100,mode:m,remarks:r||('Manual edit for '+lid)});
+    S.pays.push({id:uniqId('PAY'),dispNo:S.pC,batchId:'EDIT-'+lid+'-'+Date.now(),lotId:lid,contractorName:lot.contractorName,date:d,amount:alloc,mode:m,remarks:r||('Manual edit for '+lid)});
+  }
+  if(surplus>0.005){
+    S.aC=(S.aC||0)+1;
+    S.advances.push({id:uniqId('ADV'),contractorName:lot.contractorName,date:d,amount:surplus,used:0,mode:m,remarks:(r?r+' — ':'')+'Extra over '+lotLabel(lot)+' payable, moved to advance pool'});
   }
   refreshAllStatuses();save();closeModal('lPay');render();if(curCon)renderDet(curCon);
 }
@@ -2063,7 +2235,8 @@ function editAdvanceNote(advId){
 }
 function deleteAdvance(advId){
   var a=(S.advances||[]).find(function(x){return x.id===advId;});if(!a)return;
-  if(!confirm('Delete advance of '+fmt(a.amount)+' to '+a.contractorName+'?'))return;
+  var usedNote=(a.used||0)>0.01?'\n\n⚠ '+fmt(a.used)+' of this advance is already applied to lots. Those lot payments will remain — deleting this record means the books will show that money as paid without an advance behind it.':'';
+  if(!confirm('Delete advance of '+fmt(a.amount)+' to '+a.contractorName+'?'+usedNote))return;
   S.advances=S.advances.filter(function(x){return x.id!==advId;});
   save();render();if(curCon)renderDet(curCon);
 }
@@ -2286,19 +2459,6 @@ function advListDel(advId,name){
     <button class="btn" style="width:100%;justify-content:flex-start;padding:14px;margin-bottom:10px;font-size:14px" id="em-challan">📦 &nbsp;Edit Challan (lot details)</button>
     <button class="btn" style="width:100%;justify-content:flex-start;padding:14px;font-size:14px" id="em-pay">💰 &nbsp;Edit Payment History</button>
   </div>
-</div></div>
-
-<!-- EDIT LOT PAYMENT -->
-<div class="ov" id="mo-lPay"><div class="mb"><div class="mh"></div>
-  <div class="mhd"><div><h3>💰 Edit Lot Payment</h3><div style="font-size:12px;color:#888" id="lps"></div></div><button class="xb" onclick="closeModal('lPay')">&#10005;</button></div>
-  <div class="mbd">
-    <div class="ibox blue" id="lpi" style="margin-bottom:12px"></div>
-    <div class="fg"><label>Total Amount Paid for This Lot (Rs.) — enter 0 to clear *</label><input id="lpa" type="number" inputmode="decimal" placeholder="0" min="0" oninput="pvLP()"></div>
-    <div class="fr"><div><label>Date</label><input id="lpd" type="date"></div><div><label>Mode</label><select id="lpm"><option>Cash</option><option>UPI</option><option>Bank Transfer</option><option>Cheque</option></select></div></div>
-    <div class="fg"><label>Remarks</label><input id="lpr" placeholder="Optional"></div>
-    <div class="ibox yellow" id="lpp" style="display:none"></div>
-  </div>
-  <div class="mft"><button class="btn" style="flex:1;justify-content:center" onclick="closeModal('lPay')">Cancel</button><button class="btn pri" style="flex:1;justify-content:center" onclick="saveLotPay()">✓ Save</button></div>
 </div></div>
 
 <!-- CONTRACTOR EDIT MENU -->
