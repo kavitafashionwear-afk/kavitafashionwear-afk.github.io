@@ -603,45 +603,9 @@ function moveOverpayToPool(lot,date){
   var cash=Math.round((surplus-removedAdv)*100)/100;
   if(cash>0.01){
     S.aC=(S.aC||0)+1;
-    S.advances.push({id:uniqId('ADV'),contractorName:lot.contractorName,date:date||td(),amount:cash,used:0,mode:'Adjustment',refLot:lot.id,remarks:lotLabel(lot)+' correction — excess payment moved to advance pool'});
+    S.advances.push({id:uniqId('ADV'),contractorName:lot.contractorName,date:date||td(),amount:cash,used:0,mode:'Adjustment',remarks:'Overpayment on '+lotLabel(lot)+' moved to advance pool'});
   }
   return surplus;
-}
-
-// ── ADVANCE LEDGER (derived, single source of truth) ────────────────────
-// The Advance Pool ledger is DERIVED from persistent records, never stored separately:
-//   credits (+) = advance records in S.advances  (surplus from payments, corrections, manual advances)
-//   debits  (−) = fromAdvance payment rows in S.pays (pool money settling a lot)
-// Running balance is computed by date. Because both record types are permanent, the ledger
-// can never drift from the pool: pool == Σcredits − Σdebits (enforced by reconcileAdvanceUsage).
-function advanceLedger(name){
-  var e=[];
-  contractorAdvances(name).forEach(function(a){
-    e.push({date:a.date||'',dir:1,amount:Math.round(a.amount*100)/100,reason:a.remarks||'Advance given',ref:a.refLot?lotLabelById(a.refLot):'',advId:a.id,mode:a.mode||'',sk:a.id});
-  });
-  (S.pays||[]).forEach(function(p){
-    if(p&&p.fromAdvance&&(p.contractorName||payContractorName(p))===name)
-      e.push({date:p.date||'',dir:-1,amount:Math.round(p.amount*100)/100,reason:'Advance used for '+lotLabelById(p.lotId),ref:lotLabelById(p.lotId),payId:p.id,mode:p.mode||'',sk:p.id});
-  });
-  // Same-date ordering: credits before debits, so the running balance never dips artificially.
-  e.sort(function(a,b){return a.date.localeCompare(b.date)||(b.dir-a.dir)||a.sk.localeCompare(b.sk);});
-  var run=0;
-  e.forEach(function(x){run=Math.round((run+x.dir*x.amount)*100)/100;x.balance=run;});
-  return e;
-}
-
-// Settle part of a lot's balance from the contractor's Advance Pool. Creates the permanent
-// fromAdvance payment row (the ledger debit) and consumes the pool. Returns amount used.
-function settleFromPool(lot,amt,date){
-  if(!lot)return 0;
-  var use=Math.min(Math.round(amt*100)/100,contractorAdvancePool(lot.contractorName),Math.max(0,bal(lot)));
-  use=Math.round(use*100)/100;
-  if(use<0.01)return 0;
-  S.pC++;
-  S.pays.push({id:uniqId('PAY'),dispNo:S.pC,batchId:'PAYB-'+Date.now()+'-'+Math.floor(Math.random()*1000),contractorName:lot.contractorName,lotId:lot.id,date:date||td(),amount:use,mode:'Advance Adjustment',remarks:'Settled from advance pool',fromAdvance:true});
-  consumeAdvance(lot.contractorName,use);
-  refreshLotStatus(lot);
-  return use;
 }
 
 function allocatePayment(name,amount,date,mode,remarks){
@@ -1083,28 +1047,17 @@ function renderDet(name){
   var st=ls.filter(function(l){return l.status==='SETTLED';}).length;
   var ns=getNames();var ci=ns.indexOf(name);
   var lh=ls.length?[].concat(ls).reverse().map(function(l){return lotCard(l,false);}).join(''):'<div class="empty" style="padding:1.5rem"><div class="ei" style="font-size:32px">📦</div><p>No lots</p></div>';
-  // Payment timeline = payments only. Advances live in their own ledger section below.
+  // Combine payment groups + advances into one timeline
   var pg=paymentGroups(ps);
-  var timeline=pg.map(function(g){return{date:g.date,amount:g.amount,mode:g.mode,remarks:g.remarks,alloc:paymentAllocationText(g)};}).sort(function(a,b){return b.date.localeCompare(a.date);});
+  var advItems=contractorAdvances(name).map(function(a){return{isAdvanceRecord:true,date:a.date,amount:a.amount,used:a.used||0,mode:a.mode,remarks:a.remarks,id:a.id};});
+  var timeline=pg.map(function(g){return{isAdvanceRecord:false,date:g.date,amount:g.amount,mode:g.mode,remarks:g.remarks,alloc:paymentAllocationText(g)};}).concat(advItems).sort(function(a,b){return b.date.localeCompare(a.date);});
   ph=timeline.length?timeline.slice(0,6).map(function(g,i){
+    if(g.isAdvanceRecord){
+      var rem=g.amount-g.used;
+      return '<div style="background:'+(i%2?'#FAF5FF':'#fff')+';border:1px solid #E9D5FF;border-radius:10px;padding:10px 14px;margin-bottom:6px;display:flex;align-items:center;gap:10px"><div style="width:8px;height:8px;border-radius:50%;background:#7C3AED;flex-shrink:0"></div><div style="flex:1"><div style="font-size:14px;font-weight:700;color:#7C3AED">⭐ Advance + '+fmt(g.amount)+'</div><div style="font-size:11px;color:#888">'+fmtD(g.date)+' &middot; '+esc(g.mode)+(rem>0.01?' &middot; Unused: '+fmt(rem):' &middot; Fully used')+'</div>'+(g.remarks?'<div style="font-size:10px;color:#AAA;font-style:italic">'+esc(g.remarks)+'</div>':'')+'<div style="display:flex;gap:6px;margin-top:6px"><button class="btn sm" style="font-size:11px;padding:3px 10px" onclick="editAdvance(&#39;'+esc(g.id)+'&#39;)">💰 Edit Amount</button><button class="btn sm" style="font-size:11px;padding:3px 10px" onclick="editAdvanceNote(&#39;'+esc(g.id)+'&#39;)">📝 Edit Note</button><button class="btn sm red" style="font-size:11px;padding:3px 10px" onclick="deleteAdvance(&#39;'+esc(g.id)+'&#39;)">🗑</button></div></div></div>';
+    }
     return '<div style="background:'+(i%2?'#FAFAFA':'#fff')+';border:1px solid #E8E8E8;border-radius:10px;padding:10px 14px;margin-bottom:6px;display:flex;align-items:center;gap:10px"><div style="width:8px;height:8px;border-radius:50%;background:var(--g);flex-shrink:0"></div><div style="flex:1"><div style="font-size:14px;font-weight:700;color:var(--g)">+ '+fmt(g.amount)+'</div><div style="font-size:11px;color:#888">'+fmtD(g.date)+' &middot; '+esc(g.mode)+'</div><div style="font-size:10px;color:#AAA">Settled: '+g.alloc+'</div>'+(g.remarks?'<div style="font-size:10px;color:#AAA;font-style:italic">'+esc(g.remarks)+'</div>':'')+'</div></div>';
   }).join('')+(timeline.length>6?'<div style="text-align:center;font-size:12px;color:#888;padding:6px">+ '+(timeline.length-6)+' more</div>':''):'<div class="empty" style="padding:1.5rem"><div class="ei" style="font-size:32px">💵</div><p>No payments</p></div>';
-  // ADVANCE HISTORY — ledger view of the pool: every credit and debit with running balance.
-  var ledger=advanceLedger(name);
-  var lgShow=ledger.slice(-8).reverse(); // most recent first
-  var ah=ledger.length?lgShow.map(function(x,i){
-    var credit=x.dir>0;
-    var editBtns=x.advId?'<div style="display:flex;gap:6px;margin-top:6px"><button class="btn sm" style="font-size:11px;padding:3px 10px" onclick="editAdvance(&#39;'+esc(x.advId)+'&#39;)">💰 Edit Amount</button><button class="btn sm" style="font-size:11px;padding:3px 10px" onclick="editAdvanceNote(&#39;'+esc(x.advId)+'&#39;)">📝 Note</button><button class="btn sm red" style="font-size:11px;padding:3px 10px" onclick="deleteAdvance(&#39;'+esc(x.advId)+'&#39;)">🗑</button></div>':'';
-    return '<div style="background:'+(i%2?'#FAF5FF':'#fff')+';border:1px solid #E9D5FF;border-radius:10px;padding:10px 14px;margin-bottom:6px;display:flex;align-items:center;gap:10px">'
-      +'<div style="width:8px;height:8px;border-radius:50%;background:'+(credit?'#7C3AED':'#DC2626')+';flex-shrink:0"></div>'
-      +'<div style="flex:1"><div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline">'
-      +'<span style="font-size:14px;font-weight:700;color:'+(credit?'#7C3AED':'#DC2626')+'">'+(credit?'+ ':'− ')+fmt(x.amount)+'</span>'
-      +'<span style="font-size:11px;color:#555;white-space:nowrap">Balance <strong>'+fmt(x.balance)+'</strong></span></div>'
-      +'<div style="font-size:11px;color:#888">'+fmtD(x.date)+(x.mode?' &middot; '+esc(x.mode):'')+'</div>'
-      +'<div style="font-size:10px;color:#AAA">'+esc(x.reason)+'</div>'
-      +editBtns+'</div></div>';
-  }).join('')+(ledger.length>8?'<div style="text-align:center;font-size:12px;color:#888;padding:6px">+ '+(ledger.length-8)+' earlier entries</div>':'')
-  :'<div class="empty" style="padding:1.5rem"><div class="ei" style="font-size:32px">⭐</div><p>No advance activity</p></div>';
   // Build action buttons using data attributes
   var acts='<div class="cacts">'+
     '<button class="cact g" data-action="pay" data-name="'+esc(name)+'">💵 Payment</button>'+
@@ -1120,8 +1073,6 @@ function renderDet(name){
     (Math.max(0,tbal)>0.01?'<div class="ibox red">Outstanding: <strong>'+fmt(Math.max(0,tbal))+'</strong>'+(pool>0.01?' &middot; Advance available: '+fmt(pool):'')+'</div>':(pool>0.01?'<div class="ibox blue">&#10003; No dues &middot; Advance in hand: <strong>'+fmt(pool)+'</strong></div>':'<div class="ibox green">&#10003; All settled — no outstanding balance</div>'))+
     '<div class="sh" style="margin-top:12px"><h2>Lots</h2></div>'+lh+
     '<div class="sh" style="margin-top:14px"><h2>Recent Payments</h2></div>'+ph+
-    '<div class="sh" style="margin-top:14px"><h2>⭐ Advance History</h2></div>'+
-    '<div class="ibox blue" style="margin-bottom:8px">Advance Pool balance: <strong style="color:#7C3AED">'+fmt(pool)+'</strong></div>'+ah+
     '<div style="height:20px"></div>';
 }
 
@@ -1136,10 +1087,7 @@ function lotSettlementHistoryHTML(lot){
     return '<div style="display:flex;justify-content:space-between;gap:8px;padding:3px 0;border-bottom:1px dashed #EDE4F5"><span style="color:#555">'+(p.fromAdvance?'⭐ ':'💵 ')+fmtD(p.date)+' &middot; '+esc(p.mode||'Cash')+(p.remarks?' &middot; <span style=\'font-style:italic;color:#999\'>'+esc(p.remarks)+'</span>':'')+'</span><strong style="color:var(--g);white-space:nowrap">'+fmt(p.amount)+'</strong></div>';
   });
   if(legacy>0)items.unshift('<div style="display:flex;justify-content:space-between;gap:8px;padding:3px 0;border-bottom:1px dashed #EDE4F5"><span style="color:#555">💵 Earlier payment (before app history)</span><strong style="color:var(--g);white-space:nowrap">'+fmt(legacy)+'</strong></div>');
-  var totPaid=adv(lot.id),out=Math.max(0,Math.round((payable(lot)-totPaid)*100)/100);
-  var footer='<div style="display:flex;justify-content:space-between;gap:8px;padding:4px 0 0"><strong style="color:#333">Total Paid</strong><strong style="color:var(--g)">'+fmt(totPaid)+'</strong></div>'
-    +'<div style="display:flex;justify-content:space-between;gap:8px"><strong style="color:#333">Outstanding</strong><strong style="color:'+(out>0.01?'var(--r)':'var(--g)')+'">'+fmt(out)+'</strong></div>';
-  return '<div style="background:#FBFAFF;border:1px solid #E4DDF3;border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:11px"><strong style="color:#6D28D9">🧾 Settlement history ('+items.length+')</strong>'+items.join('')+footer+'</div>';
+  return '<div style="background:#FBFAFF;border:1px solid #E4DDF3;border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:11px"><strong style="color:#6D28D9">🧾 Settlement history ('+items.length+')</strong>'+items.join('')+'</div>';
 }
 
 function lotCard(lot,showCon){
@@ -1548,28 +1496,12 @@ function recvLot(){
     stagedReceivals.sort(function(a,b){return a.date.localeCompare(b.date);});
   }
   var total=stagedReceivals.reduce(function(s,r){return s+(+r.pieces||0);},0);
-  var wasReceived=(lot.piecesReceived!=null&&lot.piecesReceived!=='');
-  var oldPayable=wasReceived?payable(lot):0;
-  var paidNow=wasReceived?adv(lot.id):0;
   if(total<=0){
-    // Nothing received — reset to pending. A pending lot has no payable, so any money already
-    // paid on it must move to the Advance Pool. Never silently.
-    if(paidNow>0.01){
-      if(!confirm('Resetting '+lotLabel(lot)+' to Pending.\n\n'+fmt(paidNow)+' has already been paid on this lot. Since a pending lot has no payable amount, '+fmt(paidNow)+' will be transferred to '+lot.contractorName+"'s Advance Pool and all balances recalculated.\n\nContinue?"))return;
-      lot.piecesReceived=0; // payable = 0 → moveOverpayToPool transfers everything
-      moveOverpayToPool(lot,td());
-    }
+    // Nothing received — reset to pending
     lot.piecesReceived=null;lot.dateReceived=null;lot.status='PENDING';
     delete lot.receivals;delete lot.bagsReturned;
-    refreshAllStatuses();
     save();closeModal('rv');render();if(curCon)renderDet(curCon);
     return;
-  }
-  // Payable-change impact is calculated and confirmed BEFORE anything is saved.
-  var newPayable=Math.round(total*lot.rate*100)/100;
-  var over=Math.round((paidNow-newPayable)*100)/100;
-  if(over>0.01){
-    if(!confirm('You have reduced the payable amount of '+lotLabel(lot)+' from '+fmt(oldPayable)+' to '+fmt(newPayable)+'.\n\n'+fmt(over)+' will be transferred from this lot\u2019s settlement to '+lot.contractorName+"'s Advance Pool. All balances and payment allocations will be recalculated.\n\nDo you want to continue?"))return;
   }
   // Save receivals array
   lot.receivals=stagedReceivals.map(function(r){return {date:r.date,pieces:+r.pieces||0,bags:+r.bags||0};});
@@ -1579,17 +1511,8 @@ function recvLot(){
   var totalBags=lot.receivals.reduce(function(s,r){return s+(+r.bags||0);},0);
   if(totalBags>0)lot.bagsReturned=totalBags;else delete lot.bagsReturned;
   delete lot.advancePaid;
-  if(over>0.01)moveOverpayToPool(lot,lot.dateReceived);
+  moveOverpayToPool(lot,lot.dateReceived); // payable may have dropped below what's already paid
   refreshLotStatus(lot);
-  // Payable increased on an already-paid lot: offer to settle the increase from the Advance Pool.
-  if(wasReceived&&newPayable>oldPayable+0.01){
-    var due=bal(lot),pool=contractorAdvancePool(lot.contractorName);
-    if(due>0.01&&pool>0.01){
-      var use=Math.min(due,pool);
-      if(confirm('Payable of '+lotLabel(lot)+' increased from '+fmt(oldPayable)+' to '+fmt(newPayable)+'.\n\nConsume '+fmt(use)+' from '+lot.contractorName+"'s Advance Pool ("+fmt(pool)+' available) to settle the increase?\n\nOK = use advance pool · Cancel = leave as balance due'))
-        settleFromPool(lot,use,lot.dateReceived);
-    }
-  }
   // Optional payment on receive
   var _radv=+document.getElementById('radv').value||0;
   if(_radv>0){payLots(lot.contractorName,[lot.id],_radv,lot.dateReceived,'Cash','Paid on receive');}
@@ -1635,26 +1558,9 @@ function saveEL(){
   var c=document.getElementById('ec').value.trim(),i=document.getElementById('ei').value.trim(),p=+document.getElementById('ep').value,r=+document.getElementById('er').value,d=document.getElementById('ed').value,m=document.getElementById('em').value.trim();
   if(!c||!i||!p||!r||!d){alert('Fill all required fields.');return;}
   if(p<=0||r<=0){alert('Pieces and rate must be greater than zero.');return;}
-  // Rate change on a received lot changes its payable — confirm impact BEFORE saving.
-  var wasReceived=(lot.piecesReceived!=null&&lot.piecesReceived!=='');
-  var oldPayable=wasReceived?payable(lot):0;
-  var paidNow=wasReceived?adv(lot.id):0;
-  var newPayable=wasReceived?Math.round(lot.piecesReceived*r*100)/100:0;
-  var over=Math.round((paidNow-newPayable)*100)/100;
-  if(wasReceived&&over>0.01){
-    if(!confirm('You have reduced the payable amount of '+lotLabel(lot)+' from '+fmt(oldPayable)+' to '+fmt(newPayable)+' (rate change).\n\n'+fmt(over)+' will be transferred from this lot\u2019s settlement to '+c+"'s Advance Pool. All balances and payment allocations will be recalculated.\n\nDo you want to continue?"))return;
-  }
   lot.lotNumber=+document.getElementById('eln').value||lot.lotNumber||0;lot.bags=+document.getElementById('ebg').value||0;lot.contractorName=c;lot.item=i;lot.piecesIssued=p;lot.rate=r;lot.dateIssued=d;lot.remarks=m;
-  if(wasReceived&&over>0.01)moveOverpayToPool(lot,td());
+  moveOverpayToPool(lot,td()); // rate edit can shrink payable below what's already paid
   refreshAllStatuses();
-  if(wasReceived&&newPayable>oldPayable+0.01){
-    var due=bal(lot),pool=contractorAdvancePool(c);
-    if(due>0.01&&pool>0.01){
-      var use=Math.min(due,pool);
-      if(confirm('Payable of '+lotLabel(lot)+' increased from '+fmt(oldPayable)+' to '+fmt(newPayable)+'.\n\nConsume '+fmt(use)+' from '+c+"'s Advance Pool ("+fmt(pool)+' available) to settle the increase?\n\nOK = use advance pool · Cancel = leave as balance due'))
-        settleFromPool(lot,use,td());
-    }
-  }
   save();closeModal('eL');render();if(curCon)renderDet(curCon);
 }
 function saveEC(){
@@ -2105,11 +2011,6 @@ function saveEditPay(){
   if(!lot||lot.piecesReceived==null){alert('Payments can only be attached to received lots.');return;}
   var plan=_editPayPlan(editPayId,lid,a);
   if(!plan){alert('Could not compute allocation.');return;}
-  // Preview the full financial impact and confirm — a payment edit is a CORRECTION of money
-  // already paid, so the recalculation must be explicit, never silent.
-  var lines=plan.steps.map(function(s){return '  '+lotLabel(s.lot)+' → '+fmt(s.amount);});
-  if(plan.toAdvance>0.005)lines.push('  '+fmt(plan.toAdvance)+' → Advance Pool (exceeds payable of due lots)');
-  if(!confirm('Correcting payment from '+fmt(pay.amount)+' to '+fmt(a)+'.\n\nNew allocation:\n'+lines.join('\n')+'\n\nAll balances and payment allocations will be recalculated. Continue?'))return;
   // Replace the old row with the deterministic plan. A lot can never end up paid above payable,
   // and no other lot's allocation is touched — FIFO stays intact.
   var batchId=pay.batchId||('PAYB-'+Date.now()+'-'+Math.floor(Math.random()*1000));
@@ -2295,19 +2196,14 @@ function saveLotPay(){
   if(newAmt<0){alert('Cannot be negative.');return;}
   if(!d){alert('Enter a date.');return;}
   var lot=S.lots.find(function(l){return l.id===lid;});if(!lot||lot.piecesReceived==null)return;
-  var removed=S.pays.filter(function(p){return p.lotId===lid;});
-  var cap=payable(lot);
-  var alloc=Math.min(Math.round(newAmt*100)/100,cap);
-  var surplus=Math.round((newAmt-alloc)*100)/100;
-  var msg='Setting total paid for '+lotLabel(lot)+' to '+fmt(newAmt)+'.';
-  if(removed.length)msg+='\n\nThis replaces '+removed.length+' existing payment entr'+(removed.length===1?'y':'ies')+' totalling '+fmt(removed.reduce(function(s,p){return s+p.amount;},0))+' (advance-pool money in them returns to the pool).';
-  if(surplus>0.005)msg+='\n\nPayable is '+fmt(cap)+' — the extra '+fmt(surplus)+' will be moved to the Advance Pool.';
-  msg+='\n\nAll balances will be recalculated. Continue?';
-  if(!confirm(msg))return;
   // Remove all existing pays for this lot — advance-pool money in them goes back to the pool first.
+  var removed=S.pays.filter(function(p){return p.lotId===lid;});
   S.pays=S.pays.filter(function(p){return p.lotId!==lid;});
   restorePoolForPays(removed);
   // A lot can never hold more than its payable: cap here, surplus moves to the Advance Pool.
+  var cap=payable(lot);
+  var alloc=Math.min(Math.round(newAmt*100)/100,cap);
+  var surplus=Math.round((newAmt-alloc)*100)/100;
   if(alloc>0){
     S.pC++;
     S.pays.push({id:uniqId('PAY'),dispNo:S.pC,batchId:'EDIT-'+lid+'-'+Date.now(),lotId:lid,contractorName:lot.contractorName,date:d,amount:alloc,mode:m,remarks:r||('Manual edit for '+lid)});
@@ -2319,62 +2215,16 @@ function saveLotPay(){
   refreshAllStatuses();save();closeModal('lPay');render();if(curCon)renderDet(curCon);
 }
 
-// ── ADVANCE RECORD EDITING (accounting-safe core) ───────────────────────
-// Invariants protected here: (1) the Advance Pool can never go negative; (2) money already
-// used from the pool (⭐ fromAdvance settlements) always stays backed by advance records —
-// reducing/deleting a partly-used record shifts its consumption onto other records, and is
-// blocked if there isn't enough unused advance to absorb it.
-function changeAdvanceAmount(advId,newAmt){
-  var a=(S.advances||[]).find(function(x){return x.id===advId;});if(!a)return false;
-  newAmt=Math.round(newAmt*100)/100;
-  var name=a.contractorName,used=Math.round((a.used||0)*100)/100,pool=contractorAdvancePool(name);
-  var newPool=Math.round((pool+newAmt-a.amount)*100)/100;
-  if(newAmt<used-0.005){
-    var freed=Math.round((used-newAmt)*100)/100;
-    var othersHeadroom=Math.round((pool-(a.amount-used))*100)/100; // unused advance in OTHER records
-    if(othersHeadroom+0.005<freed){
-      alert('Cannot reduce this advance to '+fmt(newAmt)+': '+fmt(used)+' of it is already used to settle lots, and other advances have only '+fmt(Math.max(0,othersHeadroom))+' unused to absorb the difference.\n\nDelete or edit the ⭐ advance settlements on the lots first.');
-      return false;
-    }
-  }
-  if(newPool<-0.005){alert('This would make the Advance Pool negative ('+fmt(newPool)+'). Not allowed.');return false;}
-  if(!confirm('Advance of '+fmtD(a.date)+' changes from '+fmt(a.amount)+' to '+fmt(newAmt)+'.\n\n'+name+"'s Advance Pool: "+fmt(pool)+' → '+fmt(newPool)+'.\n\nAll balances will be recalculated. Continue?'))return false;
-  if(newAmt<used-0.005){
-    var freed2=Math.round((used-newAmt)*100)/100;
-    a.amount=newAmt;a.used=newAmt;
-    consumeAdvance(name,freed2); // shift the consumption onto other advances
-  } else {
-    a.amount=newAmt;
-  }
-  refreshAllStatuses();
-  return true;
-}
-function removeAdvanceRecord(advId){
-  var a=(S.advances||[]).find(function(x){return x.id===advId;});if(!a)return false;
-  var name=a.contractorName,used=Math.round((a.used||0)*100)/100,pool=contractorAdvancePool(name);
-  var newPool=Math.round((pool-a.amount)*100)/100;
-  if(used>0.01){
-    var othersHeadroom=Math.round((pool-(a.amount-used))*100)/100;
-    if(othersHeadroom+0.005<used){
-      alert('Cannot delete this advance: '+fmt(used)+' of it is already used to settle lots, and other advances have only '+fmt(Math.max(0,othersHeadroom))+' unused to absorb it.\n\nDelete or edit the ⭐ advance settlements on the lots first.');
-      return false;
-    }
-  }
-  if(newPool<-0.005){alert('This would make the Advance Pool negative ('+fmt(newPool)+'). Not allowed.');return false;}
-  if(!confirm('Delete advance of '+fmt(a.amount)+' ('+fmtD(a.date)+') to '+name+'?'+(used>0.01?'\n\n'+fmt(used)+' already used will be shifted onto other advances.':'')+'\n\n'+name+"'s Advance Pool: "+fmt(pool)+' → '+fmt(newPool)+'.\n\nContinue?'))return false;
-  S.advances=S.advances.filter(function(x){return x.id!==advId;});
-  if(used>0.01)consumeAdvance(name,used);
-  refreshAllStatuses();
-  return true;
-}
 function editAdvance(advId){
   var a=(S.advances||[]).find(function(x){return x.id===advId;});if(!a)return;
-  var newAmt=prompt('Edit advance for '+a.contractorName+'\n\nCurrent amount: Rs.'+Math.round(a.amount)+'\nUsed so far: Rs.'+Math.round(a.used||0)+'\n\nEnter new amount (0 to delete):',a.amount);
+  var newAmt=prompt('Edit advance for '+a.contractorName+'\n\nCurrent amount: Rs.'+Math.round(a.amount)+'\nUsed so far: Rs.'+Math.round(a.used||0)+'\n\nEnter new amount:',a.amount);
   if(newAmt===null)return;
   newAmt=+newAmt;
   if(isNaN(newAmt)||newAmt<0){alert('Invalid amount.');return;}
-  var done=(newAmt===0)?removeAdvanceRecord(advId):changeAdvanceAmount(advId,newAmt);
-  if(done){save();render();if(curCon)renderDet(curCon);}
+  if(newAmt===0){deleteAdvance(advId);return;}
+  a.amount=Math.round(newAmt*100)/100;
+  if((a.used||0)>a.amount)a.used=a.amount;
+  save();render();if(curCon)renderDet(curCon);
 }
 function editAdvanceNote(advId){
   var a=(S.advances||[]).find(function(x){return x.id===advId;});if(!a)return;
@@ -2384,7 +2234,11 @@ function editAdvanceNote(advId){
   save();render();if(curCon)renderDet(curCon);
 }
 function deleteAdvance(advId){
-  if(removeAdvanceRecord(advId)){save();render();if(curCon)renderDet(curCon);}
+  var a=(S.advances||[]).find(function(x){return x.id===advId;});if(!a)return;
+  var usedNote=(a.used||0)>0.01?'\n\n⚠ '+fmt(a.used)+' of this advance is already applied to lots. Those lot payments will remain — deleting this record means the books will show that money as paid without an advance behind it.':'';
+  if(!confirm('Delete advance of '+fmt(a.amount)+' to '+a.contractorName+'?'+usedNote))return;
+  S.advances=S.advances.filter(function(x){return x.id!==advId;});
+  save();render();if(curCon)renderDet(curCon);
 }
 
 // ── DAYBOOK ────────────────────────────────────────────────────────────
@@ -2506,8 +2360,14 @@ function advListEdit(advId,name){
   if(v===null)return;
   v=+v;
   if(isNaN(v)||v<0){alert('Invalid amount.');return;}
-  var done=(v===0)?removeAdvanceRecord(advId):changeAdvanceAmount(advId,v);
-  if(done){save();render();if(curCon)renderDet(curCon);renderAdvList(name);}
+  if(v===0){
+    if(!confirm('Delete this advance?'))return;
+    S.advances=S.advances.filter(function(x){return x.id!==advId;});
+  } else {
+    a.amount=Math.round(v*100)/100;
+    if((a.used||0)>a.amount)a.used=a.amount;
+  }
+  save();render();if(curCon)renderDet(curCon);renderAdvList(name);
 }
 function advListNote(advId,name){
   var a=(S.advances||[]).find(function(x){return x.id===advId;});if(!a)return;
@@ -2517,7 +2377,10 @@ function advListNote(advId,name){
   save();render();if(curCon)renderDet(curCon);renderAdvList(name);
 }
 function advListDel(advId,name){
-  if(removeAdvanceRecord(advId)){save();render();if(curCon)renderDet(curCon);renderAdvList(name);}
+  var a=(S.advances||[]).find(function(x){return x.id===advId;});if(!a)return;
+  if(!confirm('Delete advance of '+fmt(a.amount)+'?'))return;
+  S.advances=S.advances.filter(function(x){return x.id!==advId;});
+  save();render();if(curCon)renderDet(curCon);renderAdvList(name);
 }
 </script>
 
