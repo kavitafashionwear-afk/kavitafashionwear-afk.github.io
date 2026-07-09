@@ -450,7 +450,11 @@ function contractorPays(name){return S.pays.filter(function(p){return payContrac
 function contractorPayable(name){return contractorLots(name).reduce(function(s,l){return s+payable(l);},0);}
 function contractorAdvances(name){return (S.advances||[]).filter(function(a){return a.contractorName===name;});}
 function contractorAdvancePool(name){return Math.round(contractorAdvances(name).reduce(function(s,a){return s+(a.amount-(a.used||0));},0)*100)/100;}
-function contractorPaid(name){var fromPays=contractorPays(name).reduce(function(s,p){return s+p.amount;},0);var legacy=contractorLots(name).reduce(function(s,l){return s+(l.advancePaid?+l.advancePaid:0);},0);return Math.round((fromPays+legacy)*100)/100;}
+// SINGLE SOURCE OF TRUTH: Total Paid = Σ adv(lot) — the exact same function the lot cards
+// use. Payment rows not attached to a payable lot (pending/removed) are excluded here just
+// as they are invisible on the cards, so the contractor total can never drift from the cards.
+// Such rows are surfaced in the Reconciliation report instead of being silently counted.
+function contractorPaid(name){return Math.round(contractorLots(name).reduce(function(s,l){return s+adv(l.id);},0)*100)/100;}
 function contractorBal(name){return Math.max(0,contractorPayable(name)-contractorPaid(name)-contractorAdvancePool(name));}
 function contractorReceivedDue(name){return contractorLots(name).filter(function(l){return l.piecesReceived!=null&&bal(l)>0.01;}).reduce(function(s,l){return s+bal(l);},0);}
 function nextAdvanceLot(name){var lots=contractorLots(name).filter(function(l){return l.piecesReceived==null;}).sort(function(a,b){return lotSortVal(a)-lotSortVal(b)||(a.lotNumber||0)-(b.lotNumber||0)||a.id.localeCompare(b.id);});return lots[0]||null;}
@@ -753,7 +757,7 @@ function attachListeners(){
     _lastSaved.ct_lots=_indexById(snap.docs.map(function(d){return d.data();}));
     markLoaded(snap.metadata&&snap.metadata.fromCache);
     if(anyRepair && !_repairDone && loadedOnce && uid && isOnline){ _repairDone=true; console.log('Repairing lots corrupted by earlier null→empty bug (restoring not-received markers)…'); save(); }
-    if(snap.metadata && !snap.metadata.fromCache){ _lotsServerLoaded=true; tryRecover(); }
+    if(snap.metadata && !snap.metadata.fromCache){ _lotsServerLoaded=true; tryRecover(); tryReconcileAdv(); }
   },function(e){onSubErr('lots',e);});
   _subPays=_col('ct_pays').onSnapshot({includeMetadataChanges:true},function(snap){
     S.pays=snap.docs.map(function(d){return d.data();});
@@ -825,7 +829,140 @@ function save(){
 }
 
 // Only run reconciliation once the real server data for both pays and advances has arrived.
-function tryReconcileAdv(){ if(_paysServerLoaded && _advServerLoaded) reconcileAdvanceUsage(); }
+function tryReconcileAdv(){ if(_paysServerLoaded && _advServerLoaded) reconcileAdvanceUsage(); if(_lotsServerLoaded && _paysServerLoaded && _advServerLoaded) checkUnallocated(); }
+
+// ── RECONCILIATION: DIAGNOSIS BEFORE MUTATION ───────────────────────────
+// detectUnallocatedPays is PURE — it never modifies data. It finds every payment record that
+// is not attached to a payable (received, existing) lot: rows on pending lots, rows whose lot
+// was removed, and legacy `advancePaid` stuck on pending lots. These are invisible on lot
+// cards; with contractorPaid now derived from the cards' own source they no longer distort
+// totals, but they still represent real records that need a decision: move to the Advance
+// Pool, or delete as an erroneous entry. That decision is the user's, per row, with a
+// confirmation — never automatic.
+function detectUnallocatedPays(){
+  var issues=[],byId={};(S.lots||[]).forEach(function(l){byId[l.id]=l;});
+  (S.pays||[]).forEach(function(p){
+    if(!p)return;
+    var lot=byId[p.lotId];
+    var pending=lot&&(lot.piecesReceived==null||lot.piecesReceived==='');
+    if(lot&&!pending)return;
+    issues.push({kind:lot?'pending':'orphan',payId:p.id,lotId:p.lotId,name:lot?lot.contractorName:(p.contractorName||''),date:p.date||'',amount:Math.round(p.amount*100)/100,mode:p.mode||'',fromAdvance:!!p.fromAdvance});
+  });
+  (S.lots||[]).forEach(function(l){
+    var pending=(l.piecesReceived==null||l.piecesReceived==='');
+    if(pending&&l.advancePaid&&+l.advancePaid>0.005)
+      issues.push({kind:'legacy',lotId:l.id,name:l.contractorName,date:l.dateIssued||'',amount:Math.round(+l.advancePaid*100)/100,mode:'',fromAdvance:false});
+  });
+  return issues;
+}
+var _reconChecked=false;
+function checkUnallocated(){
+  if(_reconChecked || !uid || !loadedOnce) return;
+  _reconChecked=true;
+  var n=detectUnallocatedPays().length;
+  if(n>0)showReconBanner(n);
+}
+function showReconBanner(n){
+  var b=document.getElementById('reconbar');
+  if(!n){if(b)b.remove();return;}
+  if(!b){
+    b=document.createElement('div');b.id='reconbar';
+    b.style.cssText='position:sticky;top:0;z-index:900;background:#FEF3C7;border-bottom:2px solid #F59E0B;padding:9px 14px;display:flex;align-items:center;gap:10px;font-size:13px;color:#92400E';
+    var app=document.getElementById('app')||document.body;
+    app.insertBefore(b,app.firstChild);
+  }
+  b.innerHTML='⚠ <strong>'+n+'</strong>&nbsp;payment record'+(n===1?' is':'s are')+' not attached to any payable lot. Review and decide where each belongs.'
+    +'<button class="btn sm" style="margin-left:auto" onclick="openRecon()">🔍 Review</button>'
+    +'<button class="xb" style="font-size:14px" onclick="document.getElementById(\'reconbar\').remove()">&#10005;</button>';
+}
+function openRecon(){
+  renderRecon();
+  var el=document.getElementById('mo-recon');el.classList.add('show');el.style.display='flex';
+}
+function _issueLabel(x){
+  if(x.kind==='legacy')return 'Legacy advance on pending '+lotLabelById(x.lotId);
+  if(x.kind==='pending')return (x.fromAdvance?'⭐ ':'')+'Payment on pending '+lotLabelById(x.lotId);
+  return (x.fromAdvance?'⭐ ':'')+'Payment on removed lot '+(x.lotId||'?');
+}
+function renderRecon(){
+  var body=document.getElementById('reconbody');if(!body)return;
+  var issues=detectUnallocatedPays();
+  showReconBanner(issues.length);
+  if(!issues.length){body.innerHTML='<div class="ibox green">✓ All payment records are attached to payable lots. Totals and lot cards are in full agreement.</div>';return;}
+  var byCon={};issues.forEach(function(x){(byCon[x.name||'(unknown)']=byCon[x.name||'(unknown)']||[]).push(x);});
+  var html='<div class="ibox blue" style="margin-bottom:10px">These records are <strong>not counted</strong> in any total and are invisible on lot cards. For each, decide: move the money to the contractor\'s Advance Pool (it was really paid), or delete the record (it was an erroneous/duplicate entry). Nothing changes without your confirmation.</div>';
+  html+='<div style="text-align:right;margin-bottom:8px"><button class="btn sm pri" onclick="reconAllPool()">⭐ Move ALL to Advance Pool</button></div>';
+  Object.keys(byCon).sort().forEach(function(name){
+    html+='<div style="font-weight:700;margin:10px 0 6px;color:var(--n)">'+esc(name)+'</div>';
+    byCon[name].forEach(function(x){
+      var key=x.kind==='legacy'?('legacy|'+x.lotId):('pay|'+x.payId);
+      html+='<div style="border:1px solid #FDE68A;background:#FFFBEB;border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+        +'<div style="flex:1;min-width:160px"><strong>'+fmt(x.amount)+'</strong> &middot; '+(x.date?fmtD(x.date):'no date')+(x.mode?' &middot; '+esc(x.mode):'')
+        +'<div style="color:#92400E">'+_issueLabel(x)+'</div></div>'
+        +'<button class="btn sm" onclick="reconMovePool(\''+key+'\')">'+(x.fromAdvance?'⭐ Return to Pool':'⭐ Move to Pool')+'</button>'
+        +(x.fromAdvance?'':'<button class="btn sm red" onclick="reconDelete(\''+key+'\')">🗑 Delete record</button>')
+        +'</div>';
+    });
+  });
+  body.innerHTML=html;
+}
+function _reconFind(key){
+  var p=key.split('|');
+  if(p[0]==='legacy'){var l=S.lots.find(function(x){return x.id===p[1];});return l?{kind:'legacy',lot:l}:null;}
+  var pay=S.pays.find(function(x){return x.id===p[1];});return pay?{kind:'pay',pay:pay}:null;
+}
+function _reconApplyPool(t){ // no confirm — callers confirm
+  if(t.kind==='legacy'){
+    var l=t.lot;
+    S.aC=(S.aC||0)+1;
+    S.advances.push({id:uniqId('ADV'),contractorName:l.contractorName,date:l.dateIssued||td(),amount:Math.round(+l.advancePaid*100)/100,used:0,mode:'Adjustment',refLot:l.id,remarks:'Earlier payment on pending '+lotLabel(l)+' moved to advance pool'});
+    delete l.advancePaid;
+    return true;
+  }
+  var pay=t.pay;
+  var lot=S.lots.find(function(x){return x.id===pay.lotId;});
+  var name=lot?lot.contractorName:(pay.contractorName||'');
+  if(!name)return false;
+  S.pays=S.pays.filter(function(x){return x.id!==pay.id;});
+  if(pay.fromAdvance)unconsumeAdvance(name,pay.amount);
+  else{
+    S.aC=(S.aC||0)+1;
+    S.advances.push({id:uniqId('ADV'),contractorName:name,date:pay.date||td(),amount:Math.round(pay.amount*100)/100,used:0,mode:pay.mode||'Adjustment',refLot:pay.lotId,remarks:'Payment on '+(lot?'pending':'removed')+' lot '+(lot?lotLabel(lot):(pay.lotId||''))+' moved to advance pool'});
+  }
+  return true;
+}
+function reconMovePool(key){
+  var t=_reconFind(key);if(!t)return;
+  var amt=t.kind==='legacy'?+t.lot.advancePaid:t.pay.amount;
+  var name=t.kind==='legacy'?t.lot.contractorName:(function(){var l=S.lots.find(function(x){return x.id===t.pay.lotId;});return l?l.contractorName:(t.pay.contractorName||'');})();
+  if(!name){alert('Cannot attribute this record to a contractor — it names no contractor and its lot is gone. Leave it or delete it.');return;}
+  var pool=contractorAdvancePool(name);
+  if(!confirm('Move '+fmt(amt)+' to '+name+"'s Advance Pool?\n\nPool: "+fmt(pool)+' → '+fmt(pool+amt)+'.\nA dated ledger entry with the lot reference will be recorded.'))return;
+  if(_reconApplyPool(t)){refreshAllStatuses();save();render();if(curCon)renderDet(curCon);renderRecon();}
+}
+function reconDelete(key){
+  var t=_reconFind(key);if(!t)return;
+  if(t.kind==='legacy'){
+    if(!confirm('Delete the legacy advance figure of '+fmt(+t.lot.advancePaid)+' on '+lotLabel(t.lot)+'?\n\nIt will NOT go to the Advance Pool — it is treated as an erroneous entry and removed from the books.'))return;
+    delete t.lot.advancePaid;
+  }else{
+    if(t.pay.fromAdvance){alert('⭐ pool settlements cannot be deleted outright — return them to the pool instead so the pool stays balanced.');return;}
+    if(!confirm('Delete this '+fmt(t.pay.amount)+' payment record ('+fmtD(t.pay.date)+')?\n\nIt will NOT go to the Advance Pool — it is treated as an erroneous/duplicate entry and removed from the books.'))return;
+    S.pays=S.pays.filter(function(x){return x.id!==t.pay.id;});
+  }
+  refreshAllStatuses();save();render();if(curCon)renderDet(curCon);renderRecon();
+}
+function reconAllPool(){
+  var issues=detectUnallocatedPays().filter(function(x){return x.name;});
+  if(!issues.length)return;
+  var tot=issues.reduce(function(s,x){return s+x.amount;},0);
+  if(!confirm('Move ALL '+issues.length+' records ('+fmt(tot)+' total) to their contractors\' Advance Pools?\n\nEach gets a dated ledger entry with its lot reference.'))return;
+  issues.forEach(function(x){
+    var t=_reconFind(x.kind==='legacy'?('legacy|'+x.lotId):('pay|'+x.payId));
+    if(t)_reconApplyPool(t);
+  });
+  refreshAllStatuses();save();render();if(curCon)renderDet(curCon);renderRecon();
+}
 
 // Repair advances whose `used` was not saved earlier (the diffWrite-baseline bug). For each
 // contractor, the total of their "Advance Adjustment" payments is exactly how much of their
@@ -1161,10 +1298,7 @@ function lotSettlementHistoryHTML(lot){
     return '<div style="display:flex;justify-content:space-between;gap:8px;padding:3px 0;border-bottom:1px dashed #EDE4F5"><span style="color:#555">'+(p.fromAdvance?'⭐ ':'💵 ')+fmtD(p.date)+' &middot; '+esc(p.mode||'Cash')+(p.remarks?' &middot; <span style=\'font-style:italic;color:#999\'>'+esc(p.remarks)+'</span>':'')+'</span><strong style="color:var(--g);white-space:nowrap">'+fmt(p.amount)+'</strong></div>';
   });
   if(legacy>0)items.unshift('<div style="display:flex;justify-content:space-between;gap:8px;padding:3px 0;border-bottom:1px dashed #EDE4F5"><span style="color:#555">💵 Earlier payment (before app history)</span><strong style="color:var(--g);white-space:nowrap">'+fmt(legacy)+'</strong></div>');
-  var totPaid=adv(lot.id),out=Math.max(0,Math.round((payable(lot)-totPaid)*100)/100);
-  var footer='<div style="display:flex;justify-content:space-between;gap:8px;padding:4px 0 0"><strong style="color:#333">Total Paid</strong><strong style="color:var(--g)">'+fmt(totPaid)+'</strong></div>'
-    +'<div style="display:flex;justify-content:space-between;gap:8px"><strong style="color:#333">Outstanding</strong><strong style="color:'+(out>0.01?'var(--r)':'var(--g)')+'">'+fmt(out)+'</strong></div>';
-  return '<div style="background:#FBFAFF;border:1px solid #E4DDF3;border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:11px"><strong style="color:#6D28D9">🧾 Settlement history ('+items.length+')</strong>'+items.join('')+footer+'</div>';
+  return '<div style="background:#FBFAFF;border:1px solid #E4DDF3;border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:11px"><strong style="color:#6D28D9">🧾 Settlement history ('+items.length+')</strong>'+items.join('')+'</div>';
 }
 
 function lotCard(lot,showCon){
@@ -2638,6 +2772,13 @@ function advListDel(advId,name){
     <button class="btn" style="width:100%;justify-content:flex-start;padding:14px;margin-bottom:10px;font-size:14px" id="em-challan">📦 &nbsp;Edit Challan (lot details)</button>
     <button class="btn" style="width:100%;justify-content:flex-start;padding:14px;font-size:14px" id="em-pay">💰 &nbsp;Edit Payment History</button>
   </div>
+</div></div>
+
+<!-- RECONCILIATION REPORT -->
+<div class="ov" id="mo-recon"><div class="mb"><div class="mh"></div>
+  <div class="mhd"><div><h3>🔍 Reconciliation Report</h3><div style="font-size:12px;color:#888">Payment records not attached to any payable lot</div></div><button class="xb" onclick="closeModal('recon')">&#10005;</button></div>
+  <div class="mbd" id="reconbody"></div>
+  <div class="mft"><button class="btn" style="flex:1;justify-content:center" onclick="closeModal('recon')">Close</button></div>
 </div></div>
 
 <!-- CONTRACTOR EDIT MENU -->
