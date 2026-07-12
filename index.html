@@ -480,6 +480,12 @@ function shareLot(id){
 function payLots(name,lotIds,amount,date,mode,remarks){
   var left=Math.round(amount*100)/100;
   var created=[],batchId='PAYB-'+Date.now()+'-'+Math.floor(Math.random()*1000);
+  // Rows created in THIS batch are not yet in S.pays, so bal() cannot see them.
+  // Track them per lot and always allocate against (bal − already allocated in this batch),
+  // otherwise the cash phase re-allocates the full balance on top of the ⭐ pool rows —
+  // overpaying one lot and shorting the next.
+  var allocated={};
+  var dueNow=function(lot){return Math.max(0,Math.round((bal(lot)-(allocated[lot.id]||0))*100)/100);};
 
   // First, consume any existing advance pool toward these lots
   var pool=contractorAdvancePool(name);
@@ -495,10 +501,11 @@ function payLots(name,lotIds,amount,date,mode,remarks){
     var poolLeft=pool;
     sel.forEach(function(lot){
       if(poolLeft<0.01)return;
-      var use=Math.min(poolLeft,bal(lot));
+      var use=Math.min(poolLeft,dueNow(lot));
       if(use<0.01)return;
       S.pC++;
       created.push({id:uniqId('PAY'),dispNo:S.pC,batchId:batchId,contractorName:name,lotId:lot.id,date:date,amount:use,mode:'Advance Adjustment',remarks:'Settled from advance pool',fromAdvance:true});
+      allocated[lot.id]=Math.round(((allocated[lot.id]||0)+use)*100)/100;
       poolLeft-=use;
     });
     var usedFromPool=pool-poolLeft;
@@ -511,11 +518,12 @@ function payLots(name,lotIds,amount,date,mode,remarks){
   // Now apply the new cash amount to remaining balances of selected lots
   sel.forEach(function(lot){
     if(left<0.01)return;
-    var due=bal(lot);
+    var due=dueNow(lot);
     if(due<0.01)return;
     var use=Math.min(left,due);
     S.pC++;
     created.push({id:uniqId('PAY'),dispNo:S.pC,batchId:batchId,contractorName:name,lotId:lot.id,date:date,amount:use,totalAmount:amount,mode:mode,remarks:remarks||''});
+    allocated[lot.id]=Math.round(((allocated[lot.id]||0)+use)*100)/100;
     left-=use;
   });
 
@@ -852,6 +860,10 @@ function detectUnallocatedPays(){
     var pending=(l.piecesReceived==null||l.piecesReceived==='');
     if(pending&&l.advancePaid&&+l.advancePaid>0.005)
       issues.push({kind:'legacy',lotId:l.id,name:l.contractorName,date:l.dateIssued||'',amount:Math.round(+l.advancePaid*100)/100,mode:'',fromAdvance:false});
+    if(!pending){
+      var over=Math.round((adv(l.id)-payable(l))*100)/100;
+      if(over>0.01)issues.push({kind:'overpaid',lotId:l.id,name:l.contractorName,date:l.dateReceived||l.dateIssued||'',amount:over,mode:'',fromAdvance:false});
+    }
   });
   return issues;
 }
@@ -871,7 +883,7 @@ function showReconBanner(n){
     var app=document.getElementById('app')||document.body;
     app.insertBefore(b,app.firstChild);
   }
-  b.innerHTML='⚠ <strong>'+n+'</strong>&nbsp;payment record'+(n===1?' is':'s are')+' not attached to any payable lot. Review and decide where each belongs.'
+  b.innerHTML='⚠ <strong>'+n+'</strong>&nbsp;payment record'+(n===1?' needs':'s need')+' review (unattached or above a lot\'s payable). Decide where each belongs.'
     +'<button class="btn sm" style="margin-left:auto" onclick="openRecon()">🔍 Review</button>'
     +'<button class="xb" style="font-size:14px" onclick="document.getElementById(\'reconbar\').remove()">&#10005;</button>';
 }
@@ -880,6 +892,7 @@ function openRecon(){
   var el=document.getElementById('mo-recon');el.classList.add('show');el.style.display='flex';
 }
 function _issueLabel(x){
+  if(x.kind==='overpaid')return 'Lot '+lotLabelById(x.lotId)+' is paid '+fmt(x.amount)+' ABOVE its payable';
   if(x.kind==='legacy')return 'Legacy advance on pending '+lotLabelById(x.lotId);
   if(x.kind==='pending')return (x.fromAdvance?'⭐ ':'')+'Payment on pending '+lotLabelById(x.lotId);
   return (x.fromAdvance?'⭐ ':'')+'Payment on removed lot '+(x.lotId||'?');
@@ -890,11 +903,19 @@ function renderRecon(){
   showReconBanner(issues.length);
   if(!issues.length){body.innerHTML='<div class="ibox green">✓ All payment records are attached to payable lots. Totals and lot cards are in full agreement.</div>';return;}
   var byCon={};issues.forEach(function(x){(byCon[x.name||'(unknown)']=byCon[x.name||'(unknown)']||[]).push(x);});
-  var html='<div class="ibox blue" style="margin-bottom:10px">These records are <strong>not counted</strong> in any total and are invisible on lot cards. For each, decide: move the money to the contractor\'s Advance Pool (it was really paid), or delete the record (it was an erroneous/duplicate entry). Nothing changes without your confirmation.</div>';
+  var html='<div class="ibox blue" style="margin-bottom:10px">Unattached records are <strong>not counted</strong> in totals; overpaid lots hold <strong>more than their payable</strong>. For each, decide: move the money to the contractor\'s Advance Pool, or delete the record if it was an erroneous/duplicate entry. Nothing changes without your confirmation.</div>';
   html+='<div style="text-align:right;margin-bottom:8px"><button class="btn sm pri" onclick="reconAllPool()">⭐ Move ALL to Advance Pool</button></div>';
   Object.keys(byCon).sort().forEach(function(name){
     html+='<div style="font-weight:700;margin:10px 0 6px;color:var(--n)">'+esc(name)+'</div>';
     byCon[name].forEach(function(x){
+      if(x.kind==='overpaid'){
+        html+='<div style="border:1px solid #FCA5A5;background:#FEF2F2;border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+          +'<div style="flex:1;min-width:160px"><strong>'+fmt(x.amount)+'</strong> excess'
+          +'<div style="color:#B91C1C">'+_issueLabel(x)+'</div></div>'
+          +'<button class="btn sm" onclick="reconFixOverpay(\''+esc(x.lotId)+'\')">⭐ Move excess to Pool</button>'
+          +'</div>';
+        return;
+      }
       var key=x.kind==='legacy'?('legacy|'+x.lotId):('pay|'+x.payId);
       html+='<div style="border:1px solid #FDE68A;background:#FFFBEB;border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
         +'<div style="flex:1;min-width:160px"><strong>'+fmt(x.amount)+'</strong> &middot; '+(x.date?fmtD(x.date):'no date')+(x.mode?' &middot; '+esc(x.mode):'')
@@ -952,12 +973,26 @@ function reconDelete(key){
   }
   refreshAllStatuses();save();render();if(curCon)renderDet(curCon);renderRecon();
 }
+function reconFixOverpay(lid){
+  var lot=S.lots.find(function(x){return x.id===lid;});if(!lot)return;
+  var over=Math.round((adv(lid)-payable(lot))*100)/100;
+  if(over<=0.01){renderRecon();return;}
+  var pool=contractorAdvancePool(lot.contractorName);
+  if(!confirm(lotLabel(lot)+' is paid '+fmt(over)+' above its payable of '+fmt(payable(lot))+'.\n\nThe excess will be trimmed from this lot\u2019s CASH payments first (⭐ advance settlements stay unless cash cannot absorb it) and moved to '+lot.contractorName+"'s Advance Pool.\n\nPool: "+fmt(pool)+' → '+fmt(pool+over)+'.\n\nContinue?'))return;
+  moveOverpayToPool(lot,td());
+  refreshAllStatuses();save();render();if(curCon)renderDet(curCon);renderRecon();
+}
 function reconAllPool(){
   var issues=detectUnallocatedPays().filter(function(x){return x.name;});
   if(!issues.length)return;
   var tot=issues.reduce(function(s,x){return s+x.amount;},0);
-  if(!confirm('Move ALL '+issues.length+' records ('+fmt(tot)+' total) to their contractors\' Advance Pools?\n\nEach gets a dated ledger entry with its lot reference.'))return;
+  if(!confirm('Move ALL '+issues.length+' records ('+fmt(tot)+' total) to their contractors\' Advance Pools?\n\nOverpaid lots are trimmed cash-first; each movement gets a dated ledger entry with its lot reference.'))return;
   issues.forEach(function(x){
+    if(x.kind==='overpaid'){
+      var lot=S.lots.find(function(l){return l.id===x.lotId;});
+      if(lot)moveOverpayToPool(lot,td());
+      return;
+    }
     var t=_reconFind(x.kind==='legacy'?('legacy|'+x.lotId):('pay|'+x.payId));
     if(t)_reconApplyPool(t);
   });
