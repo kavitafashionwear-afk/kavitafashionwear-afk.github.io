@@ -241,7 +241,7 @@ input:focus,select:focus{border-color:var(--n)}
     <div id="ie-usage" style="font-size:11.5px;color:#888;background:#F7F7F7;border-radius:9px;padding:9px 11px;margin-bottom:12px"></div>
     <div class="fg"><label>Item Name *</label><input id="ie-name" placeholder="e.g. Cotton Kurti"></div>
     <div class="fr"><div><label>Item Code</label><input id="ie-code" placeholder="e.g. CK101"></div>
-    <div><label>Default Rate (Rs.) *</label><input id="ie-rate" type="number" inputmode="decimal" placeholder="0"></div></div>
+    <div><label>Job Rate (Rs./pc) *</label><input id="ie-rate" type="number" inputmode="decimal" placeholder="0"></div></div>
     <div id="ie-warn" style="display:none;font-size:11.5px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:9px;padding:9px 11px;margin-bottom:10px;color:#92400E"></div>
     <div style="display:flex;gap:8px;margin-top:6px">
       <button class="btn" style="flex:1;justify-content:center" onclick="closeItemEdit()">Cancel</button>
@@ -255,7 +255,7 @@ input:focus,select:focus{border-color:var(--n)}
 <div class="ov" id="mo-aL"><div class="mb"><div class="mh"></div>
   <div class="mhd"><h3>New Cutting Lot</h3><button class="xb" onclick="closeModal('aL')">&#10005;</button></div>
   <div class="mbd">
-    <div class="fr"><div><label>Contractor *</label><input id="fc" oninput="pvL()"></div><div><label>Item *</label><input id="fi" oninput="pvL()"></div></div>
+    <div class="fr"><div><label>Contractor *</label><input id="fc" oninput="pvL()"></div><div><label>Item *</label><select id="fi" onchange="onLotItemPick('fi','fr')"></select></div></div>
     <div class="fg"><label>Contractor Contact No. <span style="color:#AAA;font-weight:400">(optional, for new)</span></label><input id="fcph" type="tel" inputmode="tel" placeholder="e.g. 98xxxxxxxx"></div>
     <div class="fr"><div><label>Pieces *</label><input id="fp" type="number" inputmode="numeric" oninput="pvL()"></div><div><label>Rate (Rs./pc) *</label><input id="fr" type="number" inputmode="decimal" oninput="pvL()"></div></div>
     <div class="fr"><div><label>Lot No. *</label><input id="fln" type="number" inputmode="numeric" placeholder="e.g. 1" oninput="pvL()"></div><div><label>Bags</label><input id="fbg" type="number" inputmode="numeric" placeholder="No. of bags" oninput="pvL()"></div></div>
@@ -292,7 +292,7 @@ input:focus,select:focus{border-color:var(--n)}
     <div id="alNewWrap" style="display:none">
       <div class="fr"><div><label>New Contractor Name *</label><input id="alc" placeholder="Contractor name"></div><div><label>Contact No.</label><input id="alcph" type="tel" inputmode="tel" placeholder="e.g. 98xxxxxxxx"></div></div>
     </div>
-    <div class="fg"><label>Item *</label><input id="ali" placeholder="e.g. Leggings"></div>
+    <div class="fg"><label>Item *</label><select id="ali" onchange="onLotItemPick('ali','alr')"></select></div>
     <div class="fr"><div><label>Pieces *</label><input id="alp" type="number" inputmode="numeric" oninput="pvAl()"></div><div><label>Rate (Rs./pc) *</label><input id="alr" type="number" inputmode="decimal" oninput="pvAl()"></div></div>
     <div class="fr"><div><label>Lot No. *</label><input id="alln" type="number" inputmode="numeric" placeholder="e.g. 1"></div><div><label>Date Issued *</label><input id="ald" type="date"></div></div>
     <div class="fg"><label>Remarks</label><input id="alm"></div>
@@ -305,7 +305,7 @@ input:focus,select:focus{border-color:var(--n)}
 <div class="ov" id="mo-eL"><div class="mb"><div class="mh"></div>
   <div class="mhd"><div><h3>&#9998; Edit Lot</h3><div style="font-size:12px;color:#888" id="els"></div></div><button class="xb" onclick="closeModal('eL')">&#10005;</button></div>
   <div class="mbd">
-    <div class="fr"><div><label>Contractor *</label><input id="ec" oninput="pvEL()"></div><div><label>Item *</label><input id="ei" oninput="pvEL()"></div></div>
+    <div class="fr"><div><label>Contractor *</label><input id="ec" oninput="pvEL()"></div><div><label>Item *</label><select id="ei" onchange="onLotItemPick('ei','er')"></select></div></div>
     <div class="fr"><div><label>Pieces *</label><input id="ep" type="number" inputmode="numeric" oninput="pvEL()"></div><div><label>Rate (Rs./pc) *</label><input id="er" type="number" inputmode="decimal" oninput="pvEL()"></div></div>
     <div class="fr"><div><label>Lot No. *</label><input id="eln" type="number" inputmode="numeric" placeholder="e.g. 1"></div><div><label>Bags</label><input id="ebg" type="number" inputmode="numeric" placeholder="No. of bags"></div></div>
     <div class="fg"><label>Date Issued *</label><input id="ed" type="date"></div>
@@ -1417,7 +1417,9 @@ function imAddItem(){
   if(rate<0){ alert('Rate cannot be negative'); return; }
   var dup=findDupItem(name,null);
   if(dup){ alert('An item named "'+dup.name+'" already exists.'); return; }
-  S.items.push({ id:uniqId('IT'), name:name, code:code, rate:rate });
+  // jobRate = manufacturing rate (this app). rate = sale rate, owned by the Challan Manager —
+  // created at 0 here so we never invent a selling price.
+  S.items.push({ id:uniqId('IT'), name:name, code:code, rate:0, jobRate:rate });
   _itemCanonIdx=null;
   document.getElementById('im-name').value='';
   document.getElementById('im-code').value='';
@@ -1428,11 +1430,11 @@ function createItemFromName(key){
   var h=scanLotItems().find(function(x){ return x.key===key; }); if(!h) return;
   var dup=findDupItem(h.raw,null);
   if(dup){ alert('An item named "'+dup.name+'" already exists. Map it instead.'); return; }
-  var r=prompt('Create a new Item Master record.\n\nName: '+h.raw+'\n\nEnter its default sale rate (Rs.):', h.rMin!=null?String(h.rMin):'0');
+  var r=prompt('Create a new Item Master record.\n\nName: '+h.raw+'\n\nEnter its job rate (Rs./pc) — the manufacturing rate:', h.rMin!=null?String(h.rMin):'0');
   if(r===null) return;
   var rate=+r; if(isNaN(rate)||rate<0){ alert('Invalid rate.'); return; }
   var id=uniqId('IT');
-  S.items.push({ id:id, name:h.raw, code:'', rate:rate });
+  S.items.push({ id:id, name:h.raw, code:'', rate:0, jobRate:rate });
   _itemCanonIdx=null;
   save(); renderIM();
 }
@@ -1444,11 +1446,11 @@ function openItemEdit(id){
   imEditId=id;
   document.getElementById('ie-name').value=it.name||'';
   document.getElementById('ie-code').value=it.code||'';
-  document.getElementById('ie-rate').value=(+it.rate||0);
+  document.getElementById('ie-rate').value=itemJobRate(it);
   document.getElementById('ie-warn').style.display='none';
   var lots=(S.lots||[]).filter(function(l){ if(!l||l.kind==='fabric')return false; var c=itemCanon(l.item); return c&&c.id===id; }).length;
   var maps=(S.itemMap||[]).filter(function(m){ return m&&m.itemId===id; }).length;
-  document.getElementById('ie-usage').textContent='Used by '+lots+' lot'+(lots===1?'':'s')+' · '+maps+' mapped keyword'+(maps===1?'':'s');
+  document.getElementById('ie-usage').textContent='Used by '+lots+' lot'+(lots===1?'':'s')+' · '+maps+' mapped keyword'+(maps===1?'':'s')+'  ·  sale rate '+fmt(+it.rate||0)+' (set in Challan Manager)';
   var el=document.getElementById('mo-iE'); el.classList.add('show'); el.style.display='flex';
   setTimeout(function(){ var n=document.getElementById('ie-name'); if(n){ n.focus(); n.select(); } },60);
 }
@@ -1477,7 +1479,12 @@ function itemEditSave(){
     }
   }
   var i=S.items.findIndex(function(x){ return x&&x.id===imEditId; });
-  S.items[i]={ id:imEditId, name:name, code:code, rate:rate };   // new object, never mutate in place
+  // New object (never mutate in place), but built by COPYING the existing record first: `rate`
+  // is the Challan Manager's sale rate and any future field it adds must survive a save here.
+  var next={}; Object.keys(it).forEach(function(k){ next[k]=it[k]; });
+  next.id=imEditId; next.name=name; next.code=code; next.jobRate=rate;
+  if(next.rate==null) next.rate=0;
+  S.items[i]=next;
   (S.itemMap||[]).forEach(function(m,mi){ if(m&&m.itemId===imEditId&&m.itemName!==name) S.itemMap[mi]={key:m.key,raw:m.raw,itemId:m.itemId,itemName:name}; });
   _itemCanonIdx=null;
   save(); closeItemEdit(); renderIM();
@@ -1496,7 +1503,27 @@ function itemEditDelete(){
 }
 
 /* ── Render ── */
-var imView='master', imSearch='', imSel={}, imLimit=60;
+var imView='master', imSearch='', imSel={}, imLimit=60, imSort='name';
+function setIMSort(v){ imSort=v; renderIM(); }
+function imSortList(list){
+  var L=list.slice();
+  if(imSort==='rate')      L.sort(function(a,b){ return itemJobRate(a)-itemJobRate(b) || a.name.localeCompare(b.name); });
+  else if(imSort==='rated') L.sort(function(a,b){ return itemJobRate(b)-itemJobRate(a) || a.name.localeCompare(b.name); });
+  else if(imSort==='namez') L.sort(function(a,b){ return b.name.localeCompare(a.name); });
+  else if(imSort==='used')  L.sort(function(a,b){ return imLotCount(b.id)-imLotCount(a.id) || a.name.localeCompare(b.name); });
+  else if(imSort==='norate')L.sort(function(a,b){ return (itemJobRate(a)?1:0)-(itemJobRate(b)?1:0) || a.name.localeCompare(b.name); });
+  else L.sort(function(a,b){ return a.name.localeCompare(b.name); });
+  return L;
+}
+var _imLotCountCache=null, _imLotCountKey='';
+function imLotCount(id){
+  var key=(S.lots||[]).length+':'+(S.items||[]).length+':'+(S.itemMap||[]).length;
+  if(!_imLotCountCache||_imLotCountKey!==key){
+    var m={}; (S.lots||[]).forEach(function(l){ if(!l||l.kind==='fabric')return; var c=itemCanon(l.item); if(c)m[c.id]=(m[c.id]||0)+1; });
+    _imLotCountCache=m; _imLotCountKey=key;
+  }
+  return _imLotCountCache[id]||0;
+}
 function setIMView(v){ imView=v; imSel={}; renderIM(); }
 function imFiltered(){
   var q=normIName(imSearch);
@@ -1523,26 +1550,36 @@ function imTabsHTML(){
 }
 function renderIMMaster(el){
   var q=normIName(imSearch);
-  var list=(S.items||[]).slice().sort(function(a,b){ return a.name.localeCompare(b.name); })
-    .filter(function(it){ return !q || normIName(it.name).indexOf(q)!==-1 || normIName(it.code).indexOf(q)!==-1; });
+  var list=imSortList((S.items||[]).filter(function(it){ return !q || normIName(it.name).indexOf(q)!==-1 || normIName(it.code).indexOf(q)!==-1; }));
   el.innerHTML=imTabsHTML()
     +'<div class="ibox blue" style="font-size:11.5px;margin-bottom:12px">Shared with the Challan Manager — items added or edited here appear there too, and vice versa.</div>'
     +'<div style="background:#fff;border:1px solid #ECECEC;border-radius:12px;padding:14px;margin-bottom:12px">'
       +'<div style="font-size:13px;font-weight:800;color:#1F3864;margin-bottom:10px">➕ Add Item</div>'
       +'<div class="fg"><label>Item Name *</label><input id="im-name" placeholder="e.g. Cotton Kurti"></div>'
       +'<div class="fr"><div><label>Item Code</label><input id="im-code" placeholder="e.g. CK101"></div>'
-      +'<div><label>Default Rate (Rs.) *</label><input id="im-rate" type="number" inputmode="decimal" placeholder="0"></div></div>'
+      +'<div><label>Job Rate (Rs./pc) *</label><input id="im-rate" type="number" inputmode="decimal" placeholder="0"></div></div>'
       +'<button class="btn pri" style="width:100%;justify-content:center;margin-top:6px" onclick="imAddItem()">✓ Add Item</button>'
     +'</div>'
-    +'<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">'
+    +'<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">'
       +'<input id="im-search" placeholder="🔍 Search by name or code…" value="'+esc(imSearch)+'" oninput="imSearch=this.value;renderIM()" style="flex:1">'
       +'<span style="font-size:11px;color:#999;flex-shrink:0">'+list.length+' item'+(list.length===1?'':'s')+'</span>'
+    +'</div>'
+    +'<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">'
+      +'<label style="font-size:11px;color:#888;flex-shrink:0">Sort</label>'
+      +'<select id="im-sort" onchange="setIMSort(this.value)" style="flex:1;font-size:12px;padding:7px">'
+        +'<option value="name"'+(imSort==='name'?' selected':'')+'>Name A → Z</option>'
+        +'<option value="namez"'+(imSort==='namez'?' selected':'')+'>Name Z → A</option>'
+        +'<option value="rate"'+(imSort==='rate'?' selected':'')+'>Job rate — low to high</option>'
+        +'<option value="rated"'+(imSort==='rated'?' selected':'')+'>Job rate — high to low</option>'
+        +'<option value="used"'+(imSort==='used'?' selected':'')+'>Most used in lots</option>'
+        +'<option value="norate"'+(imSort==='norate'?' selected':'')+'>Missing job rate first</option>'
+      +'</select>'
     +'</div>'
     +(list.length?list.map(function(it){
       return '<div style="background:#fff;border:1px solid #ECECEC;border-radius:11px;padding:11px 13px;margin-bottom:7px;display:flex;align-items:center;gap:10px">'
         +'<div style="flex:1;min-width:0">'
           +'<div style="font-size:13.5px;font-weight:700;color:#1F3864">'+esc(it.name)+(it.code?' <span style="font-size:10px;color:#2563EB;background:#EFF6FF;border:1px solid #BFDBFE;padding:1px 7px;border-radius:8px;font-weight:700">'+esc(it.code)+'</span>':'')+'</div>'
-          +'<div style="font-size:11px;color:#888;margin-top:2px">Default rate: <strong style="color:#059669">'+fmt(+it.rate||0)+'</strong></div>'
+          +'<div style="font-size:11px;color:#888;margin-top:2px">Job rate: '+(itemJobRate(it)?'<strong style="color:#059669">Rs.'+itemJobRate(it)+'/pc</strong>':'<strong style="color:#DC2626">not set</strong>')+' · '+imLotCount(it.id)+' lot'+(imLotCount(it.id)===1?'':'s')+'</div>'
         +'</div>'
         +'<button class="btn sm" onclick="openItemEdit(\''+it.id+'\')" style="font-size:11px">✏️ Edit</button>'
       +'</div>';
@@ -1553,7 +1590,7 @@ function renderIMReview(el){
   var un=imFiltered(), total=unmappedLotItems().length;
   var sel=Object.keys(imSel).filter(function(k){ return imSel[k]; }).length;
   var opts='<option value="">— choose item —</option>'+(S.items||[]).slice().sort(function(a,b){ return a.name.localeCompare(b.name); })
-    .map(function(it){ return '<option value="'+it.id+'">'+esc(it.name)+(it.code?' ['+esc(it.code)+']':'')+' · Rs.'+(+it.rate||0)+'</option>'; }).join('');
+    .map(function(it){ return '<option value="'+it.id+'">'+esc(it.name)+(it.code?' ['+esc(it.code)+']':'')+' · job Rs.'+itemJobRate(it)+'</option>'; }).join('');
   el.innerHTML=imTabsHTML()
     +'<div class="ibox amber" style="font-size:11.5px;margin-bottom:10px">These item spellings appear on your lots but match no Item Master record, so their received pieces are <strong>not counted in stock</strong>. Map each to the right item. <strong>Lots are never changed</strong> and every mapping can be removed later.</div>'
     +'<input id="im-rsearch" placeholder="🔍 Search name (e.g. plazzo, kurti)…" value="'+esc(imSearch)+'" oninput="imSearch=this.value;renderIM()" style="width:100%;margin-bottom:10px">'
@@ -1821,7 +1858,7 @@ function renderPays(){
 }
 
 function openModal(t){
-  if(t==='aL'){['fc','fi','fp','fr','fln','fbg','fm','fcph'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});document.getElementById('fd').value=td();document.getElementById('lp').style.display='none';}
+  if(t==='aL'){['fc','fp','fr','fln','fbg','fm','fcph'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});fillItemSelect('fi','');document.getElementById('fd').value=td();document.getElementById('lp').style.display='none';}
   if(t==='aP'){
     var s=document.getElementById('pl2');s.innerHTML='<option value="">Select contractor...</option>';
     getNames().forEach(function(n){var o=document.createElement('option');o.value=n;o.textContent=n;s.appendChild(o);});
@@ -1905,9 +1942,54 @@ function addReceivalPart(){
   renderReceivalParts();
 }
 function removeReceivalPart(i){stagedReceivals.splice(i,1);renderReceivalParts();}
-function openEL(lid){eLId=lid;var lot=S.lots.find(function(l){return l.id===lid;});if(!lot)return;document.getElementById('els').textContent=lid;document.getElementById('eln').value=lot.lotNumber||'';document.getElementById('ebg').value=lot.bags||'';document.getElementById('ec').value=lot.contractorName;document.getElementById('ei').value=lot.item;document.getElementById('ep').value=lot.piecesIssued;document.getElementById('er').value=lot.rate;document.getElementById('ed').value=lot.dateIssued;document.getElementById('em').value=lot.remarks||'';document.getElementById('elp').style.display='none';var el=document.getElementById('mo-eL');el.classList.add('show');el.style.display='flex';}
+function openEL(lid){eLId=lid;var lot=S.lots.find(function(l){return l.id===lid;});if(!lot)return;document.getElementById('els').textContent=lid;document.getElementById('eln').value=lot.lotNumber||'';document.getElementById('ebg').value=lot.bags||'';document.getElementById('ec').value=lot.contractorName;fillItemSelect('ei',lot.item);document.getElementById('ep').value=lot.piecesIssued;document.getElementById('er').value=lot.rate;document.getElementById('ed').value=lot.dateIssued;document.getElementById('em').value=lot.remarks||'';document.getElementById('elp').style.display='none';var el=document.getElementById('mo-eL');el.classList.add('show');el.style.display='flex';}
 function openEC(name){eCName=name;document.getElementById('ecs').textContent=name;document.getElementById('en').value=name;document.getElementById('enph').value=getContact(name);var el=document.getElementById('mo-eC');el.classList.add('show');el.style.display='flex';}
 
+/* ── Item selection on lots ──
+   Lots pick their item from the shared Item Master instead of free text, so every lot resolves
+   to a stock item with no mapping needed. The option VALUE is the item id; the lot still stores
+   the item NAME, keeping older lots and the itemCanon() resolver working unchanged.
+   `jobRate` is this app's manufacturing rate — deliberately separate from `rate`, which is the
+   Challan Manager's sale rate. The two must never overwrite each other. */
+function itemJobRate(it){ return it && it.jobRate!=null && it.jobRate!=='' ? (+it.jobRate||0) : 0; }
+function fillItemSelect(selId, currentName){
+  var sel=document.getElementById(selId); if(!sel) return;
+  var list=(S.items||[]).slice().sort(function(a,b){ return a.name.localeCompare(b.name); });
+  var html='<option value="">Select item...</option>';
+  var matched=null;
+  list.forEach(function(it){
+    if(currentName && normIName(it.name)===normIName(currentName)) matched=it.id;
+    html+='<option value="'+it.id+'">'+esc(it.name)+(itemJobRate(it)?' · Rs.'+itemJobRate(it):'')+'</option>';
+  });
+  // A lot saved before this change may carry text that is not in the master (or a mapped
+  // spelling). Keep it selectable so editing a lot can never silently rewrite its item.
+  if(currentName && !matched){
+    var canon=itemCanon(currentName);
+    if(canon){ matched=canon.id; }
+    else { html+='<option value="__KEEP__" selected>'+esc(currentName)+' (not in Item Master)</option>'; matched='__KEEP__'; }
+  }
+  if(!list.length && !currentName) html='<option value="">No items — add them in Item Master</option>';
+  sel.innerHTML=html;
+  sel.value=matched||'';
+}
+function selectedItemName(selId, fallback){
+  var sel=document.getElementById(selId); if(!sel) return fallback||'';
+  var v=sel.value;
+  if(v==='__KEEP__') return fallback||'';
+  var it=(S.items||[]).find(function(x){ return x&&x.id===v; });
+  return it?it.name:'';
+}
+function onLotItemPick(selId, rateId){
+  var sel=document.getElementById(selId);
+  var it=(S.items||[]).find(function(x){ return x&&x.id===(sel?sel.value:''); });
+  var r=document.getElementById(rateId);
+  // Picking an item ALWAYS refills the rate with that item's default job rate — same as the
+  // Challan Manager. Whatever is left in the box is then just a starting value: typing over it
+  // changes this lot only. Lot rates are stored on the lot; nothing here writes back to the
+  // Item Master, so per-lot rates never disturb the default.
+  if(it && r) r.value = itemJobRate(it) || '';
+  if(selId==='fi') pvL(); else if(selId==='ei') pvEL(); else if(selId==='ali') pvAl();
+}
 function pvL(){var p=+document.getElementById('fp').value,r=+document.getElementById('fr').value,b=document.getElementById('lp');if(p&&r){b.style.display='block';b.textContent='Estimated only. Payable is calculated after receive: '+fmt(p*r);}else b.style.display='none';}
 function pvEL(){var p=+document.getElementById('ep').value,r=+document.getElementById('er').value,b=document.getElementById('elp');if(p&&r){b.style.display='block';b.textContent='Estimated only. Payable is calculated after receive: '+fmt(p*r)+' ('+fmtN(p)+' pcs x Rs.'+r+')';}else b.style.display='none';}
 var payMode='lots';
@@ -1999,8 +2081,9 @@ function pvR(){
 }
 
 function addLot(){
-  var c=document.getElementById('fc').value.trim(),i=document.getElementById('fi').value.trim(),p=+document.getElementById('fp').value,r=+document.getElementById('fr').value,d=document.getElementById('fd').value,m=document.getElementById('fm').value.trim();
-  if(!c||!i||!p||!r||!d){alert('Fill all required fields.');return;}
+  var c=document.getElementById('fc').value.trim(),i=selectedItemName('fi',''),p=+document.getElementById('fp').value,r=+document.getElementById('fr').value,d=document.getElementById('fd').value,m=document.getElementById('fm').value.trim();
+  if(!i){alert('Select an item from the Item Master.');return;}
+  if(!c||!p||!r||!d){alert('Fill all required fields.');return;}
   if(p<=0||r<=0){alert('Pieces and rate must be greater than zero.');return;}
   S.lC++;var _ln=+document.getElementById('fln').value||S.lC;var _bg=+document.getElementById('fbg').value||0;S.lots.push({id:uniqId('LOT'),dispNo:S.lC,lotNumber:_ln,bags:_bg,contractorName:c,item:i,piecesIssued:p,rate:r,dateIssued:d,piecesReceived:null,dateReceived:null,status:'PENDING',remarks:m});
   var _ph=(document.getElementById('fcph').value||'').trim();if(_ph)setContact(c,_ph);
@@ -2050,7 +2133,7 @@ function openAllot(lid){
   document.getElementById('alNewWrap').style.display='none';
   document.getElementById('alc').value='';
   document.getElementById('alcph').value='';
-  document.getElementById('ali').value=lot.item;
+  fillItemSelect('ali',lot.item);
   document.getElementById('alp').value='';
   document.getElementById('alr').value='';
   document.getElementById('alln').value='';
@@ -2085,7 +2168,8 @@ function saveAllot(){
   } else {
     alert('Select a contractor (or add a new one).');return;
   }
-  var i=document.getElementById('ali').value.trim(),p=+document.getElementById('alp').value,r=+document.getElementById('alr').value,d=document.getElementById('ald').value,m=document.getElementById('alm').value.trim();
+  var i=selectedItemName('ali',src.item),p=+document.getElementById('alp').value,r=+document.getElementById('alr').value,d=document.getElementById('ald').value,m=document.getElementById('alm').value.trim();
+  if(!i){alert('Select an item from the Item Master.');return;}
   if(!i||!p||!r||!d){alert('Fill all required fields.');return;}
   if(p<=0||r<=0){alert('Pieces and rate must be greater than zero.');return;}
   if(newPhone)setContact(c,newPhone);
@@ -2218,7 +2302,9 @@ function settleLot(id){
 }
 function saveEL(){
   var lot=S.lots.find(function(l){return l.id===eLId;});if(!lot)return;
-  var c=document.getElementById('ec').value.trim(),i=document.getElementById('ei').value.trim(),p=+document.getElementById('ep').value,r=+document.getElementById('er').value,d=document.getElementById('ed').value,m=document.getElementById('em').value.trim();
+  var _elLot=S.lots.find(function(l){return l.id===eLId;});
+  var c=document.getElementById('ec').value.trim(),i=selectedItemName('ei',_elLot?_elLot.item:''),p=+document.getElementById('ep').value,r=+document.getElementById('er').value,d=document.getElementById('ed').value,m=document.getElementById('em').value.trim();
+  if(!i){alert('Select an item from the Item Master.');return;}
   if(!c||!i||!p||!r||!d){alert('Fill all required fields.');return;}
   if(p<=0||r<=0){alert('Pieces and rate must be greater than zero.');return;}
   // Rate change on a received lot changes its payable — confirm impact BEFORE saving.
