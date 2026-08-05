@@ -213,6 +213,8 @@ input:focus,select:focus{border-color:var(--n)}
     </div>
   </div>
 
+  <div class="cs" id="cs-items"><div class="pg" id="im-content"></div></div>
+
   <nav class="bnav">
     <button class="nt on" id="nt-home" onclick="goTab('home')"><div class="ni">🏠</div><div>Home</div></button>
     <button class="nt" id="nt-con" onclick="goTab('con')"><div class="ni">👷</div><div>Contractors</div></button>
@@ -228,8 +230,26 @@ input:focus,select:focus{border-color:var(--n)}
 <div class="umenu" id="um">
   <div class="umh"><div style="font-size:14px;font-weight:700" id="un"></div><div style="font-size:11px;color:#888" id="ue"></div></div>
   <div class="umi" onclick="openImport()">📥 Import from Excel</div>
+  <div class="umi" onclick="goTab('items');closeMenu()">🏷️ Item Master</div>
   <div class="umi danger" onclick="doLogout()">🚪 Sign Out</div>
 </div>
+
+<!-- EDIT ITEM (Item Master) -->
+<div class="ov" id="mo-iE"><div class="mb"><div class="mh"></div>
+  <div class="mhd"><h3>&#9999;&#65039; Edit Item</h3><button class="xb" onclick="closeItemEdit()">&#10005;</button></div>
+  <div class="mbd">
+    <div id="ie-usage" style="font-size:11.5px;color:#888;background:#F7F7F7;border-radius:9px;padding:9px 11px;margin-bottom:12px"></div>
+    <div class="fg"><label>Item Name *</label><input id="ie-name" placeholder="e.g. Cotton Kurti"></div>
+    <div class="fr"><div><label>Item Code</label><input id="ie-code" placeholder="e.g. CK101"></div>
+    <div><label>Default Rate (Rs.) *</label><input id="ie-rate" type="number" inputmode="decimal" placeholder="0"></div></div>
+    <div id="ie-warn" style="display:none;font-size:11.5px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:9px;padding:9px 11px;margin-bottom:10px;color:#92400E"></div>
+    <div style="display:flex;gap:8px;margin-top:6px">
+      <button class="btn" style="flex:1;justify-content:center" onclick="closeItemEdit()">Cancel</button>
+      <button class="btn pri" style="flex:2;justify-content:center" onclick="itemEditSave()">&#10003; Save Changes</button>
+    </div>
+    <button class="btn red" style="width:100%;justify-content:center;margin-top:8px" onclick="itemEditDelete()">&#128465; Delete Item</button>
+  </div>
+</div></div>
 
 <!-- ADD LOT -->
 <div class="ov" id="mo-aL"><div class="mb"><div class="mh"></div>
@@ -415,7 +435,7 @@ try{
 var isOnline=(typeof navigator!=='undefined')?navigator.onLine:true;
 window.addEventListener('online',function(){isOnline=true;if(typeof updateSyncUI==='function')updateSyncUI();});
 window.addEventListener('offline',function(){isOnline=false;if(typeof updateSyncUI==='function')updateSyncUI();});
-var S={lots:[],pays:[],advances:[],contacts:{},lC:0,pC:0,aC:0,trash:[]},uid=null,unsubDB=null,ready=false,loadedOnce=false;
+var S={lots:[],pays:[],advances:[],contacts:{},lC:0,pC:0,aC:0,trash:[],items:[],itemMap:[]},uid=null,unsubDB=null,ready=false,loadedOnce=false;
 var curTab='home',curCon=null,navStack=[],curFilter='ALL',rvId=null,eLId=null,eCName=null,impData=null;
 var AVC=['#1F3864','#065F46','#92400E','#6D28D9','#9D174D','#1E40AF','#047857'];
 
@@ -705,8 +725,8 @@ function cleanupTrash(){if(!S.trash)S.trash=[];var before=S.trash.length,cutoff=
 function sdot(s){var d=document.getElementById('sd');if(d){d.className='sdot'+(s==='busy'?' busy':s==='offline'?' offline':s==='err'?' err':'');d.title=s==='busy'?'Saving…':s==='offline'?'Offline — saved on this device, will sync when back online':s==='err'?'Sync issue — saved locally, will retry':'Synced ✓';}}
 function updateSyncUI(){sdot(isOnline?'ok':'offline');}
 var LS_KEY=function(){return 'contractor_backup_'+(uid||'anon');};
-function saveLocal(){try{localStorage.setItem(LS_KEY(),JSON.stringify({lots:S.lots,pays:S.pays,advances:S.advances,contacts:S.contacts,lC:S.lC,pC:S.pC,aC:S.aC,trash:S.trash}));}catch(e){}}
-function loadLocal(){try{var raw=localStorage.getItem(LS_KEY());if(!raw)return false;var d=JSON.parse(raw);S.lots=(d.lots||[]).map(_repairLot);S.pays=d.pays||[];S.advances=d.advances||[];S.contacts=d.contacts||{};S.lC=d.lC||0;S.pC=d.pC||0;S.aC=d.aC||0;S.trash=d.trash||[];return true;}catch(e){return false;}}
+function saveLocal(){try{localStorage.setItem(LS_KEY(),JSON.stringify({lots:S.lots,pays:S.pays,advances:S.advances,contacts:S.contacts,lC:S.lC,pC:S.pC,aC:S.aC,trash:S.trash,items:S.items,itemMap:S.itemMap}));}catch(e){}}
+function loadLocal(){try{var raw=localStorage.getItem(LS_KEY());if(!raw)return false;var d=JSON.parse(raw);S.lots=(d.lots||[]).map(_repairLot);S.pays=d.pays||[];S.advances=d.advances||[];S.contacts=d.contacts||{};S.lC=d.lC||0;S.pC=d.pC||0;S.aC=d.aC||0;S.trash=d.trash||[];S.items=d.items||[];S.itemMap=d.itemMap||[];_itemCanonIdx=null;return true;}catch(e){return false;}}
 function flushPendingSave(){ /* no stale-push on reconnect; Firestore auto-flushes its own queue */ }
 
 /* ════════════════════════════════════════════════════════════════
@@ -720,12 +740,12 @@ function flushPendingSave(){ /* no stale-push on reconnect; Firestore auto-flush
    (ct_ prefix keeps these separate from the other apps under the same account.)
 ════════════════════════════════════════════════════════════════ */
 function _col(name){ return db.collection('users').doc(uid).collection(name); }
-var _lastSaved={ ct_lots:{}, ct_pays:{}, ct_advances:{} };
-var _subLots=null,_subPays=null,_subAdv=null,_subMeta=null,_repairDone=false;
+var _lastSaved={ ct_lots:{}, ct_pays:{}, ct_advances:{}, items:{}, itemMap:{} };
+var _subLots=null,_subPays=null,_subAdv=null,_subMeta=null,_repairDone=false,_subItems=null,_subMap=null;
 // Recovery: tracks when each collection's REAL server data (not cache) has arrived, so we can
 // safely detect locally-entered records that never reached the cloud and restore them.
 var _lotsServerLoaded=false,_paysServerLoaded=false,_metaServerLoaded=false,_recoveryDone=false,_advServerLoaded=false,_advReconcileDone=false;
-function _indexById(arr){ var m={}; (arr||[]).forEach(function(x){ if(x&&x.id!=null)m[x.id]=x; }); return m; }
+function _indexById(arr,keyFn){ var m={}; (arr||[]).forEach(function(x){ if(!x)return; var k=keyFn?keyFn(x):x.id; if(k!=null)m[k]=x; }); return m; }
 function _clean(o){ return JSON.parse(JSON.stringify(o)); } // JSON drops undefined; null is preserved (Firestore accepts null). NEVER convert null→'' — that breaks "not received yet" markers.
 // Repair data corrupted by the earlier _clean bug (null→''). An empty string in a numeric/date
 // field means it was originally null ("not received yet"), so restore it. This is safe: the receive
@@ -782,12 +802,30 @@ function attachListeners(){
     markLoaded(snap.metadata&&snap.metadata.fromCache);
     if(snap.metadata && !snap.metadata.fromCache){ _advServerLoaded=true; tryReconcileAdv(); }
   },function(e){onSubErr('advances',e);});
+  /* ── SHARED Item Master (owned jointly with the Challan Manager) ──
+     Both apps live under users/{OWNER_UID}/ and read+write the SAME `items` and `itemmap`
+     collections. That is safe because every document is written independently and each app
+     rebuilds its diff baseline from the live snapshot — exactly the same situation as two
+     devices running one app. The Challan Manager remains the primary place items are created;
+     here you can map contractor lot spellings onto them. */
+  _subItems=_col('items').onSnapshot({includeMetadataChanges:true},function(snap){
+    S.items=snap.docs.map(function(d){return d.data();});
+    _lastSaved.items=_indexById(snap.docs.map(function(d){return JSON.parse(JSON.stringify(d.data()));}));
+    _itemCanonIdx=null; _tokDFCache=null;
+    markLoaded(snap.metadata&&snap.metadata.fromCache);
+  },function(e){onSubErr('items',e);});
+  _subMap=_col('itemmap').onSnapshot({includeMetadataChanges:true},function(snap){
+    S.itemMap=snap.docs.map(function(d){return d.data();});
+    _lastSaved.itemMap=_indexById(snap.docs.map(function(d){return JSON.parse(JSON.stringify(d.data()));}),mapDocId);
+    _itemCanonIdx=null; _tokDFCache=null;
+    markLoaded(snap.metadata&&snap.metadata.fromCache);
+  },function(e){onSubErr('itemmap',e);});
   _subMeta=_col('ct_meta').doc('state').onSnapshot({includeMetadataChanges:true},function(snap){
     if(snap.exists){var d=snap.data();S.contacts=d.contacts||{};S.trash=d.trash||[];S.lC=Math.max(S.lC||0,d.lC||0);S.pC=Math.max(S.pC||0,d.pC||0);S.aC=Math.max(S.aC||0,d.aC||0);}
     markLoaded(snap.metadata&&snap.metadata.fromCache);
     if(snap.metadata && !snap.metadata.fromCache){ _metaServerLoaded=true; tryRecover(); }
   },function(e){onSubErr('meta',e);});
-  unsubDB=function(){ [_subLots,_subPays,_subAdv,_subMeta].forEach(function(u){try{u&&u();}catch(e){}}); };
+  unsubDB=function(){ [_subLots,_subPays,_subAdv,_subItems,_subMap,_subMeta].forEach(function(u){try{u&&u();}catch(e){}}); };
 }
 
 function onSubErr(which,e){
@@ -804,11 +842,14 @@ function reconcileCounters(){
   S.aC=Math.max(S.aC||0, mx(S.advances,/(\d+)/));
 }
 
-function diffWrite(coll,arr,lastIndex){
+function diffWrite(coll,arr,lastIndex,keyFn){
   var nowIndex={};
   (arr||[]).forEach(function(item){
-    if(!item||item.id==null)return;
-    var id=String(item.id); nowIndex[id]=item;
+    if(!item)return;
+    // Shared collections (itemmap) key their documents by a derived id, not a stored .id field.
+    var _k=keyFn?keyFn(item):item.id;
+    if(_k==null||_k==='')return;
+    var id=String(_k); nowIndex[id]=item;
     var prev=lastIndex[id];
     if(!prev||JSON.stringify(prev)!==JSON.stringify(item))
       _col(coll).doc(id).set(_clean(item)).catch(function(e){console.warn(coll+' write deferred:',e&&e.code);});
@@ -830,6 +871,8 @@ function save(){
     diffWrite('ct_lots',     S.lots,     _lastSaved.ct_lots);
     diffWrite('ct_pays',     S.pays,     _lastSaved.ct_pays);
     diffWrite('ct_advances', S.advances, _lastSaved.ct_advances);
+    diffWrite('items',       S.items,     _lastSaved.items);
+    diffWrite('itemmap',     S.itemMap,   _lastSaved.itemMap,   mapDocId);
     _col('ct_meta').doc('state').set(_clean({ contacts:S.contacts||{}, trash:S.trash||[], lC:S.lC||0, pC:S.pC||0, aC:S.aC||0, updated:new Date().toISOString() }))
       .then(function(){sdot(isOnline?'ok':'offline');})
       .catch(function(e){console.warn('meta write deferred:',e&&e.code);sdot(isOnline?'err':'offline');});
@@ -1184,8 +1227,8 @@ function goTab(tab){
   document.getElementById('cs-'+tab).classList.add('on');
   var nt=document.getElementById('nt-'+tab);if(nt)nt.classList.add('on');
   document.getElementById('bb').className='';
-  document.getElementById('fab').style.display='flex';
-  var ti={home:'🧵 Contractor Tracker',con:'👷 Contractors',lots:'📦 All Lots',pays:'💵 Payments',day:'📋 Daybook',bin:'🗑️ Recycle Bin'};
+  document.getElementById('fab').style.display=(tab==='items')?'none':'flex';
+  var ti={home:'🧵 Contractor Tracker',con:'👷 Contractors',lots:'📦 All Lots',pays:'💵 Payments',day:'📋 Daybook',bin:'🗑️ Recycle Bin',items:'🏷️ Item Master'};
   document.getElementById('tbt').textContent=ti[tab]||'Contractor Tracker';
   render();
 }
@@ -1207,8 +1250,357 @@ function render(){
   else if(curTab==='pays')renderPays();
   else if(curTab==='day')renderDaybook();
   else if(curTab==='bin')renderBin();
+  else if(curTab==='items')renderIM();
   if(curCon)renderDet(curCon);
   updateBinBadge();
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   ITEM MASTER  —  SHARED with the Challan Manager
+   Same `items` + `itemmap` Firestore collections, same resolver, same doc ids.
+   Purpose here: map the item spellings typed on LOTS onto Item Master records, so a
+   contractor's received pieces credit the right product in Stock.
+   HARD RULES (identical to the Challan Manager):
+     • Lots are NEVER modified — a lot keeps the text you originally typed.
+     • Mappings are fully reversible; removing one makes that spelling separate again.
+     • Nothing is auto-mapped. Suggestions are suggestions.
+══════════════════════════════════════════════════════════════════════ */
+function normIName(s){ return String(s||'').trim().toLowerCase().replace(/\s+/g,' '); }
+function mapDocId(m){ return 'M__'+encodeURIComponent(m.key); }
+function findDupItem(name, excludeId){
+  var n=normIName(name); if(!n) return null;
+  return (S.items||[]).find(function(it){ return it && it.id!==excludeId && normIName(it.name)===n; })||null;
+}
+var _itemCanonIdx=null;
+function itemCanonIdx(){
+  if(_itemCanonIdx) return _itemCanonIdx;
+  var idx={};
+  (S.items||[]).forEach(function(it){ if(it&&it.name) idx[normIName(it.name)]=it.id; });
+  (S.itemMap||[]).forEach(function(m){ if(m&&m.key&&!(m.key in idx)) idx[m.key]=m.itemId; });
+  return _itemCanonIdx=idx;
+}
+function itemCanon(name){
+  var id=itemCanonIdx()[normIName(name)];
+  if(!id) return null;
+  return (S.items||[]).find(function(it){ return it&&it.id===id; })||null;   // stale mapping → unmapped
+}
+
+/* Fuzzy suggestion model — corpus-weighted token matching. Suggestions only; never auto-merges. */
+function _fuzNorm(s){ return String(s||'').toLowerCase().replace(/[-_.]/g,' ').replace(/\s+/g,' ').trim().replace(/(\s+\d+)+$/,''); }
+function _skel(t){ return t.replace(/[aeiou]/g,''); }
+function _lev(a,b){ if(Math.abs(a.length-b.length)>2) return 9;
+  var m=[],i,j; for(i=0;i<=a.length;i++){ m[i]=[i]; for(j=1;j<=b.length;j++) m[i][j]=0; }
+  for(j=0;j<=b.length;j++) m[0][j]=j;
+  for(i=1;i<=a.length;i++) for(j=1;j<=b.length;j++)
+    m[i][j]=Math.min(m[i-1][j]+1,m[i][j-1]+1,m[i-1][j-1]+(a[i-1]===b[j-1]?0:1));
+  return m[a.length][b.length]; }
+function _isSubseq(a,b){ var i=0; for(var x=0;x<b.length;x++){ if(b[x]===a[i]) i++; } return i===a.length; }
+function _tokScore(a,b){
+  if(a===b) return 1;
+  if(a.length>=2&&(b.indexOf(a)===0||a.indexOf(b)===0)) return 0.9;
+  if(a.length===1&&b.indexOf(a)===0) return 0.5;
+  var sa=_skel(a), sb=_skel(b);
+  if(sa.length>=3&&(sa===sb||_isSubseq(sa,sb)||_isSubseq(sb,sa))) return 0.72;
+  if(a.length>=4&&b.length>=4&&_lev(a,b)<=2) return 0.8;
+  if(a.length===3&&b.length>=3&&_lev(a,b)<=1) return 0.72;
+  return 0; }
+var _tokDFCache=null,_tokDFKey='';
+function _tokDF(){
+  var key=(S.items||[]).length+':'+(S.lots||[]).length;
+  if(_tokDFCache&&_tokDFKey===key) return _tokDFCache;
+  var df={};
+  var addDoc=function(name){ var seen={}; _fuzNorm(name).split(' ').forEach(function(t){ if(t&&!seen[t]){seen[t]=1; df[t]=(df[t]||0)+1;} }); };
+  (S.items||[]).forEach(function(it){ if(it)addDoc(it.name); });
+  var uniq={};
+  (S.lots||[]).forEach(function(l){ if(!l||l.kind==='fabric')return; var k=_fuzNorm(l.item); if(k&&!uniq[k]){uniq[k]=1; addDoc(l.item);} });
+  _tokDFKey=key; return _tokDFCache=df;
+}
+function _tokW(t,df){
+  var w=1/Math.log(2+(df[t]||0));
+  if(t.length===1||/^\d+$/.test(t)) w*=0.35;
+  else if(t.length===2) w*=0.7;
+  return w;
+}
+function _bigrams(str){ var g={},x=str.replace(/ /g,''); for(var i=0;i<x.length-1;i++){var b=x.slice(i,i+2); g[b]=(g[b]||0)+1;} return g; }
+function _bigramDice(a,b){
+  var A=_bigrams(a),B=_bigrams(b),inter=0,na=0,nb=0;
+  Object.keys(A).forEach(function(k){ na+=A[k]; if(B[k]) inter+=Math.min(A[k],B[k]); });
+  Object.keys(B).forEach(function(k){ nb+=B[k]; });
+  return (na+nb)?2*inter/(na+nb):0;
+}
+function fuzzyScore(hist,master){
+  var na=_fuzNorm(hist), nb=_fuzNorm(master);
+  if(!na||!nb) return 0;
+  if(na===nb) return 1;
+  var A=na.split(' ').filter(Boolean), B=nb.split(' ').filter(Boolean);
+  var df=_tokDF();
+  var best=function(t,L){ var m=0; L.forEach(function(x){ var v=_tokScore(t,x); if(v>m)m=v; }); return m; };
+  var fw=0,fwW=0;
+  A.forEach(function(a){ var w=_tokW(a,df); fw+=w*best(a,B); fwW+=w; });
+  var bw=0,bwW=0,bMaxW=0,bInfo=[];
+  B.forEach(function(b){ var w=_tokW(b,df), m=best(b,A); bw+=w*m; bwW+=w; if(w>bMaxW)bMaxW=w; bInfo.push({w:w,m:m}); });
+  var base=0.62*(fwW?fw/fwW:0)+0.38*(bwW?bw/bwW:0);
+  var score=0.75*base+0.25*_bigramDice(na,nb);
+  var domOk=bInfo.some(function(x){ return x.w>=bMaxW*0.999&&x.m>=0.7; });
+  if(!domOk) score*=0.4;
+  if(bInfo.length&&bInfo.every(function(x){ return x.w<bMaxW*0.5||x.m>=0.85; })&&domOk) score=Math.max(score,0.62);
+  return score;
+}
+function itemSuggestions(hist,topN){
+  var ranked=(S.items||[]).map(function(it){ return {it:it,score:fuzzyScore(hist,it.name)}; })
+    .filter(function(x){ return x.score>=0.55; }).sort(function(a,b){ return b.score-a.score; }).slice(0,topN||3);
+  return ranked.filter(function(x,i){ return i===0||x.score>=ranked[0].score*0.72; });
+}
+
+/* Every distinct item spelling used on lots, with usage stats. */
+function scanLotItems(){
+  var seen={};
+  (S.lots||[]).forEach(function(l){
+    if(!l||l.kind==='fabric')return;                       // fabric is not finished-goods stock
+    var raw=String(l.item||'').trim(); if(!raw)return;
+    var k=normIName(raw);
+    var o=seen[k]=seen[k]||{key:k,raw:raw,uses:0,issued:0,recd:0,last:'',rMin:null,rMax:null};
+    o.uses++; o.issued+=(+l.piecesIssued||0);
+    var recs=(l.receivals&&l.receivals.length)?l.receivals
+            :((l.piecesReceived!=null&&l.piecesReceived!=='')?[{date:l.dateReceived,pieces:l.piecesReceived}]:[]);
+    recs.forEach(function(r){ o.recd+=(+r.pieces||0); if((r.date||'')>o.last){o.last=r.date||'';} });
+    var d=l.dateReceived||l.dateIssued||'';
+    if(d>o.last)o.last=d;
+    var rt=+l.rate||0;
+    if(rt>0){ if(o.rMin==null||rt<o.rMin)o.rMin=rt; if(o.rMax==null||rt>o.rMax)o.rMax=rt; }
+  });
+  return Object.keys(seen).map(function(k){ return seen[k]; });
+}
+function unmappedLotItems(){ var idx=itemCanonIdx(); return scanLotItems().filter(function(h){ return !(h.key in idx); }); }
+
+/* ── Mapping mutations (mappings only — lots untouched) ── */
+function addItemMapping(key,raw,itemId){
+  if(!key||!itemId) return;
+  var i=(S.itemMap||[]).findIndex(function(m){ return m.key===key; });
+  var it=(S.items||[]).find(function(x){ return x.id===itemId; }); if(!it) return;
+  var rec={ key:key, raw:raw||key, itemId:itemId, itemName:it.name };
+  if(i!==-1) S.itemMap[i]=rec; else S.itemMap.push(rec);
+  _itemCanonIdx=null;
+}
+function mapOne(key,itemId){
+  var h=scanLotItems().find(function(x){ return x.key===key; });
+  addItemMapping(key,h?h.raw:key,itemId);
+  save(); renderIM();
+}
+function removeItemMapping(key){
+  if(!confirm('Remove this mapping?\n\n"'+key+'" becomes an unmapped name again. Lots are not changed.')) return;
+  S.itemMap=(S.itemMap||[]).filter(function(m){ return m.key!==key; });
+  _itemCanonIdx=null; save(); renderIM();
+}
+function bulkMapSelected(){
+  var target=document.getElementById('im-bulk').value;
+  if(!target){ alert('Choose the Item Master record to map them to.'); return; }
+  var keys=Object.keys(imSel).filter(function(k){ return imSel[k]; });
+  if(!keys.length){ alert('Nothing selected.'); return; }
+  var it=(S.items||[]).find(function(x){ return x.id===target; });
+  if(!confirm('Map '+keys.length+' name'+(keys.length===1?'':'s')+' to "'+(it?it.name:'')+'"?\n\nLots are not changed. Every mapping can be removed later.')) return;
+  var scan=scanLotItems();
+  keys.forEach(function(k){ var h=scan.find(function(x){ return x.key===k; }); addItemMapping(k,h?h.raw:k,target); });
+  imSel={}; save(); renderIM();
+}
+function toggleIMSel(k){ imSel[k]=!imSel[k]; renderIM(); }
+function imSelectShown(){ imFiltered().forEach(function(h){ imSel[h.key]=true; }); renderIM(); }
+
+/* ── Item record mutations ── */
+function imAddItem(){
+  var name=document.getElementById('im-name').value.trim();
+  var code=document.getElementById('im-code').value.trim();
+  var rateRaw=document.getElementById('im-rate').value;
+  if(!name){ alert('Item name is required'); return; }
+  if(rateRaw===''){ alert('Default rate is required'); return; }
+  var rate=+rateRaw;
+  if(rate<0){ alert('Rate cannot be negative'); return; }
+  var dup=findDupItem(name,null);
+  if(dup){ alert('An item named "'+dup.name+'" already exists.'); return; }
+  S.items.push({ id:uniqId('IT'), name:name, code:code, rate:rate });
+  _itemCanonIdx=null;
+  document.getElementById('im-name').value='';
+  document.getElementById('im-code').value='';
+  document.getElementById('im-rate').value='';
+  save(); renderIM();
+}
+function createItemFromName(key){
+  var h=scanLotItems().find(function(x){ return x.key===key; }); if(!h) return;
+  var dup=findDupItem(h.raw,null);
+  if(dup){ alert('An item named "'+dup.name+'" already exists. Map it instead.'); return; }
+  var r=prompt('Create a new Item Master record.\n\nName: '+h.raw+'\n\nEnter its default sale rate (Rs.):', h.rMin!=null?String(h.rMin):'0');
+  if(r===null) return;
+  var rate=+r; if(isNaN(rate)||rate<0){ alert('Invalid rate.'); return; }
+  var id=uniqId('IT');
+  S.items.push({ id:id, name:h.raw, code:'', rate:rate });
+  _itemCanonIdx=null;
+  save(); renderIM();
+}
+
+/* ── Edit modal ── */
+var imEditId=null;
+function openItemEdit(id){
+  var it=(S.items||[]).find(function(x){ return x&&x.id===id; }); if(!it) return;
+  imEditId=id;
+  document.getElementById('ie-name').value=it.name||'';
+  document.getElementById('ie-code').value=it.code||'';
+  document.getElementById('ie-rate').value=(+it.rate||0);
+  document.getElementById('ie-warn').style.display='none';
+  var lots=(S.lots||[]).filter(function(l){ if(!l||l.kind==='fabric')return false; var c=itemCanon(l.item); return c&&c.id===id; }).length;
+  var maps=(S.itemMap||[]).filter(function(m){ return m&&m.itemId===id; }).length;
+  document.getElementById('ie-usage').textContent='Used by '+lots+' lot'+(lots===1?'':'s')+' · '+maps+' mapped keyword'+(maps===1?'':'s');
+  var el=document.getElementById('mo-iE'); el.classList.add('show'); el.style.display='flex';
+  setTimeout(function(){ var n=document.getElementById('ie-name'); if(n){ n.focus(); n.select(); } },60);
+}
+function closeItemEdit(){ imEditId=null; var el=document.getElementById('mo-iE'); el.classList.remove('show'); el.style.display='none'; }
+function itemEditSave(){
+  var it=(S.items||[]).find(function(x){ return x&&x.id===imEditId; }); if(!it){ closeItemEdit(); return; }
+  var name=document.getElementById('ie-name').value.trim();
+  var code=document.getElementById('ie-code').value.trim();
+  var rateRaw=document.getElementById('ie-rate').value;
+  var w=document.getElementById('ie-warn');
+  var bad=function(m){ w.style.display='block'; w.textContent=m; };
+  if(!name) return bad('Item name is required.');
+  if(rateRaw==='') return bad('Default rate is required.');
+  var rate=+rateRaw;
+  if(rate<0) return bad('Rate cannot be negative.');
+  var dup=findDupItem(name,imEditId);
+  if(dup) return bad('An item named "'+dup.name+'" already exists.');
+  var oldName=it.name||'';
+  if(normIName(oldName)!==normIName(name)){
+    // itemCanon resolves by exact name first, so a rename orphans lots still carrying the old text.
+    var oldKey=normIName(oldName), hits=0;
+    (S.lots||[]).forEach(function(l){ if(l&&l.kind!=='fabric'&&normIName(l.item)===oldKey) hits++; });
+    if(hits){
+      var keep=confirm('Renaming "'+oldName+'" to "'+name+'".\n\n'+hits+' lot'+(hits===1?'':'s')+' still use the old name. Unless it stays linked to this item, '+(hits===1?'it':'they')+' will drop out of stock.\n\nOK = keep "'+oldName+'" linked to this item (recommended)\nCancel = let the old name become a separate unmapped name');
+      if(keep) addItemMapping(oldKey,oldName,imEditId);
+    }
+  }
+  var i=S.items.findIndex(function(x){ return x&&x.id===imEditId; });
+  S.items[i]={ id:imEditId, name:name, code:code, rate:rate };   // new object, never mutate in place
+  (S.itemMap||[]).forEach(function(m,mi){ if(m&&m.itemId===imEditId&&m.itemName!==name) S.itemMap[mi]={key:m.key,raw:m.raw,itemId:m.itemId,itemName:name}; });
+  _itemCanonIdx=null;
+  save(); closeItemEdit(); renderIM();
+}
+function itemEditDelete(){
+  var id=imEditId, it=(S.items||[]).find(function(x){ return x&&x.id===id; }); if(!it) return;
+  var lots=(S.lots||[]).filter(function(l){ if(!l||l.kind==='fabric')return false; var c=itemCanon(l.item); return c&&c.id===id; }).length;
+  var maps=(S.itemMap||[]).filter(function(m){ return m&&m.itemId===id; }).length;
+  var msg='Delete item "'+it.name+'" from the shared Item Master?\n\nThis also removes it from the Challan Manager. Lots and challans are NOT changed.';
+  if(lots) msg+='\n\n'+lots+' lot'+(lots===1?'':'s')+' resolve to this item and will become unmapped — their pieces drop out of stock until remapped.';
+  if(maps) msg+='\n\n'+maps+' mapped keyword'+(maps===1?'':'s')+' will point at a deleted item.';
+  if(!confirm(msg)) return;
+  S.items=S.items.filter(function(x){ return x&&x.id!==id; });
+  _itemCanonIdx=null;
+  save(); closeItemEdit(); renderIM();
+}
+
+/* ── Render ── */
+var imView='master', imSearch='', imSel={}, imLimit=60;
+function setIMView(v){ imView=v; imSel={}; renderIM(); }
+function imFiltered(){
+  var q=normIName(imSearch);
+  var un=unmappedLotItems();
+  if(q) un=un.filter(function(h){ return h.key.indexOf(q)!==-1 || fuzzyScore(q,h.raw)>=0.55; });
+  return un.sort(function(a,b){ return b.uses-a.uses; });
+}
+function renderIM(){
+  var el=document.getElementById('im-content'); if(!el) return;
+  var ae=document.activeElement;
+  var foc=(ae&&ae.id&&typeof ae.selectionStart==='number')?{id:ae.id,pos:ae.selectionStart}:null;
+  if(imView==='review') renderIMReview(el);
+  else if(imView==='keywords') renderIMKeywords(el);
+  else renderIMMaster(el);
+  if(foc){ var e2=document.getElementById(foc.id); if(e2){ e2.focus(); try{e2.setSelectionRange(foc.pos,foc.pos);}catch(_e){} } }
+}
+function imTabsHTML(){
+  var unm=unmappedLotItems().length;
+  return '<div style="display:flex;gap:8px;margin-bottom:12px">'
+    +'<button class="btn sm" style="flex:1;justify-content:center;font-size:12px'+(imView==='master'?';background:#1F3864;color:#fff;border-color:#1F3864':'')+'" onclick="setIMView(\'master\')">🏷️ Items</button>'
+    +'<button class="btn sm" style="flex:1;justify-content:center;font-size:12px'+(imView==='review'?';background:#1F3864;color:#fff;border-color:#1F3864':'')+'" onclick="setIMView(\'review\')">🧹 Map Lot Items'+(unm?' <span style="background:#DC2626;color:#fff;border-radius:10px;padding:0 7px;font-size:10px;font-weight:800;margin-left:4px">'+unm+'</span>':'')+'</button>'
+    +'<button class="btn sm" style="flex:1;justify-content:center;font-size:12px'+(imView==='keywords'?';background:#1F3864;color:#fff;border-color:#1F3864':'')+'" onclick="setIMView(\'keywords\')">🔗 Mapped'+((S.itemMap||[]).length?' <span style="color:#999;font-size:10px;margin-left:4px">'+S.itemMap.length+'</span>':'')+'</button>'
+    +'</div>';
+}
+function renderIMMaster(el){
+  var q=normIName(imSearch);
+  var list=(S.items||[]).slice().sort(function(a,b){ return a.name.localeCompare(b.name); })
+    .filter(function(it){ return !q || normIName(it.name).indexOf(q)!==-1 || normIName(it.code).indexOf(q)!==-1; });
+  el.innerHTML=imTabsHTML()
+    +'<div class="ibox blue" style="font-size:11.5px;margin-bottom:12px">Shared with the Challan Manager — items added or edited here appear there too, and vice versa.</div>'
+    +'<div style="background:#fff;border:1px solid #ECECEC;border-radius:12px;padding:14px;margin-bottom:12px">'
+      +'<div style="font-size:13px;font-weight:800;color:#1F3864;margin-bottom:10px">➕ Add Item</div>'
+      +'<div class="fg"><label>Item Name *</label><input id="im-name" placeholder="e.g. Cotton Kurti"></div>'
+      +'<div class="fr"><div><label>Item Code</label><input id="im-code" placeholder="e.g. CK101"></div>'
+      +'<div><label>Default Rate (Rs.) *</label><input id="im-rate" type="number" inputmode="decimal" placeholder="0"></div></div>'
+      +'<button class="btn pri" style="width:100%;justify-content:center;margin-top:6px" onclick="imAddItem()">✓ Add Item</button>'
+    +'</div>'
+    +'<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">'
+      +'<input id="im-search" placeholder="🔍 Search by name or code…" value="'+esc(imSearch)+'" oninput="imSearch=this.value;renderIM()" style="flex:1">'
+      +'<span style="font-size:11px;color:#999;flex-shrink:0">'+list.length+' item'+(list.length===1?'':'s')+'</span>'
+    +'</div>'
+    +(list.length?list.map(function(it){
+      return '<div style="background:#fff;border:1px solid #ECECEC;border-radius:11px;padding:11px 13px;margin-bottom:7px;display:flex;align-items:center;gap:10px">'
+        +'<div style="flex:1;min-width:0">'
+          +'<div style="font-size:13.5px;font-weight:700;color:#1F3864">'+esc(it.name)+(it.code?' <span style="font-size:10px;color:#2563EB;background:#EFF6FF;border:1px solid #BFDBFE;padding:1px 7px;border-radius:8px;font-weight:700">'+esc(it.code)+'</span>':'')+'</div>'
+          +'<div style="font-size:11px;color:#888;margin-top:2px">Default rate: <strong style="color:#059669">'+fmt(+it.rate||0)+'</strong></div>'
+        +'</div>'
+        +'<button class="btn sm" onclick="openItemEdit(\''+it.id+'\')" style="font-size:11px">✏️ Edit</button>'
+      +'</div>';
+    }).join('')
+    :'<div style="text-align:center;padding:36px 16px;color:#999">'+(q?'No items match "'+esc(imSearch)+'"':'No items yet. Add one above, or add them in the Challan Manager.')+'</div>');
+}
+function renderIMReview(el){
+  var un=imFiltered(), total=unmappedLotItems().length;
+  var sel=Object.keys(imSel).filter(function(k){ return imSel[k]; }).length;
+  var opts='<option value="">— choose item —</option>'+(S.items||[]).slice().sort(function(a,b){ return a.name.localeCompare(b.name); })
+    .map(function(it){ return '<option value="'+it.id+'">'+esc(it.name)+(it.code?' ['+esc(it.code)+']':'')+' · Rs.'+(+it.rate||0)+'</option>'; }).join('');
+  el.innerHTML=imTabsHTML()
+    +'<div class="ibox amber" style="font-size:11.5px;margin-bottom:10px">These item spellings appear on your lots but match no Item Master record, so their received pieces are <strong>not counted in stock</strong>. Map each to the right item. <strong>Lots are never changed</strong> and every mapping can be removed later.</div>'
+    +'<input id="im-rsearch" placeholder="🔍 Search name (e.g. plazzo, kurti)…" value="'+esc(imSearch)+'" oninput="imSearch=this.value;renderIM()" style="width:100%;margin-bottom:10px">'
+    +(un.length?'<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">'
+      +'<button class="btn sm" style="font-size:11px" onclick="imSelectShown()">☑ Select shown</button>'
+      +(sel?'<button class="btn sm" style="font-size:11px" onclick="imSel={};renderIM()">✕ Clear ('+sel+')</button>':'')
+      +'<span style="flex:1"></span><span style="font-size:11px;color:#999">'+(imSearch?un.length+' of '+total:total)+' unmapped</span></div>'
+      +(sel?'<div style="background:#fff;border:1.5px solid #1F3864;border-radius:10px;padding:9px 11px;margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+        +'<strong style="font-size:12px;color:#1F3864">'+sel+' selected</strong><span style="flex:1"></span>'
+        +'<select id="im-bulk" style="font-size:12px;padding:6px;flex:1;min-width:140px">'+opts+'</select>'
+        +'<button class="btn sm pri" style="font-size:11px" onclick="bulkMapSelected()">Map Selected →</button></div>':'')
+      +un.slice(0,imLimit).map(function(h){
+        var sug=itemSuggestions(h.raw,3);
+        return '<div style="background:#fff;border:1px solid #ECECEC;border-radius:11px;padding:11px 13px;margin-bottom:8px">'
+          +'<div style="display:flex;align-items:flex-start;gap:9px">'
+            +'<span onclick="toggleIMSel(\''+esc(h.key).replace(/'/g,"\\'")+'\')" style="width:21px;height:21px;min-width:21px;border:2px solid '+(imSel[h.key]?'#1F3864':'#CBD5E1')+';background:'+(imSel[h.key]?'#1F3864':'#fff')+';border-radius:6px;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:900;cursor:pointer;margin-top:2px;user-select:none">'+(imSel[h.key]?'✓':'')+'</span>'
+            +'<div style="flex:1;min-width:0">'
+              +'<div style="font-size:13.5px;font-weight:700;color:#1F3864">"'+esc(h.raw)+'"</div>'
+              +'<div style="font-size:10.5px;color:#999;margin-top:1px">'+h.uses+' lot'+(h.uses===1?'':'s')+' · received '+fmtN(h.recd)+' of '+fmtN(h.issued)+' pcs'+(h.rMin!=null?' · job rate '+(h.rMin===h.rMax?'Rs.'+h.rMin:'Rs.'+h.rMin+'–'+h.rMax):'')+(h.last?' · last '+fmtD(h.last):'')+'</div>'
+              +(sug.length?'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:7px">'+sug.map(function(s){
+                  return '<button class="btn sm" style="font-size:11px;background:#F0FDF4;border-color:#BBF7D0;color:#059669" onclick="mapOne(\''+esc(h.key).replace(/'/g,"\\'")+'\',\''+s.it.id+'\')">✓ '+esc(s.it.name)+' <span style="opacity:.55">'+Math.round(s.score*100)+'%</span></button>';
+                }).join('')+'</div>'
+                :'<div style="font-size:11px;color:#BBB;margin-top:6px">No close match found.</div>')
+              +'<button class="btn sm" style="font-size:11px;margin-top:7px" onclick="createItemFromName(\''+esc(h.key).replace(/'/g,"\\'")+'\')">＋ Create as new item</button>'
+            +'</div></div></div>';
+      }).join('')
+      +(un.length>imLimit?'<button class="btn" style="width:100%;justify-content:center;margin-top:4px" onclick="imLimit+=60;renderIM()">Show more ('+(un.length-imLimit)+' left)</button>':'')
+    :'<div style="text-align:center;padding:40px 16px;color:#059669;font-weight:700">✅ Every lot item name is mapped.</div>');
+}
+function renderIMKeywords(el){
+  var q=normIName(imSearch);
+  var maps=(S.itemMap||[]).slice().filter(function(m){ return !q || m.key.indexOf(q)!==-1 || normIName(m.itemName).indexOf(q)!==-1; })
+    .sort(function(a,b){ return String(a.itemName||'').localeCompare(String(b.itemName||''))||a.key.localeCompare(b.key); });
+  el.innerHTML=imTabsHTML()
+    +'<div class="ibox blue" style="font-size:11.5px;margin-bottom:10px">Every mapping is shared with the Challan Manager. Removing one makes that spelling a separate unmapped name again — lots and challans are never changed.</div>'
+    +'<input id="im-ksearch" placeholder="🔍 Search…" value="'+esc(imSearch)+'" oninput="imSearch=this.value;renderIM()" style="width:100%;margin-bottom:10px">'
+    +(maps.length?maps.map(function(m){
+      var live=(S.items||[]).find(function(x){ return x.id===m.itemId; });
+      return '<div style="background:#fff;border:1px solid #ECECEC;border-radius:11px;padding:11px 13px;margin-bottom:7px;display:flex;align-items:center;gap:10px">'
+        +'<div style="flex:1;min-width:0">'
+          +'<div style="font-size:13px;font-weight:700;color:#1F3864">"'+esc(m.raw||m.key)+'"</div>'
+          +'<div style="font-size:11px;color:#888;margin-top:2px">→ '+(live?esc(live.name):'<span style="color:#DC2626">deleted item</span>')+'</div>'
+        +'</div>'
+        +'<button class="btn sm red" onclick="removeItemMapping(\''+esc(m.key).replace(/'/g,"\\'")+'\')" style="font-size:11px">Un-map</button>'
+      +'</div>';
+    }).join('')
+    :'<div style="text-align:center;padding:40px 16px;color:#999">No mappings yet.</div>');
 }
 
 function renderHome(){
