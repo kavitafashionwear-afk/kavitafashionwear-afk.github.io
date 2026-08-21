@@ -481,7 +481,7 @@ function nextAdvanceLot(name){var lots=contractorLots(name).filter(function(l){r
 function refreshLotStatus(lot){if(!lot)return;if(lot.piecesReceived==null||lot.piecesReceived===''){lot.status='PENDING';return;}lot.status=bal(lot)<=0.01?'SETTLED':'RECEIVED';}
 function refreshAllStatuses(){S.lots.forEach(refreshLotStatus);}
 function shareText(lot){
-  var lines=['Modrobe Impex Lot '+lot.id,'Contractor: '+lot.contractorName,'Item: '+lot.item,'Issued: '+fmtN(lot.piecesIssued)+' pcs on '+fmtD(lot.dateIssued)];
+  var lines=['Lot '+lot.id,'Contractor: '+lot.contractorName,'Item: '+lot.item,'Issued: '+fmtN(lot.piecesIssued)+' pcs on '+fmtD(lot.dateIssued)];
   if(lot.piecesReceived!=null)lines.push('Received: '+fmtN(lot.piecesReceived)+' pcs on '+fmtD(lot.dateReceived),'Payable: '+fmt(payable(lot)),'Paid: '+fmt(adv(lot.id)),'Balance: '+fmt(bal(lot)));
   else lines.push('Status: Pending receive','Payable: '+fmt(0));
   if(lot.remarks)lines.push('Remarks: '+lot.remarks);
@@ -2454,8 +2454,7 @@ function printLot(lid){
     // Header
     +'<div class="top">'
     +'<div>'
-    +'<div class="co">🧵 Modrobe Impex<\/div>'
-    +'<div class="cs">Garment Manufacturer · Gandhi Nagar, New Delhi<\/div>'
+    +'<div class="co">JOB WORK VOUCHER<\/div>'
     +'<\/div>'
     +'<div>'
     +'<div class="lbl">Lot ID<\/div>'
@@ -2479,7 +2478,7 @@ function printLot(lid){
     +(lot.remarks?'<div class="rmk"><strong>Note:<\/strong> '+esc(lot.remarks)+'<\/div>':'')
     // Signatures
     +'<div class="sig">'
-    +'<div><div class="sl">Issued By<br>Modrobe Impex<\/div><\/div>'
+    +'<div><div class="sl">Issued By<\/div><\/div>'
     +'<div><div class="sl">Contractor Received<br>'+esc(lot.contractorName)+'<\/div><\/div>'
     +'<\/div>'
     +'<\/div>'
@@ -2531,8 +2530,7 @@ function printReturn(lid){
     // Header
     +'<div class="top">'
     +'<div>'
-    +'<div class="co">✅ Modrobe Impex<\/div>'
-    +'<div class="cs">JOB WORK — RETURN RECEIPT<\/div>'
+    +'<div class="co">JOB WORK — RETURN RECEIPT<\/div>'
     +'<\/div>'
     +'<div>'
     +'<div class="lbl">Lot ID<\/div>'
@@ -2571,7 +2569,7 @@ function printReturn(lid){
     +'<\/div>'
     // Signatures
     +'<div class="sig">'
-    +'<div><div class="sl">Received By<br>Modrobe Impex<\/div><\/div>'
+    +'<div><div class="sl">Received By<\/div><\/div>'
     +'<div><div class="sl">Contractor<br>'+esc(lot.contractorName)+'<\/div><\/div>'
     +'<\/div>'
     +'<\/div>'
@@ -2605,8 +2603,8 @@ function printReport(name){
   document.getElementById('print-body').innerHTML=
     '<div style="font-family:Arial,sans-serif;font-size:13px;color:#1A1A1A">'
     +'<div style="display:flex;justify-content:space-between;border-bottom:3px solid #1F3864;padding-bottom:14px;margin-bottom:16px">'
-    +'<div><div style="font-size:19px;font-weight:700;color:#1F3864">Modrobe Impex</div><div style="font-size:11px;color:#888">Garment Manufacturer · New Delhi</div></div>'
-    +'<div style="text-align:right"><div style="font-size:14px;font-weight:700;color:#1F3864">CONTRACTOR STATEMENT</div><div style="font-size:17px;font-weight:700;margin-top:3px">'+esc(name)+'</div><div style="font-size:11px;color:#888;margin-top:3px">As on '+fmtD(td())+'</div></div></div>'
+    +'<div><div style="font-size:19px;font-weight:700;color:#1F3864">CONTRACTOR STATEMENT</div></div>'
+    +'<div style="text-align:right"><div style="font-size:17px;font-weight:700;color:#1F3864">'+esc(name)+'</div><div style="font-size:11px;color:#888;margin-top:3px">As on '+fmtD(td())+'</div></div></div>'
     +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin:14px 0">'
     +'<div style="border:1.5px solid #E0E0E0;border-radius:8px;padding:10px;text-align:center"><div style="font-size:10px;color:#888;margin-bottom:4px">Total Payable</div><div style="font-size:16px;font-weight:700;color:#1F3864">'+fmt(tb)+'</div></div>'
     +'<div style="border:1.5px solid #E0E0E0;border-radius:8px;padding:10px;text-align:center"><div style="font-size:10px;color:#888;margin-bottom:4px">Total Paid</div><div style="font-size:16px;font-weight:700;color:#059669">'+fmt(tp)+'</div></div>'
@@ -2635,7 +2633,7 @@ function printReport(name){
     +'<div style="font-size:22px;font-weight:700;color:'+(tbal>0?'#DC2626':'#059669')+'">'+fmt(Math.abs(tbal))+(tbal<=0?' (CLEAR)':'')+'</div></div>'
     +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:40px;padding-top:16px;border-top:1px dashed #CCC">'
     +'<div><div style="border-top:1.5px solid #1A1A1A;margin-top:40px;padding-top:5px;font-size:11px;font-weight:600;text-align:center">Contractor Signature<br>'+esc(name)+'</div></div>'
-    +'<div><div style="border-top:1.5px solid #1A1A1A;margin-top:40px;padding-top:5px;font-size:11px;font-weight:600;text-align:center">Authorised Signatory<br>Modrobe Impex</div></div>'
+    +'<div><div style="border-top:1.5px solid #1A1A1A;margin-top:40px;padding-top:5px;font-size:11px;font-weight:600;text-align:center">Authorised Signatory</div></div>'
     +'</div>'
     +'<div style="text-align:center;font-size:10px;color:#AAA;margin-top:12px;padding-top:8px;border-top:1px solid #F0F0F0">Generated: '+new Date().toLocaleString('en-IN')+'</div>'
     +'</div>';
@@ -2888,7 +2886,7 @@ function shareWA(){
   var body=document.getElementById('print-body');
   if(!body)return;
   var title=body.querySelector('div[style*="JOB WORK VOUCHER"],div[style*="CONTRACTOR STATEMENT"]');
-  var text='*Modrobe Impex*\n';
+  var text='';
   // Extract key numbers from print body text
   var fullText=body.innerText||body.textContent||'';
   var lines=fullText.split('\n').map(function(l){return l.trim();}).filter(function(l){return l.length>2;}).slice(0,20);
