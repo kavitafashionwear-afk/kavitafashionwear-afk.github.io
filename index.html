@@ -11,13 +11,18 @@
 <style>
 :root{--n:#1F3864;--g:#059669;--r:#DC2626;--a:#D97706}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#F0F2F5;color:#1A1A1A;font-size:14px}
+html{overflow-x:hidden}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#F0F2F5;color:#1A1A1A;font-size:14px;overflow-x:hidden;-webkit-text-size-adjust:100%}
+/* Long contractor, item and party names must wrap rather than force the page wider than the
+   screen. Without this a single long word pushes every row out and the whole app scrolls
+   sideways on a phone. */
+.cn,.con-name,.cinfo,.sv,.lnum,.pg h2,.pg h3{overflow-wrap:anywhere;word-break:break-word}
 #pg-load,#pg-login,#pg-app{position:fixed;inset:0}
 #pg-load{background:var(--n);display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;z-index:30}
 #pg-load .sp{font-size:48px;animation:spin 1.5s linear infinite;margin-bottom:16px}
 @keyframes spin{to{transform:rotate(360deg)}}
 #pg-login{background:linear-gradient(160deg,#1F3864,#2D5090);display:none;align-items:center;justify-content:center;padding:24px;z-index:20}
-#pg-app{display:none;background:#F0F2F5;overflow-y:auto;padding-bottom:68px;z-index:10}
+#pg-app{display:none;background:#F0F2F5;overflow-y:auto;overflow-x:hidden;padding-bottom:68px;z-index:10;-webkit-overflow-scrolling:touch}
 .lcard{background:#fff;border-radius:20px;padding:36px 28px;width:100%;max-width:360px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3)}
 .gbtn{width:100%;padding:14px;background:#fff;border:2px solid #DDD;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit}
 .topbar{background:var(--n);color:#fff;padding:0 14px;height:54px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
@@ -108,6 +113,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .empty .ei{font-size:40px;margin-bottom:8px}
 .tw{border:1px solid #E0E0E0;border-radius:10px;overflow:hidden}
 table{width:100%;border-collapse:collapse;font-size:13px}
+/* Wide tables scroll inside themselves instead of widening the page. */
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}
+.tw table{min-width:520px}
 th{padding:9px 10px;text-align:left;font-weight:600;color:#666;font-size:11px;border-bottom:1px solid #E0E0E0;background:#F5F5F5}
 td{padding:8px 10px;border-bottom:1px solid #F0F0F0}
 tr:last-child td{border-bottom:none}
@@ -129,7 +137,26 @@ label{font-size:12px;color:#555;display:block;margin-bottom:4px;font-weight:600}
 input,select{width:100%;padding:11px 12px;font-size:15px;border:1.5px solid #DDD;border-radius:9px;font-family:inherit;background:#fff;outline:none}
 input:focus,select:focus{border-color:var(--n)}
 @media(min-width:600px){.ov{align-items:center;padding:20px}.mb{border-radius:16px}.mh{display:none}.stats{grid-template-columns:repeat(4,1fr)}.cacts{grid-template-columns:repeat(4,1fr)}}
+/* Any inline row of buttons wraps to the next line rather than running off the screen. */
+.btnrow{display:flex;flex-wrap:wrap;gap:6px}
 @media(max-width:600px){.stats{grid-template-columns:1fr 1fr;gap:8px}.lnums{grid-template-columns:repeat(3,1fr)}.fr{grid-template-columns:1fr}.pg{padding:12px}}
+@media(max-width:430px){
+  .pg{padding:10px}
+  .stats{gap:6px}
+  .sc{padding:10px}
+  .sv{font-size:17px}
+  .sl{font-size:10px}
+  .lnums{grid-template-columns:repeat(2,1fr)}
+  .cacts{grid-template-columns:1fr 1fr;gap:6px}
+  .btn{padding:7px 10px;font-size:12px}
+  .btn.sm{padding:6px 8px;font-size:11px}
+  .umenu{right:8px;left:8px;min-width:0}
+}
+@media(max-width:360px){
+  .stats{grid-template-columns:1fr}
+  .lnums{grid-template-columns:repeat(2,1fr)}
+  .btn{padding:6px 9px;font-size:11.5px}
+}
 </style>
 </head>
 <body>
@@ -461,6 +488,8 @@ function adv(lid){var lot=S.lots.find(function(l){return l.id===lid;});if(!lot||
 function payable(lot){var pr=lot?lot.piecesReceived:null;return (pr!=null&&pr!=='')?Math.round(pr*lot.rate*100)/100:0;}
 // Fabric processing helpers: fabric lots carry their own unit (kg/mtr/pcs); cutting lots are pieces.
 function lotUnit(lot){return (lot&&lot.unit)?lot.unit:'pcs';}
+/* 'pcs' -> 'piece' for phrases like "@ Rs.22 per piece". Other units read naturally as-is. */
+function unitSingular(u){ return u==='pcs' ? 'piece' : u; }
 function isFabric(lot){return !!(lot&&lot.kind==='fabric');}
 function bal(lot){return Math.round((payable(lot)-adv(lot.id))*100)/100;}
 function lotSortVal(lot){return new Date((lot.dateReceived||lot.dateIssued||'1970-01-01')+'T00:00:00').getTime()||0;}
@@ -2423,10 +2452,16 @@ function closePrintOverlay(){
 function printLot(lid){
   // FRONT SLIP — issued when lot goes out (A5 portrait, clean minimal)
   var lot=S.lots.find(function(l){return l.id===lid;});if(!lot)return;
+  // Fabric lots are measured in mtr/kg, not pieces. The slip must show the unit actually stored
+  // on the lot, otherwise a 500 mtr issue prints as "500 pcs".
+  var U=lotUnit(lot), U1=unitSingular(U);
   var css=''
     +'*{box-sizing:border-box;margin:0;padding:0}'
-    +'body{font-family:Arial,sans-serif;color:#1A1A1A;background:#fff;width:148mm;min-height:105mm;padding:7mm}'
-    +'@media print{@page{size:A5 portrait;margin:0}body{padding:7mm}}'
+    // 148mm is the A5 paper width. On screen it must be a MAXIMUM, not a fixed width, or the
+    // slip is wider than a phone and the page scrolls sideways. Printing still uses exact A5.
+    +'body{font-family:Arial,sans-serif;color:#1A1A1A;background:#fff;width:100%;max-width:148mm;min-height:105mm;padding:7mm;margin:0 auto;overflow-x:hidden}'
+    +'@media print{@page{size:A5 portrait;margin:0}body{width:148mm;max-width:none;padding:7mm}}'
+    +'@media screen and (max-width:560px){body{padding:12px}.top{padding-bottom:10px;margin-bottom:12px}}'
     +'.pb{position:fixed;top:0;left:0;right:0;background:#1F3864;padding:6px 12px;display:flex;gap:6px;z-index:99}'
     +'.pb button{padding:5px 14px;border-radius:5px;border:none;cursor:pointer;font-size:12px;font-weight:600}'
     +'@media print{.pb{display:none}}'
@@ -2471,9 +2506,9 @@ function printLot(lid){
     +(lot.bags?'<div class="row"><span class="rk">Bags in Lot<\/span><span class="rv">'+lot.bags+' bags<\/span><\/div>':'')
     // Big pieces count
     +'<div style="margin-top:5mm">'
-    +'<div class="lbl">Pieces Issued<\/div>'
-    +'<div class="pcs">'+fmtN(lot.piecesIssued)+' pcs<\/div>'
-    +'<div class="rate-box">@ Rs.'+lot.rate+' per piece<\/div>'
+    +'<div class="lbl">'+(isFabric(lot)?'Quantity Issued':'Pieces Issued')+'<\/div>'
+    +'<div class="pcs">'+fmtN(lot.piecesIssued)+' '+U+'<\/div>'
+    +'<div class="rate-box">@ Rs.'+lot.rate+' per '+U1+'<\/div>'
     +'<\/div>'
     +(lot.remarks?'<div class="rmk"><strong>Note:<\/strong> '+esc(lot.remarks)+'<\/div>':'')
     // Signatures
@@ -2492,6 +2527,7 @@ function printLot(lid){
 function printReturn(lid){
   // BACK SLIP — printed when lot is returned (flip sheet and print on back)
   var lot=S.lots.find(function(l){return l.id===lid;});if(!lot||lot.piecesReceived==null)return;
+  var U=lotUnit(lot), U1=unitSingular(U);
   var advTotal=adv(lid);
   var pcsRecv=lot.piecesReceived;
   var payable=pcsRecv*lot.rate;
@@ -2501,8 +2537,11 @@ function printReturn(lid){
 
   var css=''
     +'*{box-sizing:border-box;margin:0;padding:0}'
-    +'body{font-family:Arial,sans-serif;color:#1A1A1A;background:#fff;width:148mm;min-height:105mm;padding:7mm}'
-    +'@media print{@page{size:A5 portrait;margin:0}body{padding:7mm}}'
+    // 148mm is the A5 paper width. On screen it must be a MAXIMUM, not a fixed width, or the
+    // slip is wider than a phone and the page scrolls sideways. Printing still uses exact A5.
+    +'body{font-family:Arial,sans-serif;color:#1A1A1A;background:#fff;width:100%;max-width:148mm;min-height:105mm;padding:7mm;margin:0 auto;overflow-x:hidden}'
+    +'@media print{@page{size:A5 portrait;margin:0}body{width:148mm;max-width:none;padding:7mm}}'
+    +'@media screen and (max-width:560px){body{padding:12px}.top{padding-bottom:10px;margin-bottom:12px}}'
     +'.pb{position:fixed;top:0;left:0;right:0;background:#065F46;padding:6px 12px;display:flex;gap:6px;z-index:99}'
     +'.pb button{padding:5px 14px;border-radius:5px;border:none;cursor:pointer;font-size:12px;font-weight:600}'
     +'@media print{.pb{display:none}}'
@@ -2543,24 +2582,24 @@ function printReturn(lid){
     +'<div class="con-name">'+esc(lot.contractorName)+'<\/div>'
     // Details
     +'<div class="row"><span class="rk">Item \/ Work<\/span><span class="rv">'+esc(lot.item)+'<\/span><\/div>'
-    +'<div class="row"><span class="rk">Pieces Issued<\/span><span class="rv">'+fmtN(lot.piecesIssued)+' pcs<\/span><\/div>'
+    +'<div class="row"><span class="rk">'+(isFabric(lot)?'Quantity Issued':'Pieces Issued')+'<\/span><span class="rv">'+fmtN(lot.piecesIssued)+' '+U+'<\/span><\/div>'
     +'<div class="row"><span class="rk">Date Returned<\/span><span class="rv">'+fmtD(lot.dateReceived)+'<\/span><\/div>'
-    +((lot.receivals&&lot.receivals.length>1)?'<div class="row" style="flex-direction:column;align-items:flex-start;gap:2px"><span class="rk">Received in '+lot.receivals.length+' parts<\/span><span class="rv" style="font-size:9px;font-weight:600">'+lot.receivals.map(function(r){return fmtN(r.pieces)+' on '+fmtD(r.date);}).join(' · ')+'<\/span><\/div>':'')
+    +((lot.receivals&&lot.receivals.length>1)?'<div class="row" style="flex-direction:column;align-items:flex-start;gap:2px"><span class="rk">Received in '+lot.receivals.length+' parts<\/span><span class="rv" style="font-size:9px;font-weight:600">'+lot.receivals.map(function(r){return fmtN(r.pieces)+' '+U+' on '+fmtD(r.date);}).join(' · ')+'<\/span><\/div>':'')
     +(daysTaken!=null?'<div class="row"><span class="rk">Days Taken<\/span><span class="rv">'+daysTaken+' days<\/span><\/div>':'')
     +(lot.bagsReturned?'<div class="row"><span class="rk">Bags Returned<\/span><span class="rv">'+lot.bagsReturned+' bags<\/span><\/div>':'')
     // Pieces submitted
     +'<div style="margin-top:5mm">'
-    +'<div class="lbl">Pieces Submitted<\/div>'
-    +'<div class="pcs" style="color:'+(missing>0?'#DC2626':'#065F46')+'">'+fmtN(pcsRecv)+' pcs<\/div>'
+    +'<div class="lbl">'+(isFabric(lot)?'Quantity Submitted':'Pieces Submitted')+'<\/div>'
+    +'<div class="pcs" style="color:'+(missing>0?'#DC2626':'#065F46')+'">'+fmtN(pcsRecv)+' '+U+'<\/div>'
     +(missing>0
-      ?'<div class="miss-box"><div><div style="font-size:8px;font-weight:700;color:#DC2626">⚠ MISSING<\/div><div style="font-size:15px;font-weight:800;color:#DC2626">'+missing+' pcs short<\/div><\/div><div style="font-size:9px;color:#DC2626">Deducted<br>from payable<\/div><\/div>'
-      :'<div style="display:inline-block;background:#D1FAE5;border:1px solid #6EE7B7;border-radius:5px;padding:3px 10px;font-size:10px;font-weight:700;color:#065F46;margin-top:2mm">✓ Full count — no pieces missing<\/div>')
+      ?'<div class="miss-box"><div><div style="font-size:8px;font-weight:700;color:#DC2626">⚠ MISSING<\/div><div style="font-size:15px;font-weight:800;color:#DC2626">'+fmtN(missing)+' '+U+' short<\/div><\/div><div style="font-size:9px;color:#DC2626">Deducted<br>from payable<\/div><\/div>'
+      :'<div style="display:inline-block;background:#D1FAE5;border:1px solid #6EE7B7;border-radius:5px;padding:3px 10px;font-size:10px;font-weight:700;color:#065F46;margin-top:2mm">✓ Full count — nothing missing<\/div>')
     +'<\/div>'
     // Balance
     +'<div class="bal-box">'
     +'<div>'
     +'<div style="font-size:9px;font-weight:600;color:#065F46">PAYMENT SUMMARY<\/div>'
-    +'<div style="font-size:10px;color:#555;margin-top:2px">'+fmtN(pcsRecv)+'pcs × Rs.'+lot.rate+' = '+fmt(payable)+(advTotal>0?' — Advance Rs.'+fmt(advTotal):'')+'<\/div>'
+    +'<div style="font-size:10px;color:#555;margin-top:2px">'+fmtN(pcsRecv)+' '+U+' × Rs.'+lot.rate+' = '+fmt(payable)+(advTotal>0?' — Advance Rs.'+fmt(advTotal):'')+'<\/div>'
     +'<\/div>'
     +'<div>'
     +'<div style="font-size:9px;font-weight:600;color:#065F46;text-align:right">BALANCE DUE<\/div>'
@@ -2594,7 +2633,7 @@ function printReport(name){
       +'<td style="padding:7px;border:1px solid #E0E0E0">'+esc(l.id)+'<'+'/td>'
       +'<td style="padding:7px;border:1px solid #E0E0E0">'+fmtD(l.dateIssued)+'<'+'/td>'
       +'<td style="padding:7px;border:1px solid #E0E0E0">'+esc(l.item)+'<'+'/td>'
-      +'<td style="padding:7px;border:1px solid #E0E0E0;text-align:center">'+(l.piecesReceived!=null?fmtN(l.piecesReceived)+' / '+fmtN(l.piecesIssued):'Pending / '+fmtN(l.piecesIssued))+'<'+'/td>'
+      +'<td style="padding:7px;border:1px solid #E0E0E0;text-align:center">'+(l.piecesReceived!=null?fmtN(l.piecesReceived)+' / '+fmtN(l.piecesIssued):'Pending / '+fmtN(l.piecesIssued))+' '+lotUnit(l)+'<'+'/td>'
       +'<td style="padding:7px;border:1px solid #E0E0E0;text-align:right">'+fmt(py)+'<'+'/td>'
       +'<td style="padding:7px;border:1px solid #E0E0E0;text-align:right;color:#059669">'+fmt(a)+'<'+'/td>'
       +'<td style="padding:7px;border:1px solid #E0E0E0;text-align:right;font-weight:700;color:'+(b>0?'#DC2626':'#059669')+'">'+fmt(b)+'<'+'/td>'
@@ -3222,7 +3261,7 @@ function advListDel(advId,name){
 </div></div>
 
 <!-- PRINT OVERLAY -->
-<div id="print-overlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:#fff;z-index:9999;overflow-y:auto;-webkit-overflow-scrolling:touch">
+<div id="print-overlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:#fff;z-index:9999;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch">
   <div id="print-toolbar" style="position:sticky;top:0;background:#1F3864;padding:10px 16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;z-index:1">
     <button onclick="window.print()" style="padding:9px 18px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:700;background:#fff;color:#1F3864;display:flex;align-items:center;gap:6px">🖨️ Print / Save PDF</button>
     <button onclick="shareWA()" style="padding:9px 18px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:700;background:#25D366;color:#fff;display:flex;align-items:center;gap:6px">📲 WhatsApp</button>
@@ -3238,7 +3277,20 @@ function advListDel(advId,name){
   #print-overlay { position:static !important; overflow:visible !important; }
   #print-body { padding:0 !important; max-width:100% !important; }
 }
-</style>
+/* On a phone the A5/A4 slip is wider than the screen. Scale it down to fit rather than letting
+   the user scroll sideways, and let its tables scroll inside themselves. */
+#print-body{ overflow-x:hidden }
+#print-body table{ width:100% !important; table-layout:fixed }
+#print-body td,#print-body th{ overflow-wrap:anywhere; word-break:break-word }
+@media(max-width:600px){
+  #print-body{ padding:14px 12px 60px !important }
+  #print-body table{ font-size:10px !important }
+  #print-body td,#print-body th{ padding:5px 4px !important }
+}
+@media(max-width:400px){
+  #print-body{ padding:10px 8px 60px !important }
+  #print-body table{ font-size:9px !important }
+}</style>
 
 <!-- EDIT LOT PAYMENT -->
 <div class="ov" id="mo-lPay"><div class="mb"><div class="mh"></div>
