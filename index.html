@@ -2461,7 +2461,22 @@ function printLot(lid){
     // slip is wider than a phone and the page scrolls sideways. Printing still uses exact A5.
     +'body{font-family:Arial,sans-serif;color:#1A1A1A;background:#fff;width:100%;max-width:148mm;min-height:105mm;padding:7mm;margin:0 auto;overflow-x:hidden}'
     +'@media print{@page{size:A5 portrait;margin:0}body{width:148mm;max-width:none;padding:7mm}}'
-    +'@media screen and (max-width:560px){body{padding:12px}.top{padding-bottom:10px;margin-bottom:12px}}'
+    // SCREEN ONLY. Type on this slip is sized for A5 paper (8-11px), which is unreadable on a
+    // phone. Scale it up for small screens, clear the fixed toolbar, and drop the paper-height
+    // reservation so there is no large blank area under short slips. Print is untouched.
+    +'@media screen and (max-width:560px){'
+      +'body{padding:14px 14px 28px;min-height:auto;padding-top:52px}'
+      +'.pb button{font-size:13px;padding:7px 14px}'
+      +'.top{padding-bottom:12px;margin-bottom:14px}'
+      +'.co{font-size:19px}.cs{font-size:11px}.lotid{font-size:25px}'
+      +'.lbl{font-size:11px}.con-name{font-size:22px;margin:6px 0 4px}'
+      +'.row{padding:7px 0}.rk{font-size:13px}.rv{font-size:14px}'
+      +'.pcs{font-size:36px;margin:14px 0 8px}'
+      +'.rate-box{font-size:13px;padding:5px 12px}'
+      +'.sig{gap:16px;margin-top:26px}.sl{margin-top:42px;font-size:11px}'
+      +'.rmk{font-size:13px;padding:7px 10px;margin-top:14px}'
+      +'.miss-box{font-size:13px}'
+    +'}'
     +'.pb{position:fixed;top:0;left:0;right:0;background:#1F3864;padding:6px 12px;display:flex;gap:6px;z-index:99}'
     +'.pb button{padding:5px 14px;border-radius:5px;border:none;cursor:pointer;font-size:12px;font-weight:600}'
     +'@media print{.pb{display:none}}'
@@ -2480,7 +2495,9 @@ function printLot(lid){
     +'.sl{border-top:1px solid #1A1A1A;margin-top:15mm;padding-top:3px;font-size:9px;font-weight:600;text-align:center;color:#555}'
     +'.rmk{background:#FFF7ED;border-left:3px solid #F59E0B;padding:4px 8px;font-size:10px;color:#92400E;margin-top:4mm;border-radius:0 4px 4px 0}';
 
-  var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+esc(lotLabel(lot))+'<\/title><style>'+css+'<\/style><\/head><body>'
+  var html='<!DOCTYPE html><html><head><meta charset="UTF-8">'
+    +'<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">'
+    +'<title>'+esc(lotLabel(lot))+'<\/title><style>'+css+'<\/style><\/head><body>'
     +'<div class="pb">'
     +'<button onclick="window.print()" style="background:#fff;color:#1F3864">🖨 Print Front Slip (A5)<\/button>'
     +'<button onclick="window.close()" style="background:rgba(255,255,255,.2);color:#fff;margin-left:auto">✕<\/button>'
@@ -2541,7 +2558,22 @@ function printReturn(lid){
     // slip is wider than a phone and the page scrolls sideways. Printing still uses exact A5.
     +'body{font-family:Arial,sans-serif;color:#1A1A1A;background:#fff;width:100%;max-width:148mm;min-height:105mm;padding:7mm;margin:0 auto;overflow-x:hidden}'
     +'@media print{@page{size:A5 portrait;margin:0}body{width:148mm;max-width:none;padding:7mm}}'
-    +'@media screen and (max-width:560px){body{padding:12px}.top{padding-bottom:10px;margin-bottom:12px}}'
+    // SCREEN ONLY. Type on this slip is sized for A5 paper (8-11px), which is unreadable on a
+    // phone. Scale it up for small screens, clear the fixed toolbar, and drop the paper-height
+    // reservation so there is no large blank area under short slips. Print is untouched.
+    +'@media screen and (max-width:560px){'
+      +'body{padding:14px 14px 28px;min-height:auto;padding-top:52px}'
+      +'.pb button{font-size:13px;padding:7px 14px}'
+      +'.top{padding-bottom:12px;margin-bottom:14px}'
+      +'.co{font-size:19px}.cs{font-size:11px}.lotid{font-size:25px}'
+      +'.lbl{font-size:11px}.con-name{font-size:22px;margin:6px 0 4px}'
+      +'.row{padding:7px 0}.rk{font-size:13px}.rv{font-size:14px}'
+      +'.pcs{font-size:36px;margin:14px 0 8px}'
+      +'.rate-box{font-size:13px;padding:5px 12px}'
+      +'.sig{gap:16px;margin-top:26px}.sl{margin-top:42px;font-size:11px}'
+      +'.rmk{font-size:13px;padding:7px 10px;margin-top:14px}'
+      +'.miss-box{font-size:13px}'
+    +'}'
     +'.pb{position:fixed;top:0;left:0;right:0;background:#065F46;padding:6px 12px;display:flex;gap:6px;z-index:99}'
     +'.pb button{padding:5px 14px;border-radius:5px;border:none;cursor:pointer;font-size:12px;font-weight:600}'
     +'@media print{.pb{display:none}}'
@@ -2560,7 +2592,9 @@ function printReturn(lid){
     +'.sig{display:grid;grid-template-columns:1fr 1fr;gap:20mm;margin-top:8mm}'
     +'.sl{border-top:1px solid #1A1A1A;margin-top:15mm;padding-top:3px;font-size:9px;font-weight:600;text-align:center;color:#555}';
 
-  var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Return — '+esc(lotLabel(lot))+'<\/title><style>'+css+'<\/style><\/head><body>'
+  var html='<!DOCTYPE html><html><head><meta charset="UTF-8">'
+    +'<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">'
+    +'<title>Return — '+esc(lotLabel(lot))+'<\/title><style>'+css+'<\/style><\/head><body>'
     +'<div class="pb">'
     +'<button onclick="window.print()" style="background:#fff;color:#065F46">🖨 Print Return Slip (A5 — Back Side)<\/button>'
     +'<button onclick="window.close()" style="background:rgba(255,255,255,.2);color:#fff;margin-left:auto">✕<\/button>'
