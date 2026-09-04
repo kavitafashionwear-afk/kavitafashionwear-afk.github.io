@@ -297,8 +297,8 @@ input:focus,select:focus{border-color:var(--n)}
 <div class="ov" id="mo-aF"><div class="mb"><div class="mh"></div>
   <div class="mhd"><h3>🧵 New Fabric Processing Lot</h3><button class="xb" onclick="closeModal('aF')">&#10005;</button></div>
   <div class="mbd">
-    <div class="fr"><div><label>Contractor *</label><input id="ffc" oninput="pvF()"></div><div><label>Work / Skill *</label><input id="ffs" list="skill-dl" oninput="onSkillDesign()" placeholder="e.g. Embroidery"><datalist id="skill-dl"></datalist></div></div>
-    <div class="fg"><label>Design *</label><input id="ffi" list="design-dl" oninput="onSkillDesign()" placeholder="e.g. Floral A / 7802"><datalist id="design-dl"></datalist>
+    <div class="fr"><div><label>Contractor *</label><input id="ffc" oninput="pvF()"></div><div><label>Work / Skill *</label><select id="ffs" onchange="onSkillPick()"></select></div></div>
+    <div class="fg"><label>Design *</label><select id="ffi" onchange="onSkillDesign()"></select>
       <div id="ffrate-note" style="font-size:11px;color:#888;margin-top:4px"></div></div>
     <div class="fg"><label>Contractor Contact No. <span style="color:#AAA;font-weight:400">(optional, for new)</span></label><input id="ffcph" type="tel" inputmode="tel" placeholder="e.g. 98xxxxxxxx"></div>
     <div class="fr"><div><label>Quantity *</label><input id="ffq" type="number" inputmode="decimal" oninput="pvF()" placeholder="e.g. 500"></div><div><label>Unit *</label><select id="ffu" onchange="pvF()"><option value="kg">kg</option><option value="mtr">meter</option><option value="pcs">pieces</option></select></div></div>
@@ -464,7 +464,7 @@ try{
 var isOnline=(typeof navigator!=='undefined')?navigator.onLine:true;
 window.addEventListener('online',function(){isOnline=true;if(typeof updateSyncUI==='function')updateSyncUI();});
 window.addEventListener('offline',function(){isOnline=false;if(typeof updateSyncUI==='function')updateSyncUI();});
-var S={lots:[],pays:[],advances:[],contacts:{},lC:0,pC:0,aC:0,trash:[],items:[],itemMap:[]},uid=null,unsubDB=null,ready=false,loadedOnce=false;
+var S={lots:[],pays:[],advances:[],contacts:{},lC:0,pC:0,aC:0,trash:[],items:[],itemMap:[],skills:[]},uid=null,unsubDB=null,ready=false,loadedOnce=false;
 var curTab='home',curCon=null,navStack=[],curFilter='ALL',rvId=null,eLId=null,eCName=null,impData=null;
 var AVC=['#1F3864','#065F46','#92400E','#6D28D9','#9D174D','#1E40AF','#047857'];
 
@@ -756,7 +756,7 @@ function cleanupTrash(){if(!S.trash)S.trash=[];var before=S.trash.length,cutoff=
 function sdot(s){var d=document.getElementById('sd');if(d){d.className='sdot'+(s==='busy'?' busy':s==='offline'?' offline':s==='err'?' err':'');d.title=s==='busy'?'Saving…':s==='offline'?'Offline — saved on this device, will sync when back online':s==='err'?'Sync issue — saved locally, will retry':'Synced ✓';}}
 function updateSyncUI(){sdot(isOnline?'ok':'offline');}
 var LS_KEY=function(){return 'contractor_backup_'+(uid||'anon');};
-function saveLocal(){try{localStorage.setItem(LS_KEY(),JSON.stringify({lots:S.lots,pays:S.pays,advances:S.advances,contacts:S.contacts,lC:S.lC,pC:S.pC,aC:S.aC,trash:S.trash,items:S.items,itemMap:S.itemMap}));}catch(e){}}
+function saveLocal(){try{localStorage.setItem(LS_KEY(),JSON.stringify({lots:S.lots,pays:S.pays,advances:S.advances,contacts:S.contacts,lC:S.lC,pC:S.pC,aC:S.aC,trash:S.trash,items:S.items,itemMap:S.itemMap,skills:S.skills}));}catch(e){}}
 function loadLocal(){try{var raw=localStorage.getItem(LS_KEY());if(!raw)return false;var d=JSON.parse(raw);S.lots=(d.lots||[]).map(_repairLot);S.pays=d.pays||[];S.advances=d.advances||[];S.contacts=d.contacts||{};S.lC=d.lC||0;S.pC=d.pC||0;S.aC=d.aC||0;S.trash=d.trash||[];S.items=d.items||[];S.itemMap=d.itemMap||[];_itemCanonIdx=null;return true;}catch(e){return false;}}
 function flushPendingSave(){ /* no stale-push on reconnect; Firestore auto-flushes its own queue */ }
 
@@ -852,7 +852,7 @@ function attachListeners(){
     markLoaded(snap.metadata&&snap.metadata.fromCache);
   },function(e){onSubErr('itemmap',e);});
   _subMeta=_col('ct_meta').doc('state').onSnapshot({includeMetadataChanges:true},function(snap){
-    if(snap.exists){var d=snap.data();S.contacts=d.contacts||{};S.trash=d.trash||[];S.lC=Math.max(S.lC||0,d.lC||0);S.pC=Math.max(S.pC||0,d.pC||0);S.aC=Math.max(S.aC||0,d.aC||0);}
+    if(snap.exists){var d=snap.data();S.contacts=d.contacts||{};S.trash=d.trash||[];S.skills=d.skills||[];S.lC=Math.max(S.lC||0,d.lC||0);S.pC=Math.max(S.pC||0,d.pC||0);S.aC=Math.max(S.aC||0,d.aC||0);}
     markLoaded(snap.metadata&&snap.metadata.fromCache);
     if(snap.metadata && !snap.metadata.fromCache){ _metaServerLoaded=true; tryRecover(); }
   },function(e){onSubErr('meta',e);});
@@ -904,7 +904,7 @@ function save(){
     diffWrite('ct_advances', S.advances, _lastSaved.ct_advances);
     diffWrite('items',       S.items,     _lastSaved.items);
     diffWrite('itemmap',     S.itemMap,   _lastSaved.itemMap,   mapDocId);
-    _col('ct_meta').doc('state').set(_clean({ contacts:S.contacts||{}, trash:S.trash||[], lC:S.lC||0, pC:S.pC||0, aC:S.aC||0, updated:new Date().toISOString() }))
+    _col('ct_meta').doc('state').set(_clean({ contacts:S.contacts||{}, trash:S.trash||[], skills:S.skills||[], lC:S.lC||0, pC:S.pC||0, aC:S.aC||0, updated:new Date().toISOString() }))
       .then(function(){sdot(isOnline?'ok':'offline');})
       .catch(function(e){console.warn('meta write deferred:',e&&e.code);sdot(isOnline?'err':'offline');});
   }catch(e){ console.warn('save threw:',e); sdot(isOnline?'err':'offline'); }
@@ -1568,14 +1568,119 @@ function renderIM(){
   var foc=(ae&&ae.id&&typeof ae.selectionStart==='number')?{id:ae.id,pos:ae.selectionStart}:null;
   if(imView==='review') renderIMReview(el);
   else if(imView==='keywords') renderIMKeywords(el);
+  else if(imView==='skills') renderSkills(el);
   else renderIMMaster(el);
   if(foc){ var e2=document.getElementById(foc.id); if(e2){ e2.focus(); try{e2.setSelectionRange(foc.pos,foc.pos);}catch(_e){} } }
 }
+/* ══════════════════════════════════════════════════════════════════════
+   SKILLS
+   The work a fabricator does — Embroidery, Dyeing, Printing — each holding the designs it is
+   done on and the rate agreed for each design. Fabric lots are written against a skill and a
+   design instead of an Item Master article, because a fabricator is paid for the JOB.
+   Kept in the ct_meta document: this is a short list, so it needs no collection of its own.
+══════════════════════════════════════════════════════════════════════ */
+function skillList(){ return (S.skills||[]).slice().sort(function(a,b){ return String(a.name||'').localeCompare(String(b.name||'')); }); }
+function skillById(id){ return (S.skills||[]).find(function(x){ return x && x.id===id; })||null; }
+function skillByName(nm){ var k=normIName(nm); return (S.skills||[]).find(function(x){ return x && normIName(x.name)===k; })||null; }
+function skillDesigns(sk){ return (sk && Array.isArray(sk.designs)) ? sk.designs : []; }
+function designRateOf(sk, dname){
+  var d=skillDesigns(sk).find(function(x){ return x && normIName(x.name)===normIName(dname); });
+  if(d && +d.rate>0) return +d.rate;
+  return (sk && +sk.rate>0) ? +sk.rate : 0;
+}
+function _skillSave(fn){
+  if(!Array.isArray(S.skills)) S.skills=[];
+  fn(S.skills);
+  save(); renderIM();
+}
+function addSkill(){
+  var nm=(document.getElementById('sk-name')||{}).value||'';
+  var rt=+((document.getElementById('sk-rate')||{}).value||0);
+  var un=(document.getElementById('sk-unit')||{}).value||'pcs';
+  nm=nm.trim();
+  if(!nm){ alert('Enter the work name, e.g. Embroidery.'); return; }
+  if(skillByName(nm)){ alert('"'+nm+'" already exists.'); return; }
+  _skillSave(function(arr){ arr.push({ id:uniqId('SK'), name:nm, unit:un, rate:(rt>0?rt:0), designs:[] }); });
+  document.getElementById('sk-name').value='';
+  document.getElementById('sk-rate').value='';
+}
+function renameSkill(id,v){ _skillSave(function(arr){ var s=arr.find(function(x){return x.id===id;}); if(s) s.name=String(v||'').trim()||s.name; }); }
+function setSkillRate(id,v){ _skillSave(function(arr){ var s=arr.find(function(x){return x.id===id;}); if(s) s.rate=(+v>0?+v:0); }); }
+function setSkillUnit(id,v){ _skillSave(function(arr){ var s=arr.find(function(x){return x.id===id;}); if(s) s.unit=v||'pcs'; }); }
+function delSkill(id){
+  var s=skillById(id); if(!s) return;
+  var used=(S.lots||[]).filter(function(l){ return l&&l.kind==='fabric'&&normIName(l.skill||'')===normIName(s.name); }).length;
+  if(!confirm('Delete "'+s.name+'"?'+(used?'\n\n'+used+' existing lot(s) use it. Those lots keep their own copy and are not changed.':''))) return;
+  _skillSave(function(arr){ var i=arr.findIndex(function(x){return x.id===id;}); if(i>-1) arr.splice(i,1); });
+}
+function addSkillDesign(id){
+  var nEl=document.getElementById('skd-'+id), rEl=document.getElementById('skdr-'+id);
+  var nm=(nEl&&nEl.value||'').trim(), rt=+((rEl&&rEl.value)||0);
+  if(!nm){ alert('Enter the design name.'); if(nEl) nEl.focus(); return; }
+  var s=skillById(id); if(!s) return;
+  if(skillDesigns(s).some(function(d){ return normIName(d.name)===normIName(nm); })){ alert('"'+nm+'" already exists under this work.'); return; }
+  _skillSave(function(arr){
+    var t=arr.find(function(x){return x.id===id;}); if(!t) return;
+    if(!Array.isArray(t.designs)) t.designs=[];
+    t.designs.push({ name:nm, rate:(rt>0?rt:0) });
+  });
+}
+function setSkillDesignRate(id, idx, v){
+  _skillSave(function(arr){ var t=arr.find(function(x){return x.id===id;}); if(t&&t.designs&&t.designs[idx]) t.designs[idx].rate=(+v>0?+v:0); });
+}
+function renameSkillDesign(id, idx, v){
+  _skillSave(function(arr){ var t=arr.find(function(x){return x.id===id;}); if(t&&t.designs&&t.designs[idx]) t.designs[idx].name=String(v||'').trim()||t.designs[idx].name; });
+}
+function delSkillDesign(id, idx){
+  _skillSave(function(arr){ var t=arr.find(function(x){return x.id===id;}); if(t&&t.designs) t.designs.splice(idx,1); });
+}
+function renderSkills(el){
+  var list=skillList();
+  el.innerHTML=imTabsHTML()
+    +'<div class="ibox blue" style="font-size:11.5px;margin-bottom:12px">The work your fabricators do, and the rate for each design. Pick these when creating a fabric lot — the rate fills in on its own.</div>'
+    +'<div style="background:#fff;border:1px solid #ECECEC;border-radius:12px;padding:14px;margin-bottom:12px">'
+      +'<div style="font-size:13px;font-weight:800;color:#1F3864;margin-bottom:10px">➕ Add Work / Skill</div>'
+      +'<div class="fg"><label>Name *</label><input id="sk-name" placeholder="e.g. Embroidery"></div>'
+      +'<div class="fr"><div><label>Default Rate</label><input id="sk-rate" type="number" inputmode="decimal" placeholder="0"></div>'
+      +'<div><label>Unit</label><select id="sk-unit"><option value="pcs">per piece</option><option value="kg">per kg</option><option value="mtr">per meter</option></select></div></div>'
+      +'<button class="btn pri" style="width:100%;justify-content:center;margin-top:6px" onclick="addSkill()">✓ Add Work</button>'
+    +'</div>'
+    +(list.length?list.map(function(s){
+      var ds=skillDesigns(s);
+      var used=(S.lots||[]).filter(function(l){ return l&&l.kind==='fabric'&&normIName(l.skill||'')===normIName(s.name); }).length;
+      return '<div style="background:#fff;border:1px solid #ECECEC;border-radius:12px;padding:13px 14px;margin-bottom:9px">'
+        +'<div style="display:flex;align-items:center;gap:8px">'
+          +'<input value="'+esc(s.name)+'" onchange="renameSkill(\''+esc(s.id)+'\',this.value)" style="flex:1;font-size:13.5px;font-weight:700;color:#1F3864;padding:7px 9px;border:1px solid #DDD;border-radius:8px">'
+          +'<input type="number" inputmode="decimal" value="'+(+s.rate||'')+'" placeholder="rate" onchange="setSkillRate(\''+esc(s.id)+'\',this.value)" style="width:78px;padding:7px;border:1px solid #DDD;border-radius:8px;text-align:right">'
+          +'<select onchange="setSkillUnit(\''+esc(s.id)+'\',this.value)" style="width:76px;padding:7px;border:1px solid #DDD;border-radius:8px;font-size:11.5px">'
+            +['pcs','kg','mtr'].map(function(u){ return '<option value="'+u+'"'+((s.unit||'pcs')===u?' selected':'')+'>'+(u==='pcs'?'/pc':u==='kg'?'/kg':'/mtr')+'</option>'; }).join('')
+          +'</select>'
+          +'<button class="btn sm" onclick="delSkill(\''+esc(s.id)+'\')" style="border:none;background:none;color:#DC2626">🗑</button>'
+        +'</div>'
+        +'<div style="font-size:10.5px;color:#999;margin-top:5px">'+ds.length+' design(s)'+(used?' · used on '+used+' lot(s)':'')+'</div>'
+        +(ds.length?'<div style="margin-top:8px">'+ds.map(function(d,i){
+          return '<div style="display:flex;align-items:center;gap:7px;padding:5px 0;border-top:1px solid #F4F4F4">'
+            +'<input value="'+esc(d.name)+'" onchange="renameSkillDesign(\''+esc(s.id)+'\','+i+',this.value)" style="flex:1;padding:6px 8px;border:1px solid #EEE;border-radius:7px;font-size:12px">'
+            +'<input type="number" inputmode="decimal" value="'+(+d.rate||'')+'" placeholder="'+(+s.rate||0)+'" onchange="setSkillDesignRate(\''+esc(s.id)+'\','+i+',this.value)" style="width:74px;padding:6px;border:1.5px solid '+((+d.rate>0)?'#1F3864':'#EEE')+';border-radius:7px;font-size:12px;text-align:right">'
+            +'<button class="btn sm" onclick="delSkillDesign(\''+esc(s.id)+'\','+i+')" style="border:none;background:none;color:#DC2626;font-size:12px">🗑</button>'
+          +'</div>';
+        }).join('')+'</div>':'')
+        +'<div style="display:flex;gap:7px;margin-top:9px">'
+          +'<input id="skd-'+esc(s.id)+'" placeholder="New design name" style="flex:1;padding:7px 9px;border:1px solid #DDD;border-radius:8px;font-size:12px">'
+          +'<input id="skdr-'+esc(s.id)+'" type="number" inputmode="decimal" placeholder="rate" style="width:78px;padding:7px;border:1px solid #DDD;border-radius:8px;font-size:12px;text-align:right">'
+          +'<button class="btn sm pri" style="font-size:11.5px" onclick="addSkillDesign(\''+esc(s.id)+'\')">＋</button>'
+        +'</div>'
+      +'</div>';
+    }).join('')
+    :'<div style="text-align:center;color:#999;padding:30px 16px;font-size:13px">No work added yet. Add your first one above — e.g. Embroidery.</div>');
+}
+
 function imTabsHTML(){
   var unm=unmappedLotItems().length;
   return '<div style="display:flex;gap:8px;margin-bottom:12px">'
     +'<button class="btn sm" style="flex:1;justify-content:center;font-size:12px'+(imView==='master'?';background:#1F3864;color:#fff;border-color:#1F3864':'')+'" onclick="setIMView(\'master\')">🏷️ Items</button>'
     +'<button class="btn sm" style="flex:1;justify-content:center;font-size:12px'+(imView==='review'?';background:#1F3864;color:#fff;border-color:#1F3864':'')+'" onclick="setIMView(\'review\')">🧹 Map Lot Items'+(unm?' <span style="background:#DC2626;color:#fff;border-radius:10px;padding:0 7px;font-size:10px;font-weight:800;margin-left:4px">'+unm+'</span>':'')+'</button>'
+    +'<button class="btn sm" style="flex:1;justify-content:center;font-size:12px'+(imView==='skills'?';background:#1F3864;color:#fff;border-color:#1F3864':'')+'" onclick="setIMView(\'skills\')">🧵 Skills'+((S.skills||[]).length?' <span style="color:#999;font-size:10px;margin-left:4px">'+S.skills.length+'</span>':'')+'</button>'
     +'<button class="btn sm" style="flex:1;justify-content:center;font-size:12px'+(imView==='keywords'?';background:#1F3864;color:#fff;border-color:#1F3864':'')+'" onclick="setIMView(\'keywords\')">🔗 Mapped'+((S.itemMap||[]).length?' <span style="color:#999;font-size:10px;margin-left:4px">'+S.itemMap.length+'</span>':'')+'</button>'
     +'</div>';
 }
@@ -2133,7 +2238,7 @@ function openFabricLotFor(name){
   document.getElementById('ffc').value=name||'';
   document.getElementById('ffcph').value=name?getContact(name):'';
   document.getElementById('ffs').value='';
-  document.getElementById('ffi').value='';
+  document.getElementById('ffi').innerHTML='';
   var _rn=document.getElementById('ffrate-note'); if(_rn) _rn.textContent='';
   var _rr=document.getElementById('ffr'); if(_rr) _rr.dataset.auto='';
   refreshSkillLists();
@@ -2173,28 +2278,62 @@ function rateFor(skill, design){
   }).sort(function(a,b){ return String(b.dateIssued||'').localeCompare(String(a.dateIssued||'')); });
   return hits.length ? {rate:+hits[0].rate, unit:hits[0].unit||'kg', when:hits[0].dateIssued||''} : null;
 }
+/* Both dropdowns are fed from the Skills master. */
 function refreshSkillLists(){
-  var sd=document.getElementById('skill-dl');
-  if(sd) sd.innerHTML=knownSkills().map(function(v){ return '<option value="'+esc(v)+'"></option>'; }).join('');
-  var dd=document.getElementById('design-dl');
-  if(dd){
-    var sk=(document.getElementById('ffs')||{}).value||'';
-    dd.innerHTML=knownDesigns(sk).map(function(v){ return '<option value="'+esc(v)+'"></option>'; }).join('');
+  var ss=document.getElementById('ffs');
+  if(ss){
+    var cur=ss.value;
+    var list=skillList();
+    ss.innerHTML='<option value="">— choose work —</option>'
+      +list.map(function(s){ return '<option value="'+esc(s.name)+'">'+esc(s.name)+(+s.rate?' · Rs.'+(+s.rate)+'/'+esc(s.unit||'pcs'):'')+'</option>'; }).join('');
+    if(cur) ss.value=cur;
+    if(!list.length) ss.innerHTML='<option value="">— add work in Items → 🧵 Skills —</option>';
   }
+  fillDesignSelect();
+}
+function fillDesignSelect(){
+  var ds=document.getElementById('ffi'); if(!ds) return;
+  var sk=skillByName((document.getElementById('ffs')||{}).value||'');
+  var cur=ds.value;
+  var list=skillDesigns(sk);
+  ds.innerHTML='<option value="">'+(sk?(list.length?'— choose design —':'— no designs under this work yet —'):'— choose the work first —')+'</option>'
+    +list.map(function(d){ return '<option value="'+esc(d.name)+'">'+esc(d.name)+' · Rs.'+designRateOf(sk,d.name)+'</option>'; }).join('');
+  if(cur) ds.value=cur;
+}
+/* Choosing the work resets the design list and applies that work's unit and default rate. */
+function onSkillPick(){
+  var sk=skillByName((document.getElementById('ffs')||{}).value||'');
+  var ds=document.getElementById('ffi'); if(ds) ds.value='';
+  if(sk){
+    var u=document.getElementById('ffu'); if(u && sk.unit) u.value=sk.unit;
+    var r=document.getElementById('ffr');
+    if(r && (+sk.rate>0) && (!r.value || r.dataset.auto==='1')){ r.value=+sk.rate; r.dataset.auto='1'; }
+  }
+  fillDesignSelect();
+  onSkillDesign();
 }
 /* Typing a known work+design pair fills the rate that was used last time. */
+/* The rate comes from the Skills master: the design's own rate, else the work's default.
+   What was actually paid last time is shown alongside if it differs, so a renegotiated rate
+   is visible rather than silently overwritten. */
 function onSkillDesign(){
-  refreshSkillLists();
-  var sk=(document.getElementById('ffs')||{}).value||'';
+  var skName=(document.getElementById('ffs')||{}).value||'';
   var dg=(document.getElementById('ffi')||{}).value||'';
+  var sk=skillByName(skName);
   var note=document.getElementById('ffrate-note');
   var rEl=document.getElementById('ffr');
-  var hit=rateFor(sk,dg);
-  if(hit){
-    if(rEl && (!rEl.value || rEl.dataset.auto==='1')){ rEl.value=hit.rate; rEl.dataset.auto='1'; }
-    if(note) note.innerHTML='Rate for this design last time: <strong>Rs.'+hit.rate+'/'+esc(hit.unit)+'</strong>'+(hit.when?' on '+fmtD(hit.when):'')+'. Change it if it has been renegotiated.';
-  } else if(note){
-    note.textContent = (sk&&dg) ? 'First lot for this work and design — set the rate below.' : '';
+  var setRate=null;
+  if(sk && dg) setRate=designRateOf(sk,dg);
+  else if(sk && +sk.rate>0) setRate=+sk.rate;
+  if(rEl && setRate>0 && (!rEl.value || rEl.dataset.auto==='1')){ rEl.value=setRate; rEl.dataset.auto='1'; }
+  if(note){
+    var last=rateFor(skName,dg);
+    if(sk && dg){
+      note.innerHTML='Rate from Skills: <strong>Rs.'+(setRate||0)+'/'+esc(sk.unit||'pcs')+'</strong>'
+        +(last && last.rate!==setRate ? ' &middot; last paid <strong>Rs.'+last.rate+'</strong> on '+fmtD(last.when) : '')
+        +'. Change it here for a one-off.';
+    } else if(sk){ note.textContent='Pick a design, or leave it and enter the rate by hand.'; }
+    else { note.textContent=''; }
   }
   pvF();
 }
