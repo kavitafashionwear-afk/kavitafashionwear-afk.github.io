@@ -1607,7 +1607,15 @@ function renderIMMaster(el){
     +(list.length?list.map(function(it){
       return '<div style="background:#fff;border:1px solid #ECECEC;border-radius:11px;padding:11px 13px;margin-bottom:7px;display:flex;align-items:center;gap:10px">'
         +'<div style="flex:1;min-width:0">'
-          +'<div style="font-size:13.5px;font-weight:700;color:#1F3864">'+esc(it.name)+(it.code?' <span style="font-size:10px;color:#2563EB;background:#EFF6FF;border:1px solid #BFDBFE;padding:1px 7px;border-radius:8px;font-weight:700">'+esc(it.code)+'</span>':'')+'</div>'
+          +'<div style="font-size:13.5px;font-weight:700;color:#1F3864">'+esc(it.name)+(it.code?' <span style="font-size:10px;color:#2563EB;background:#EFF6FF;border:1px solid #BFDBFE;padding:1px 7px;border-radius:8px;font-weight:700">'+esc(it.code)+'</span>':'')+' '+seasonChip(it)+'</div>'
+          +'<div style="display:flex;gap:5px;margin-top:7px">'
+            +['ALL','SUMMER','WINTER'].map(function(v){
+                var on=itemSeason(it)===v;
+                var st=v==='SUMMER'?{bg:'#FEF3C7',fg:'#92400E',bd:'#FDE68A'}:v==='WINTER'?{bg:'#DBEAFE',fg:'#1E40AF',bd:'#BFDBFE'}:{bg:'#EEF2FF',fg:'#1F3864',bd:'#C7D2FE'};
+                var lbl=v==='SUMMER'?'☀️ Summer':v==='WINTER'?'❄️ Winter':'Both';
+                return '<button onclick="setItemSeason(\''+esc(it.id)+'\',\''+v+'\')" style="flex:1;padding:6px 4px;border-radius:7px;font-size:10.5px;font-weight:800;cursor:pointer;font-family:inherit;border:1.5px solid '+(on?st.bd:'#E2E8F0')+';background:'+(on?st.bg:'#fff')+';color:'+(on?st.fg:'#94A3B8')+'">'+lbl+'</button>';
+              }).join('')
+          +'</div>'
           +'<div style="font-size:11px;color:#888;margin-top:2px">Job rate: '+(itemJobRate(it)?'<strong style="color:#059669">Rs.'+itemJobRate(it)+'/pc</strong>':'<strong style="color:#DC2626">not set</strong>')+' · '+imLotCount(it.id)+' lot'+(imLotCount(it.id)===1?'':'s')+'</div>'
         +'</div>'
         +'<button class="btn sm" onclick="openItemEdit(\''+it.id+'\')" style="font-size:11px">✏️ Edit</button>'
@@ -1619,7 +1627,7 @@ function renderIMReview(el){
   var un=imFiltered(), total=unmappedLotItems().length;
   var sel=Object.keys(imSel).filter(function(k){ return imSel[k]; }).length;
   var opts='<option value="">— choose item —</option>'+(S.items||[]).slice().sort(function(a,b){ return a.name.localeCompare(b.name); })
-    .map(function(it){ return '<option value="'+it.id+'">'+esc(it.name)+(it.code?' ['+esc(it.code)+']':'')+' · job Rs.'+itemJobRate(it)+'</option>'; }).join('');
+    .map(function(it){ return '<option value="'+it.id+'">'+esc(it.name)+seasonMark(it)+(it.code?' ['+esc(it.code)+']':'')+' · job Rs.'+itemJobRate(it)+'</option>'; }).join('');
   el.innerHTML=imTabsHTML()
     +'<div class="ibox amber" style="font-size:11.5px;margin-bottom:10px">These item spellings appear on your lots but match no Item Master record, so their received pieces are <strong>not counted in stock</strong>. Map each to the right item. <strong>Lots are never changed</strong> and every mapping can be removed later.</div>'
     +'<input id="im-rsearch" placeholder="🔍 Search name (e.g. plazzo, kurti)…" value="'+esc(imSearch)+'" oninput="imSearch=this.value;renderIM()" style="width:100%;margin-bottom:10px">'
@@ -1807,11 +1815,18 @@ function lotCard(lot,showCon){
   var vc=showCon?'<button class="btn sm" data-action="viewCon" data-name="'+esc(lot.contractorName)+'">👷</button>':'';
   var kindBadge=fab?'<span style="background:#EDE9FE;color:#6D28D9;font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;margin-left:6px">FABRIC</span>':'';
   // "Alloted from" mask for cutting lots that originated from a fabric lot
+  // Fabric never enters finished-goods stock: the pieces are counted once, on the cutting lot
+  // this fabric is allotted to. Saying so on the lot removes the doubt.
+  var fabricNote = (lot.kind==='fabric')
+    ? '<div style="background:#F5F3FF;border:1px solid #DDD6FE;border-radius:8px;padding:7px 10px;margin-bottom:10px;font-size:11px;color:#6D28D9;line-height:1.55">'
+      +'🧵 <strong>Fabric lot — not counted in stock.</strong> Stock is counted once, on the cutting lot this is allotted to, so nothing is ever counted twice.'
+      +'</div>' : '';
   var allotBanner=lot.allottedFrom?'<div style="background:#F5F3FF;border:1px solid #DDD6FE;border-radius:8px;padding:7px 10px;margin-bottom:10px;font-size:11px;color:#6D28D9;font-weight:600">🧵 Alloted from <strong>'+esc(lot.allottedFrom)+'</strong>'+(lot.allottedFromLot?' &middot; '+esc(lotLabelById(lot.allottedFromLot)):'')+'</div>':'';
   // Derive the "Alloted to" list from the cutting lots that ACTUALLY still exist (children link
   // back via allottedFromLot). This way a deleted/re-allotted cutting lot disappears automatically
   // instead of leaving a stale entry, and labels come straight from the live lot.
   var _children=(S.lots||[]).filter(function(l){return l.allottedFromLot===lot.id;});
+  allotBanner = fabricNote + allotBanner;
   var allotOutNote=_children.length?'<div style="background:#ECFDF5;border:1px solid #A7F3D0;border-radius:8px;padding:7px 10px;margin-bottom:10px;font-size:11px;color:#047857;font-weight:600">➡️ Alloted to: '+_children.map(function(l){return esc(l.contractorName)+' ('+esc(lotLabel(l))+')';}).join(', ')+'</div>':'';
   var recheckBadge=lot._recheck?'<div style="background:#FEF3C7;border:1px solid #FDE68A;border-radius:8px;padding:6px 10px;margin-bottom:10px;font-size:11px;color:#92400E;font-weight:600">⚠ Part-payment — please verify the paid/balance is correct, then tap “✓ Verified”.</div>':'';
   var recheckBtn=lot._recheck?'<button class="btn sm" style="color:#92400E;border-color:#FDE68A;background:#FFFBEB" data-action="verifyLot" data-id="'+esc(lot.id)+'">✓ Verified</button>':'';
@@ -1981,6 +1996,25 @@ function openEC(name){eCName=name;document.getElementById('ecs').textContent=nam
    `jobRate` is this app's manufacturing rate — deliberately separate from `rate`, which is the
    Challan Manager's sale rate. The two must never overwrite each other. */
 function itemJobRate(it){ return it && it.jobRate!=null && it.jobRate!=='' ? (+it.jobRate||0) : 0; }
+/* ── Season tag ──
+   seasonType lives on the item record, and this app shares the items collection with the
+   Challan Manager, so a tag set in either place shows in both immediately. */
+function itemSeason(it){ var t=(it&&it.seasonType)||'ALL'; return (t==='SUMMER'||t==='WINTER')?t:'ALL'; }
+function seasonChip(it){
+  var t=itemSeason(it);
+  if(t==='SUMMER') return '<span style="font-size:9.5px;background:#FEF3C7;color:#92400E;padding:1px 7px;border-radius:8px;font-weight:800">☀️ SUMMER</span>';
+  if(t==='WINTER') return '<span style="font-size:9.5px;background:#DBEAFE;color:#1E40AF;padding:1px 7px;border-radius:8px;font-weight:800">❄️ WINTER</span>';
+  return '';
+}
+function seasonMark(it){ var t=itemSeason(it); return t==='SUMMER'?' ☀️':(t==='WINTER'?' ❄️':''); }
+function setItemSeason(id,v){
+  var i=(S.items||[]).findIndex(function(x){return x&&x.id===id;}); if(i===-1)return;
+  var c=JSON.parse(JSON.stringify(S.items[i]));
+  c.seasonType = v||'ALL';
+  S.items[i]=c;                       // replace, never mutate in place
+  _itemCanonIdx=null;
+  save(); renderIM();
+}
 function fillItemSelect(selId, currentName){
   var sel=document.getElementById(selId); if(!sel) return;
   var list=(S.items||[]).slice().sort(function(a,b){ return a.name.localeCompare(b.name); });
@@ -1988,7 +2022,7 @@ function fillItemSelect(selId, currentName){
   var matched=null;
   list.forEach(function(it){
     if(currentName && normIName(it.name)===normIName(currentName)) matched=it.id;
-    html+='<option value="'+it.id+'">'+esc(it.name)+(itemJobRate(it)?' · Rs.'+itemJobRate(it):'')+'</option>';
+    html+='<option value="'+it.id+'">'+esc(it.name)+seasonMark(it)+(itemJobRate(it)?' · Rs.'+itemJobRate(it):'')+'</option>';
   });
   // A lot saved before this change may carry text that is not in the master (or a mapped
   // spelling). Keep it selectable so editing a lot can never silently rewrite its item.
