@@ -1241,13 +1241,21 @@ function ctStorageOK(){ try{ localStorage.setItem('__t','1'); localStorage.remov
 function ctFreeSpace(){
   var dropped=0;
   try{
-    var keys=[];
-    for(var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); if(k&&k.indexOf('cm_snap_')===0) keys.push(k); }
-    keys.sort();
-    while(keys.length && !ctStorageOK()){ localStorage.removeItem(keys.shift()); dropped++; }
-    if(!ctStorageOK()){ try{ localStorage.removeItem(LS_KEY()); dropped++; }catch(e){} }
+    // Oldest, most expendable first: the Challan Manager's daily snapshots, then either app's
+    // local cache. All of these are rebuilt from the cloud on the next load, so nothing is lost.
+    var tiers=[[],[],[]];
+    for(var i=0;i<localStorage.length;i++){
+      var k=localStorage.key(i); if(!k) continue;
+      if(k.indexOf('cm_snap_')===0) tiers[0].push(k);
+      else if(k.indexOf('challan_backup_')===0) tiers[1].push(k);
+      else if(k.indexOf('ct_backup_')===0 || k.indexOf('contractor_backup_')===0) tiers[2].push(k);
+    }
+    tiers[0].sort();
+    for(var t=0;t<tiers.length && !ctStorageOK();t++){
+      while(tiers[t].length && !ctStorageOK()){ localStorage.removeItem(tiers[t].shift()); dropped++; }
+    }
   }catch(e){}
-  if(dropped) console.warn('freed', dropped, 'stored item(s) so sign-in can work');
+  if(dropped) console.warn('freed', dropped, 'cached item(s) so sign-in can work');
   return ctStorageOK();
 }
 function ctLoginHelp(title, body, btn){
@@ -1265,16 +1273,25 @@ function doLogin(){
       '<div style="margin-top:8px;font-weight:700">Tap the share or \u22EF button, then <strong>Open in Safari</strong> — or <strong>Open in Chrome</strong> if that is the one you use.</div>');
     return;
   }
-  if(!ctStorageOK() && !ctFreeSpace()){
-    ctLoginHelp('This browser is blocking storage',
-      'Sign-in needs local storage. Turn off Private Browsing, or allow cookies and site data for this site, then try again.');
-    return;
-  }
+  // Make room if we can, but NEVER refuse to try. A failed localStorage probe does not mean
+  // sign-in will fail — the previous version simply attempted it and usually worked. Blocking
+  // on the probe turned a working login into a dead end.
+  if(!ctStorageOK()){ try{ ctFreeSpace(); }catch(e){} }
   b.disabled=true;b.textContent='Opening Google...';m.textContent='';m.removeAttribute('style');
   var p=new firebase.auth.GoogleAuthProvider();p.setCustomParameters({prompt:'select_account'});
   auth.signInWithPopup(p).then(function(r){if(r&&r.user)showApp(r.user);}).catch(function(e){
     var code=(e&&e.code)||'';
     b.disabled=false;b.textContent='Continue with Google';
+    var storageBlamed = (code==='auth/web-storage-unsupported'
+      || (code==='auth/operation-not-supported-in-this-environment' && !ctStorageOK()));
+    if(storageBlamed){
+      ctFreeSpace();
+      ctLoginHelp('This browser is blocking storage',
+        'Sign-in needs local storage on this device. Turn off Private Browsing, or allow cookies and site data for this site.',
+        '<button onclick="doLogin()" style="width:100%;margin-top:9px;padding:10px;border-radius:9px;border:none;background:#1F3864;color:#fff;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer">Try again</button>'
+        +'<div style="margin-top:6px;font-size:10.5px;opacity:.7">'+code+'</div>');
+      return;
+    }
     if(ctIsWebKit()){
       var br=ctBrowser();
       ctLoginHelp(br+' is blocking the sign-in window',
