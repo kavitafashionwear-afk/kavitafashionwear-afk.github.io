@@ -458,6 +458,13 @@ var auth=firebase.auth(),db=firebase.firestore();
 // Offline persistence keeps a local write queue so data entered offline (or on a flaky mobile
 // connection) is not lost — it syncs automatically when back online. Plain single-tab persistence
 // is the most widely-supported form across mobile browsers (synchronizeTabs fails on many of them).
+/* The SDK's default streaming channel is silently swallowed by some mobile networks and
+   antivirus proxies: it never errors, it just never connects, so the app sits there loading.
+   Auto-detect falls back to HTTP long-polling, which those middleboxes do pass. Must run
+   before ANY Firestore call, including enablePersistence. */
+var TRANSPORT={state:'auto-detect',code:''};
+try{ db.settings({experimentalAutoDetectLongPolling:true, useFetchStreams:false, merge:true}); }
+catch(e){ TRANSPORT.state='default'; TRANSPORT.code=(e&&e.message)||'settings rejected'; }
 try{
   db.enablePersistence().catch(function(err){ console.warn('Offline persistence not enabled:', err&&err.code); });
 }catch(e){ console.warn('Persistence setup skipped', e); }
@@ -1196,14 +1203,100 @@ function showLogin(){
   var b=document.getElementById('lbtn');if(b){b.disabled=false;b.textContent='Continue with Google';}
 }
 auth.onAuthStateChanged(function(user){if(user){showApp(user);}else if(!ready){showLogin();}});
-auth.getRedirectResult().then(function(r){if(r&&r.user)showApp(r.user);}).catch(function(){});
+auth.getRedirectResult().then(function(r){if(r&&r.user)showApp(r.user);})
+  .catch(function(e){ console.warn('redirect sign-in failed:', e&&e.code, e&&e.message); });
+/* ── Signing in on a phone ──
+   Only 'popup-blocked' used to be retried, so iOS died on
+   auth/operation-not-supported-in-this-environment with a bare error code and no way forward.
+   Two things cause that on a phone:
+     • an in-app browser (WhatsApp etc.) — Google refuses OAuth there outright
+     • localStorage being full — Firebase tests it, and this domain's ~5 MB is shared with
+       the Challan Manager, so its daily snapshots can use it all up
+   Both are now detected, and the second is repaired in place. On WebKit a failed popup is
+   NOT retried as a redirect: that route needs cross-site storage Safari denies, so it just
+   bounces you back to the login screen. */
+function ctBrowser(){
+  var ua=navigator.userAgent||'';
+  if(/iPad|iPhone|iPod/.test(ua)){
+    if(/CriOS/.test(ua))return'Chrome'; if(/EdgiOS/.test(ua))return'Edge';
+    if(/FxiOS/.test(ua))return'Firefox'; return'Safari';
+  }
+  if(/Edg\//.test(ua))return'Edge'; if(/SamsungBrowser/.test(ua))return'Samsung Internet';
+  if(/Firefox\//.test(ua))return'Firefox'; if(/Chrome\//.test(ua))return'Chrome';
+  if(/Safari\//.test(ua))return'Safari'; return'your browser';
+}
+function ctIsWebKit(){
+  var ua=navigator.userAgent||'';
+  if(/iPad|iPhone|iPod/.test(ua))return true;
+  return /Macintosh/.test(ua)&&/Safari\//.test(ua)&&!/Chrome|Chromium|Edg\//.test(ua);
+}
+function ctInApp(){
+  var ua=navigator.userAgent||'';
+  if(/FBAN|FBAV|FB_IAB|Instagram|Line\/|Twitter|MicroMessenger|WhatsApp|Snapchat|LinkedInApp/i.test(ua))return true;
+  return /iPad|iPhone|iPod/.test(ua)&&/AppleWebKit/.test(ua)&&!/Safari\//.test(ua)&&!/CriOS|FxiOS|EdgiOS/.test(ua);
+}
+function ctStorageOK(){ try{ localStorage.setItem('__t','1'); localStorage.removeItem('__t'); return true; }catch(e){ return false; } }
+/* Free space so Firebase's own storage test can pass. Only expendable copies are dropped:
+   the Challan Manager's daily snapshots (it rebuilds them) and this app's local cache. */
+function ctFreeSpace(){
+  var dropped=0;
+  try{
+    var keys=[];
+    for(var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); if(k&&k.indexOf('cm_snap_')===0) keys.push(k); }
+    keys.sort();
+    while(keys.length && !ctStorageOK()){ localStorage.removeItem(keys.shift()); dropped++; }
+    if(!ctStorageOK()){ try{ localStorage.removeItem(LS_KEY()); dropped++; }catch(e){} }
+  }catch(e){}
+  if(dropped) console.warn('freed', dropped, 'stored item(s) so sign-in can work');
+  return ctStorageOK();
+}
+function ctLoginHelp(title, body, btn){
+  var m=document.getElementById('lmsg'); if(!m) return;
+  m.style.background='#FFF7ED'; m.style.color='#9A3412'; m.style.padding='12px';
+  m.style.borderRadius='10px'; m.style.textAlign='left'; m.style.border='1.5px solid #FDBA74';
+  m.style.fontSize='12.5px'; m.style.lineHeight='1.6';
+  m.innerHTML='<div style="font-weight:800;margin-bottom:5px">'+title+'</div>'+body+(btn||'');
+}
 function doLogin(){
   var b=document.getElementById('lbtn'),m=document.getElementById('lmsg');
-  b.disabled=true;b.textContent='Opening Google...';m.textContent='';
+  if(ctInApp()){
+    ctLoginHelp('Open this page in Safari or Chrome',
+      'Google will not allow sign-in inside the mini-browser that WhatsApp and other apps use.',
+      '<div style="margin-top:8px;font-weight:700">Tap the share or \u22EF button, then <strong>Open in Safari</strong> — or <strong>Open in Chrome</strong> if that is the one you use.</div>');
+    return;
+  }
+  if(!ctStorageOK() && !ctFreeSpace()){
+    ctLoginHelp('This browser is blocking storage',
+      'Sign-in needs local storage. Turn off Private Browsing, or allow cookies and site data for this site, then try again.');
+    return;
+  }
+  b.disabled=true;b.textContent='Opening Google...';m.textContent='';m.removeAttribute('style');
   var p=new firebase.auth.GoogleAuthProvider();p.setCustomParameters({prompt:'select_account'});
   auth.signInWithPopup(p).then(function(r){if(r&&r.user)showApp(r.user);}).catch(function(e){
-    if(e.code==='auth/popup-blocked'){m.textContent='Redirecting...';auth.signInWithRedirect(p);}
-    else{b.disabled=false;b.textContent='Continue with Google';m.textContent='Error: '+e.code;}
+    var code=(e&&e.code)||'';
+    b.disabled=false;b.textContent='Continue with Google';
+    if(ctIsWebKit()){
+      var br=ctBrowser();
+      ctLoginHelp(br+' is blocking the sign-in window',
+        'Sign-in opens in a small window and '+br+' blocks it by default.'
+        +'<div style="margin-top:8px">'+(br==='Chrome'
+            ? 'In Chrome tap <strong>\u22EF</strong> \u2192 <strong>Settings</strong> \u2192 <strong>Content Settings</strong> \u2192 turn <strong>Block Pop-ups</strong> OFF.'
+            : 'Open <strong>Settings \u2192 Apps \u2192 Safari</strong> and turn <strong>Block Pop-ups</strong> OFF.')+'</div>',
+        '<button onclick="doLogin()" style="width:100%;margin-top:9px;padding:10px;border-radius:9px;border:none;background:#1F3864;color:#fff;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer">Try again</button>'
+        +'<div style="margin-top:6px;font-size:10.5px;opacity:.7">'+code+'</div>');
+      return;
+    }
+    if(code==='auth/popup-blocked'||code==='auth/popup-closed-by-user'||code==='auth/cancelled-popup-request'
+       ||code==='auth/operation-not-supported-in-this-environment'||code==='auth/web-storage-unsupported'
+       ||code==='auth/internal-error'){
+      m.textContent='Opening full page sign-in...';
+      auth.signInWithRedirect(p).catch(function(e2){
+        ctLoginHelp('Could not sign in','Please try again, or open this page in a normal browser tab.',
+          '<div style="margin-top:6px;font-size:10.5px;opacity:.7">'+((e2&&e2.code)||code)+'</div>');
+      });
+      return;
+    }
+    m.textContent='Error: '+code;
   });
 }
 function doLogout(){closeMenu();ready=false;loadedOnce=false;auth.signOut().then(function(){showLogin();});}
