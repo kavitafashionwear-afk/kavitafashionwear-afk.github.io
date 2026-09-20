@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script>
+(function(){function warn(){alert("You are offline. Editing is disabled until complete cloud records can be loaded. No offline changes will be uploaded.");}window.addEventListener("offline",warn);if(navigator.onLine===false)warn();})();
+</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Contractor Tracker - Modrobe Impex</title>
@@ -224,7 +227,7 @@ input:focus,select:focus{border-color:var(--n)}
   <div class="cs" id="cs-bin">
     <div class="pg">
       <div style="background:#FFF7ED;border:1px solid #FDE68A;border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:13px;color:#92400E">
-        🗑️ Items are soft-deleted here. Restore anytime or permanently delete. Auto-clears after 30 days.
+        🗑️ Items are soft-deleted here. Restore anytime or permanently delete. Recovery records are kept until you explicitly remove them.
       </div>
       <div id="bin-list"></div>
     </div>
@@ -256,6 +259,7 @@ input:focus,select:focus{border-color:var(--n)}
 
 <div class="umenu" id="um">
   <div class="umh"><div style="font-size:14px;font-weight:700" id="un"></div><div style="font-size:11px;color:#888" id="ue"></div></div>
+  <div class="umi" onclick="ctOpenRecovery()">💾 Backup &amp; Recovery</div>
   <div class="umi" onclick="openImport()">📥 Import from Excel</div>
   <div class="umi" onclick="goTab('items');closeMenu()">🏷️ Item Master</div>
   <div class="umi danger" onclick="doLogout()">🚪 Sign Out</div>
@@ -269,7 +273,7 @@ input:focus,select:focus{border-color:var(--n)}
     <div class="fg"><label>Item Name *</label><input id="ie-name" placeholder="e.g. Cotton Kurti"></div>
     <div class="fr"><div><label>Item Code</label><input id="ie-code" placeholder="e.g. CK101"></div>
     <div><label>Job Rate (Rs./pc) *</label><input id="ie-rate" type="number" inputmode="decimal" placeholder="0"></div></div>
-    <div id="ie-warn" style="display:none;font-size:11.5px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:9px;padding:9px 11px;margin-bottom:10px;color:#92400E"></div>
+    <div style="border:1px solid #ddd;border-radius:10px;padding:12px;margin-bottom:12px"><strong>Article designs</strong><p style="font-size:12px;color:#64748b">Designs are shared with Challan Manager. Enter job rates here; leave blank to use the article job rate. Existing lots keep their saved rates and design labels.</p><div style="display:grid;grid-template-columns:65px 1fr 100px;gap:8px;font-size:12px;margin-bottom:8px"><span>Code</span><span>Design name</span><span>Job rate</span></div><div id="ie-designs"></div><button class="btn sm" onclick="ctAddDesignDraft()">+ Add design</button></div><div id="ie-warn" style="display:none;font-size:11.5px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:9px;padding:9px 11px;margin-bottom:10px;color:#92400E"></div>
     <div style="display:flex;gap:8px;margin-top:6px">
       <button class="btn" style="flex:1;justify-content:center" onclick="closeItemEdit()">Cancel</button>
       <button class="btn pri" style="flex:2;justify-content:center" onclick="itemEditSave()">&#10003; Save Changes</button>
@@ -282,7 +286,7 @@ input:focus,select:focus{border-color:var(--n)}
 <div class="ov" id="mo-aL"><div class="mb"><div class="mh"></div>
   <div class="mhd"><h3>New Cutting Lot</h3><button class="xb" onclick="closeModal('aL')">&#10005;</button></div>
   <div class="mbd">
-    <div class="fr"><div><label>Contractor *</label><input id="fc" oninput="pvL()"></div><div><label>Item *</label><select id="fi" onchange="onLotItemPick('fi','fr')"></select></div></div>
+    <div class="fr"><div><label>Contractor *</label><input id="fc" oninput="pvL()"></div><div><label>Item *</label><select id="fi" onchange="onLotItemPick('fi','fr')"></select><div id="fi-design-wrap" style="margin-top:10px"><label>Article design</label><select id="fi-design" onchange="ctPickDesign('fi','fr')"></select></div></div></div>
     <div class="fg"><label>Contractor Contact No. <span style="color:#AAA;font-weight:400">(optional, for new)</span></label><input id="fcph" type="tel" inputmode="tel" placeholder="e.g. 98xxxxxxxx"></div>
     <div class="fr"><div><label>Pieces *</label><input id="fp" type="number" inputmode="numeric" oninput="pvL()"></div><div><label>Rate (Rs./pc) *</label><input id="fr" type="number" inputmode="decimal" oninput="pvL()"></div></div>
     <div class="fr"><div><label>Lot No. *</label><input id="fln" type="number" inputmode="numeric" placeholder="e.g. 1" oninput="pvL()"></div><div><label>Bags</label><input id="fbg" type="number" inputmode="numeric" placeholder="No. of bags" oninput="pvL()"></div></div>
@@ -321,7 +325,7 @@ input:focus,select:focus{border-color:var(--n)}
     <div id="alNewWrap" style="display:none">
       <div class="fr"><div><label>New Contractor Name *</label><input id="alc" placeholder="Contractor name"></div><div><label>Contact No.</label><input id="alcph" type="tel" inputmode="tel" placeholder="e.g. 98xxxxxxxx"></div></div>
     </div>
-    <div class="fg"><label>Item *</label><select id="ali" onchange="onLotItemPick('ali','alr')"></select></div>
+    <div class="fg"><label>Item *</label><select id="ali" onchange="onLotItemPick('ali','alr')"></select><div id="ali-design-wrap" style="margin-top:10px"><label>Article design</label><select id="ali-design" onchange="ctPickDesign('ali','alr')"></select></div></div>
     <div class="fr"><div><label>Pieces *</label><input id="alp" type="number" inputmode="numeric" oninput="pvAl()"></div><div><label>Rate (Rs./pc) *</label><input id="alr" type="number" inputmode="decimal" oninput="pvAl()"></div></div>
     <div class="fr"><div><label>Lot No. *</label><input id="alln" type="number" inputmode="numeric" placeholder="e.g. 1"></div><div><label>Date Issued *</label><input id="ald" type="date"></div></div>
     <div class="fg"><label>Remarks</label><input id="alm"></div>
@@ -334,7 +338,7 @@ input:focus,select:focus{border-color:var(--n)}
 <div class="ov" id="mo-eL"><div class="mb"><div class="mh"></div>
   <div class="mhd"><div><h3>&#9998; Edit Lot</h3><div style="font-size:12px;color:#888" id="els"></div></div><button class="xb" onclick="closeModal('eL')">&#10005;</button></div>
   <div class="mbd">
-    <div class="fr"><div><label>Contractor *</label><input id="ec" oninput="pvEL()"></div><div><label>Item *</label><select id="ei" onchange="onLotItemPick('ei','er')"></select></div></div>
+    <div class="fr"><div><label>Contractor *</label><input id="ec" oninput="pvEL()"></div><div><label>Item *</label><select id="ei" onchange="onLotItemPick('ei','er')"></select><div id="ei-design-wrap" style="margin-top:10px"><label>Article design</label><select id="ei-design" onchange="ctPickDesign('ei','er')"></select></div></div></div>
     <div class="fr"><div><label>Pieces *</label><input id="ep" type="number" inputmode="numeric" oninput="pvEL()"></div><div><label>Rate (Rs./pc) *</label><input id="er" type="number" inputmode="decimal" oninput="pvEL()"></div></div>
     <div class="fr"><div><label>Lot No. *</label><input id="eln" type="number" inputmode="numeric" placeholder="e.g. 1"></div><div><label>Bags</label><input id="ebg" type="number" inputmode="numeric" placeholder="No. of bags"></div></div>
     <div class="fg"><label>Date Issued *</label><input id="ed" type="date"></div>
@@ -451,26 +455,22 @@ input:focus,select:focus{border-color:var(--n)}
   <div class="mft" id="ift"><button class="btn" style="flex:1;justify-content:center" onclick="closeModal('imp')">Cancel</button></div>
 </div></div>
 
+
+<div id="ct-gate" role="alertdialog" aria-modal="true" style="display:none;position:fixed;inset:0;z-index:20000;background:#f1f5f9;align-items:center;justify-content:center;padding:24px"><div style="background:white;border-radius:18px;padding:28px;max-width:560px;width:100%;box-shadow:0 8px 40px #0002"><h2 id="ct-gate-title">Waiting for complete cloud records</h2><p id="ct-gate-detail"></p><pre id="ct-gate-list" style="line-height:1.9;white-space:pre-wrap"></pre><button class="btn pri" id="ct-retry" onclick="ctRetry()">Try again</button> <button class="btn" onclick="ctExport()">Download last complete JSON</button> <button class="btn" onclick="ctOpenRecovery()">Older backups</button><p style="font-size:12px;color:#64748b">Contractor Tracker · safety build 2026-09-20.2-designs</p></div></div>
+<div class="ov" id="mo-ct-backup" style="z-index:21000"><div class="mb" style="max-width:760px"><div class="mh"><h2>Backup &amp; Recovery</h2><button class="btn" onclick="closeModal('ct-backup')">Close</button></div><div class="mbd" style="padding:20px;overflow:auto;max-height:75vh"><p>Only complete, server-confirmed data is used for new snapshots. Browser copies never overwrite your cloud records.</p><button class="btn pri" onclick="ctExport()">Download complete JSON</button> <button class="btn" onclick="ctExportLegacy()">Download old local backup</button><h3>Daily browser copies</h3><p>One complete copy per day when this app is open and fully loaded. These are stored on this device; download copies to keep them outside the browser.</p><div id="ct-backup-list"></div><h3>Previous versions</h3><p>Edits and deletions keep the previous records alongside the same atomic save. Load the latest 100 versions only when needed.</p><button class="btn" onclick="ctLoadHistory()">Load recovery history</button><div id="ct-history-list"></div></div></div></div>
 <script>
-firebase.initializeApp({apiKey:"AIzaSyDRfRBzqdg8LCUjZKdGRNIsKCBszbtM7ok",authDomain:"challan-manager-85768.firebaseapp.com",projectId:"challan-manager-85768",storageBucket:"challan-manager-85768.firebasestorage.app",messagingSenderId:"667915790046",appId:"1:667915790046:web:92b61ba86c9facd620444f"});
-var auth=firebase.auth(),db=firebase.firestore();
-/* ── OFFLINE-FIRST: local cache so writes queue offline and auto-flush online ── */
-// Offline persistence keeps a local write queue so data entered offline (or on a flaky mobile
-// connection) is not lost — it syncs automatically when back online. Plain single-tab persistence
-// is the most widely-supported form across mobile browsers (synchronizeTabs fails on many of them).
-/* The SDK's default streaming channel is silently swallowed by some mobile networks and
-   antivirus proxies: it never errors, it just never connects, so the app sits there loading.
-   Auto-detect falls back to HTTP long-polling, which those middleboxes do pass. Must run
-   before ANY Firestore call, including enablePersistence. */
+var ctFirebaseApp=firebase.initializeApp({apiKey:"AIzaSyDRfRBzqdg8LCUjZKdGRNIsKCBszbtM7ok",authDomain:"challan-manager-85768.firebaseapp.com",projectId:"challan-manager-85768",storageBucket:"challan-manager-85768.firebasestorage.app",messagingSenderId:"667915790046",appId:"1:667915790046:web:92b61ba86c9facd620444f"},"contractor-online-safe-v1");
+var auth=firebase.auth(ctFirebaseApp),db=firebase.firestore(ctFirebaseApp);
+/* Read cache only. The isolated SDK namespace cannot replay the old app write queue. */
 var TRANSPORT={state:'auto-detect',code:''};
 try{ db.settings({experimentalAutoDetectLongPolling:true, useFetchStreams:false, merge:true}); }
 catch(e){ TRANSPORT.state='default'; TRANSPORT.code=(e&&e.message)||'settings rejected'; }
 try{
-  db.enablePersistence().catch(function(err){ console.warn('Offline persistence not enabled:', err&&err.code); });
+  db.enablePersistence({synchronizeTabs:true}).catch(function(err){ console.warn('Offline persistence not enabled:', err&&err.code); });
 }catch(e){ console.warn('Persistence setup skipped', e); }
 var isOnline=(typeof navigator!=='undefined')?navigator.onLine:true;
-window.addEventListener('online',function(){isOnline=true;if(typeof updateSyncUI==='function')updateSyncUI();});
-window.addEventListener('offline',function(){isOnline=false;if(typeof updateSyncUI==='function')updateSyncUI();});
+window.addEventListener('online',ctOnline);
+window.addEventListener('offline',ctOffline);
 var S={lots:[],pays:[],advances:[],contacts:{},lC:0,pC:0,aC:0,trash:[],items:[],itemMap:[],skills:[]},uid=null,unsubDB=null,ready=false,loadedOnce=false;
 var curTab='home',curCon=null,navStack=[],curFilter='ALL',rvId=null,eLId=null,eCName=null,impData=null;
 var AVC=['#1F3864','#065F46','#92400E','#6D28D9','#9D174D','#1E40AF','#047857'];
@@ -519,7 +519,7 @@ function nextAdvanceLot(name){var lots=contractorLots(name).filter(function(l){r
 function refreshLotStatus(lot){if(!lot)return;if(lot.piecesReceived==null||lot.piecesReceived===''){lot.status='PENDING';return;}lot.status=bal(lot)<=0.01?'SETTLED':'RECEIVED';}
 function refreshAllStatuses(){S.lots.forEach(refreshLotStatus);}
 function shareText(lot){
-  var lines=['Lot '+lot.id,'Contractor: '+lot.contractorName,'Item: '+lot.item,'Issued: '+fmtN(lot.piecesIssued)+' pcs on '+fmtD(lot.dateIssued)];
+  var lines=['Lot '+lot.id,'Contractor: '+lot.contractorName,'Item: '+ctLotArticle(lot),'Issued: '+fmtN(lot.piecesIssued)+' pcs on '+fmtD(lot.dateIssued)];
   if(lot.piecesReceived!=null)lines.push('Received: '+fmtN(lot.piecesReceived)+' pcs on '+fmtD(lot.dateReceived),'Payable: '+fmt(payable(lot)),'Paid: '+fmt(adv(lot.id)),'Balance: '+fmt(bal(lot)));
   else lines.push('Status: Pending receive','Payable: '+fmt(0));
   if(lot.remarks)lines.push('Remarks: '+lot.remarks);
@@ -653,6 +653,7 @@ function consumePoolForPays(rows){
 // the surplus into the contractor's advance pool — oldest settlement history is preserved.
 function moveOverpayToPool(lot,date){
   if(!lot)return 0;
+  ctMaterializeLegacy(lot);
   var over=Math.round((adv(lot.id)-payable(lot))*100)/100;
   if(over<=0.01)return 0;
   var surplus=over;
@@ -669,7 +670,7 @@ function moveOverpayToPool(lot,date){
     p.amount=Math.round((p.amount-cut)*100)/100;
     if(p.fromAdvance)removedAdv+=cut;
     over-=cut;
-    if(p.amount<0.01)S.pays=S.pays.filter(function(x){return x.id!==p.id;});
+    if(p.amount<0.01)S.pays=ctFilter("pays",function(x){return x.id!==p.id;});
   });
   // Money trimmed from fromAdvance rows simply returns to the pool it came from;
   // trimmed cash rows become a new advance record so nothing is lost from the books.
@@ -732,7 +733,7 @@ function releaseAdvFromLot(lid,amt){
     var cut=Math.min(left,p.amount);
     p.amount=Math.round((p.amount-cut)*100)/100;
     left-=cut;
-    if(p.amount<0.01)S.pays=S.pays.filter(function(x){return x.id!==p.id;});
+    if(p.amount<0.01)S.pays=ctFilter("pays",function(x){return x.id!==p.id;});
   });
   var released=Math.round((amt-left)*100)/100;
   if(released>0.01)unconsumeAdvance(lot.contractorName,released);
@@ -758,167 +759,163 @@ function paymentGroups(pays){
 function paymentAllocationText(group){
   return group.items.map(function(p){return (p.isAdvance?'Advance to ':'')+esc(lotLabelById(p.lotId))+' '+fmt(p.amount);}).join(' | ');
 }
-function cleanupTrash(){if(!S.trash)S.trash=[];var before=S.trash.length,cutoff=Date.now()-30*86400000;S.trash=S.trash.filter(function(item){var t=new Date(item.deletedAt).getTime();return !isNaN(t)&&t>=cutoff;});return S.trash.length!==before;}
-
-function sdot(s){var d=document.getElementById('sd');if(d){d.className='sdot'+(s==='busy'?' busy':s==='offline'?' offline':s==='err'?' err':'');d.title=s==='busy'?'Saving…':s==='offline'?'Offline — saved on this device, will sync when back online':s==='err'?'Sync issue — saved locally, will retry':'Synced ✓';}}
-function updateSyncUI(){sdot(isOnline?'ok':'offline');}
+/* Contractor Tracker safety build 2026-09-20.2-designs.
+   Cached reads are never editable. No direct Firestore writes, offline queue,
+   local-ledger restore, automatic reconciliation, migration, or backup pruning. */
+var CT_FIELDS={ct_lots:'lots',ct_pays:'pays',ct_advances:'advances',items:'items',itemmap:'itemMap'};
+var CT_META=['contacts','trash','skills','lC','pC','aC'];
+var ctStates={},ctBase={},ctMeta=null,ctSaving=false,ctEpoch=0,ctRevision=0,ctIntent={},ctJobs=[],ctTimer=null,ctLastComplete=null;
+var ctError='',ctHistory=[],ctUnsubs=[],ctHydrated=false;
+function ctClone(x){if(x==null||typeof x!=='object')return x;if(Array.isArray(x))return x.map(ctClone);if(x instanceof Date)return new Date(x.getTime());if(typeof x.toDate==='function')return x;var out=Object.create(null);Object.keys(x).forEach(function(k){out[k]=ctClone(x[k]);});return out;}
+function ctCanon(x){if(typeof x==='number'&&!Number.isFinite(x))return 'number:'+String(x);if(Array.isArray(x))return '['+x.map(ctCanon).join(',')+']';if(x&&typeof x==='object')return '{'+Object.keys(x).sort().map(function(k){return JSON.stringify(k)+':'+ctCanon(x[k]);}).join(',')+'}';return JSON.stringify(x);}
+function ctSame(a,b){return ctCanon(a)===ctCanon(b);}
+function _col(name){return db.collection('users').doc(uid).collection(name);}
+function ctKey(coll,x){if(!x||typeof x!=='object')throw Error('Invalid record in '+coll);if(coll==='itemmap'&&(typeof x.key!=='string'||!x.key.trim()))throw Error('Invalid item mapping key');var k=coll==='itemmap'?mapDocId(x):x.id;if(k==null||String(k)===''||String(k).indexOf('/')>=0)throw Error('Invalid record ID in '+coll);return String(k);}
+function ctValidate(x,path){if(typeof x==='number'&&!Number.isFinite(x))throw Error('Invalid number at '+path+'. Correct this value; nothing has been saved.');if(x&&typeof x==='object')Object.keys(x).forEach(function(k){ctValidate(x[k],path+'.'+k);});}
+function _clean(x){ctValidate(x,'record');return ctClone(x);}
+function cleanupTrash(){return false;}
 var LS_KEY=function(){return 'contractor_backup_'+(uid||'anon');};
-function saveLocal(){try{localStorage.setItem(LS_KEY(),JSON.stringify({lots:S.lots,pays:S.pays,advances:S.advances,contacts:S.contacts,lC:S.lC,pC:S.pC,aC:S.aC,trash:S.trash,items:S.items,itemMap:S.itemMap,skills:S.skills}));}catch(e){}}
-function loadLocal(){try{var raw=localStorage.getItem(LS_KEY());if(!raw)return false;var d=JSON.parse(raw);S.lots=(d.lots||[]).map(_repairLot);S.pays=d.pays||[];S.advances=d.advances||[];S.contacts=d.contacts||{};S.lC=d.lC||0;S.pC=d.pC||0;S.aC=d.aC||0;S.trash=d.trash||[];S.items=d.items||[];S.itemMap=d.itemMap||[];_itemCanonIdx=null;return true;}catch(e){return false;}}
-function flushPendingSave(){ /* no stale-push on reconnect; Firestore auto-flushes its own queue */ }
-
-/* ════════════════════════════════════════════════════════════════
-   PER-DOCUMENT STORAGE (multi-device offline safe)
-   Each lot / payment / advance is its OWN Firestore document, so two
-   devices editing DIFFERENT records offline write to DIFFERENT paths
-   and never overwrite each other. Contacts, trash and counters (low
-   frequency) live together in one small meta document.
-   Layout: users/{uid}/ct_lots|ct_pays|ct_advances/{id}
-           users/{uid}/ct_meta/state  { contacts, trash, lC, pC, aC }
-   (ct_ prefix keeps these separate from the other apps under the same account.)
-════════════════════════════════════════════════════════════════ */
-function _col(name){ return db.collection('users').doc(uid).collection(name); }
-var _lastSaved={ ct_lots:{}, ct_pays:{}, ct_advances:{}, items:{}, itemMap:{} };
-var _subLots=null,_subPays=null,_subAdv=null,_subMeta=null,_repairDone=false,_subItems=null,_subMap=null;
-// Recovery: tracks when each collection's REAL server data (not cache) has arrived, so we can
-// safely detect locally-entered records that never reached the cloud and restore them.
-var _lotsServerLoaded=false,_paysServerLoaded=false,_metaServerLoaded=false,_recoveryDone=false,_advServerLoaded=false,_advReconcileDone=false;
-function _indexById(arr,keyFn){ var m={}; (arr||[]).forEach(function(x){ if(!x)return; var k=keyFn?keyFn(x):x.id; if(k!=null)m[k]=x; }); return m; }
-function _clean(o){ return JSON.parse(JSON.stringify(o)); } // JSON drops undefined; null is preserved (Firestore accepts null). NEVER convert null→'' — that breaks "not received yet" markers.
-// Repair data corrupted by the earlier _clean bug (null→''). An empty string in a numeric/date
-// field means it was originally null ("not received yet"), so restore it. This is safe: the receive
-// flow always stores a real number, so '' can only have come from a null that got mangled.
-function _repairLot(lot){
-  if(!lot||typeof lot!=='object')return lot;
-  if(lot.piecesReceived==='' || lot.piecesReceived===undefined) lot.piecesReceived=null;
-  if(lot.dateReceived==='') lot.dateReceived=null;
-  if(lot.advancePaid==='') lot.advancePaid=null;
-  if(lot.receivals==='') lot.receivals=null;
-  // If genuinely not received, status must not be SETTLED/RECEIVED.
-  if(lot.piecesReceived==null && (lot.status==='SETTLED'||lot.status==='RECEIVED')) lot.status='PENDING';
-  return lot;
+function saveLocal(){} // Preserve old recovery copies without ever overwriting them.
+function loadLocal(){return false;}
+function flushPendingSave(){} // Reconnection reads only; no queued ledger writes.
+function ctComplete(){
+  if(!uid||!isOnline||navigator.onLine===false)return false;
+  if(!Object.keys(CT_FIELDS).concat('meta').every(function(k){return ctStates[k]&&ctStates[k].ok;}))return false;
+  if(!ctMeta&&['ct_lots','ct_pays','ct_advances'].some(function(k){return Object.keys(ctBase[k]||{}).length>0;})){ctError='Contractor settings are missing, although ledger records exist. Saving is blocked to protect your data.';return false;}
+  var heads=ctMeta&&ctMeta._ctHeads||{};
+  return Object.keys(heads).every(function(coll){return !CT_FIELDS[coll]||heads[coll].every(function(h){var row=(ctBase[coll]||{})[h.id];return h.deleted?!row:!!row&&row._ctVersion===h.version;});});
 }
-
-function subscribe(){
-  sdot('busy');
-  // Run the careful copy-only migration FIRST, then attach listeners (no empty flash).
-  migrateLegacyIfNeeded(function(){ attachListeners(); });
+function sdot(s){var d=document.getElementById('sd');if(d){d.className='sdot'+(s==='busy'?' busy':s==='offline'?' offline':s==='err'?' err':'');d.title=s==='busy'?'Waiting for server confirmation':s==='offline'?'Offline — editing disabled':s==='err'?'Cloud read or save blocked — see alert':'Server confirmed';}}
+function updateSyncUI(){ctGate();}
+function ctGate(){
+  loadedOnce=ctComplete()&&ctHydrated;
+  var gate=document.getElementById('ct-gate'),app=document.getElementById('pg-app'),fab=document.getElementById('fab');
+  if(app)app.style.visibility=uid&&!loadedOnce?'hidden':'visible';
+  if(fab)fab.style.visibility=uid&&(!loadedOnce||ctSaving)?'hidden':'visible';
+  if(gate){gate.style.display=uid&&(!loadedOnce||ctSaving)?'flex':'none';
+    document.getElementById('ct-gate-title').textContent=ctSaving?'Saving — wait for confirmation':!isOnline?'You are offline':'Waiting for complete cloud records';
+    document.getElementById('ct-gate-detail').textContent=ctSaving?'Do not close this page until the server confirms your change.':!isOnline?'Editing is disabled. Reconnect to load confirmed records. No offline changes will be uploaded.':ctError||'Figures and edits stay blocked until every required collection is confirmed by the server.';
+    document.getElementById('ct-gate-list').textContent=Object.keys(CT_FIELDS).concat('meta').map(function(k){var s=ctStates[k];return (s&&s.ok?'✓ ':'… ')+(CT_FIELDS[k]||'Settings')+(s&&s.error?' — '+s.error:'');}).join('\n');
+    document.getElementById('ct-retry').disabled=ctSaving;
+  }
+  sdot(ctSaving?'busy':!isOnline?'offline':loadedOnce?'ok':'err');
 }
-
-function attachListeners(){
-  var markLoaded=function(cache){
-    loadedOnce=true;
-    refreshAllStatuses();
-    reconcileCounters();
-    var cleaned=cleanupTrash();
-    saveLocal();
-    sdot(cache?(isOnline?'busy':'offline'):'ok');
-    render();
-    if(cleaned)save();
-  };
-  _subLots=_col('ct_lots').onSnapshot({includeMetadataChanges:true},function(snap){
-    var anyRepair=false;
-    S.lots=snap.docs.map(function(d){ var raw=d.data(); var fixed=_repairLot(JSON.parse(JSON.stringify(raw))); if(JSON.stringify(raw)!==JSON.stringify(fixed))anyRepair=true; return fixed; });
-    // Index _lastSaved from RAW so the repaired lots count as "changed" and get written back once.
-    _lastSaved.ct_lots=_indexById(snap.docs.map(function(d){return d.data();}));
-    markLoaded(snap.metadata&&snap.metadata.fromCache);
-    if(anyRepair && !_repairDone && loadedOnce && uid && isOnline){ _repairDone=true; console.log('Repairing lots corrupted by earlier null→empty bug (restoring not-received markers)…'); save(); }
-    if(snap.metadata && !snap.metadata.fromCache){ _lotsServerLoaded=true; tryRecover(); tryReconcileAdv(); }
-  },function(e){onSubErr('lots',e);});
-  _subPays=_col('ct_pays').onSnapshot({includeMetadataChanges:true},function(snap){
-    S.pays=snap.docs.map(function(d){return d.data();});
-    // Build the change-tracking baseline from SEPARATE deep copies, not the same object references —
-    // otherwise an in-place edit (e.g. consuming an advance) mutates the baseline too and diffWrite
-    // can't tell anything changed, so the edit never reaches the cloud.
-    _lastSaved.ct_pays=_indexById(snap.docs.map(function(d){return JSON.parse(JSON.stringify(d.data()));}));
-    markLoaded(snap.metadata&&snap.metadata.fromCache);
-    if(snap.metadata && !snap.metadata.fromCache){ _paysServerLoaded=true; tryRecover(); tryReconcileAdv(); }
-  },function(e){onSubErr('pays',e);});
-  _subAdv=_col('ct_advances').onSnapshot({includeMetadataChanges:true},function(snap){
-    S.advances=snap.docs.map(function(d){return d.data();});
-    _lastSaved.ct_advances=_indexById(snap.docs.map(function(d){return JSON.parse(JSON.stringify(d.data()));}));
-    markLoaded(snap.metadata&&snap.metadata.fromCache);
-    if(snap.metadata && !snap.metadata.fromCache){ _advServerLoaded=true; tryReconcileAdv(); }
-  },function(e){onSubErr('advances',e);});
-  /* ── SHARED Item Master (owned jointly with the Challan Manager) ──
-     Both apps live under users/{OWNER_UID}/ and read+write the SAME `items` and `itemmap`
-     collections. That is safe because every document is written independently and each app
-     rebuilds its diff baseline from the live snapshot — exactly the same situation as two
-     devices running one app. The Challan Manager remains the primary place items are created;
-     here you can map contractor lot spellings onto them. */
-  _subItems=_col('items').onSnapshot({includeMetadataChanges:true},function(snap){
-    S.items=snap.docs.map(function(d){return d.data();});
-    _lastSaved.items=_indexById(snap.docs.map(function(d){return JSON.parse(JSON.stringify(d.data()));}));
-    _itemCanonIdx=null; _tokDFCache=null;
-    markLoaded(snap.metadata&&snap.metadata.fromCache);
-  },function(e){onSubErr('items',e);});
-  _subMap=_col('itemmap').onSnapshot({includeMetadataChanges:true},function(snap){
-    S.itemMap=snap.docs.map(function(d){return d.data();});
-    _lastSaved.itemMap=_indexById(snap.docs.map(function(d){return JSON.parse(JSON.stringify(d.data()));}),mapDocId);
-    _itemCanonIdx=null; _tokDFCache=null;
-    markLoaded(snap.metadata&&snap.metadata.fromCache);
-  },function(e){onSubErr('itemmap',e);});
-  _subMeta=_col('ct_meta').doc('state').onSnapshot({includeMetadataChanges:true},function(snap){
-    if(snap.exists){var d=snap.data();S.contacts=d.contacts||{};S.trash=d.trash||[];S.skills=d.skills||[];S.lC=Math.max(S.lC||0,d.lC||0);S.pC=Math.max(S.pC||0,d.pC||0);S.aC=Math.max(S.aC||0,d.aC||0);}
-    markLoaded(snap.metadata&&snap.metadata.fromCache);
-    if(snap.metadata && !snap.metadata.fromCache){ _metaServerLoaded=true; tryRecover(); }
-  },function(e){onSubErr('meta',e);});
-  unsubDB=function(){ [_subLots,_subPays,_subAdv,_subItems,_subMap,_subMeta].forEach(function(u){try{u&&u();}catch(e){}}); };
+function ctCanEdit(){
+  if(ctSaving){alert('A save is still awaiting confirmation. Please wait.');return false;}
+  if(!ctComplete()||!ctHydrated){ctGate();alert('Cannot edit: the app must be online and all records must be server-confirmed.');return false;}
+  var stale=Array.from(document.querySelectorAll('.ov.show')).some(function(el){return el._ctRevision!=null&&el._ctRevision!==ctRevision;});
+  if(stale){alert('Cloud records changed while this window was open. Close it and reopen it before saving.');return false;}
+  return true;
 }
-
-function onSubErr(which,e){
-  console.warn('Read blocked ('+which+'):', e&&e.code);
-  if(!loadedOnce&&loadLocal())render();
-  sdot(isOnline?'err':'offline');
+function ctApply(){
+  Object.keys(CT_FIELDS).forEach(function(coll){S[CT_FIELDS[coll]]=Object.values(ctClone(ctBase[coll]||{}));});
+  CT_META.forEach(function(k){S[k]=ctMeta&&ctMeta[k]!==undefined?ctClone(ctMeta[k]):k==='contacts'?{}:['trash','skills'].includes(k)?[]:0;});
+  reconcileCounters();_itemCanonIdx=null;_tokDFCache=null;_imLotCountCache=null;
 }
-
-// Keep counters ahead of the highest existing display number (offline devices may drift).
-function reconcileCounters(){
-  var mx=function(arr,re){return (arr||[]).reduce(function(m,x){var a=re.exec(String(x.dispNo!=null?x.dispNo:''));var b=re.exec(x.id||'');var v=parseInt((a&&a[1])||(b&&b[1])||0,10);return v>m?v:m;},0);};
-  S.lC=Math.max(S.lC||0, mx(S.lots,/(\d+)/));
-  S.pC=Math.max(S.pC||0, mx(S.pays,/(\d+)/));
-  S.aC=Math.max(S.aC||0, mx(S.advances,/(\d+)/));
-}
-
-function diffWrite(coll,arr,lastIndex,keyFn){
-  var nowIndex={};
-  (arr||[]).forEach(function(item){
-    if(!item)return;
-    // Shared collections (itemmap) key their documents by a derived id, not a stored .id field.
-    var _k=keyFn?keyFn(item):item.id;
-    if(_k==null||_k==='')return;
-    var id=String(_k); nowIndex[id]=item;
-    var prev=lastIndex[id];
-    if(!prev||JSON.stringify(prev)!==JSON.stringify(item))
-      _col(coll).doc(id).set(_clean(item)).catch(function(e){console.warn(coll+' write deferred:',e&&e.code);});
-  });
-  Object.keys(lastIndex).forEach(function(id){ if(!(id in nowIndex)) _col(coll).doc(id).delete().catch(function(e){console.warn(coll+' delete deferred:',e&&e.code);}); });
-  Object.keys(lastIndex).forEach(function(k){delete lastIndex[k];});
-  // Deep-copy the baseline. NEVER keep live references here — an in-place edit would mutate the
-  // baseline too, diffWrite would see "no change", and the edit would never reach Firestore.
-  Object.keys(nowIndex).forEach(function(id){ lastIndex[id]=JSON.parse(JSON.stringify(nowIndex[id])); });
-}
-
-function save(){
-  if(!uid)return;
-  if(!loadedOnce){ sdot(isOnline?'err':'offline'); console.warn('Save skipped — initial cloud read not confirmed (data left untouched).'); return; }
-  saveLocal();
-  sdot(isOnline?'busy':'offline');
-  refreshAllStatuses();
+function ctSchedule(){clearTimeout(ctTimer);ctTimer=setTimeout(function(){ctGate();if(ctComplete()&&!ctSaving){ctApply();ctLastComplete={_app:'contractor-tracker',schema:1,ownerUid:uid,confirmedAt:new Date().toISOString(),collections:ctClone(ctBase),meta:ctClone(ctMeta)};ctHydrated=true;ctGate();ctKeepBackup(ctLastComplete);render();}},40);}
+function ctAccept(coll,snap){
+  var md=snap.metadata||{};
+  if(md.fromCache!==false||md.hasPendingWrites!==false){ctStates[coll]={ok:false,error:md.fromCache?'Awaiting server':'Unconfirmed writes'};ctGate();return;}
   try{
-    diffWrite('ct_lots',     S.lots,     _lastSaved.ct_lots);
-    diffWrite('ct_pays',     S.pays,     _lastSaved.ct_pays);
-    diffWrite('ct_advances', S.advances, _lastSaved.ct_advances);
-    diffWrite('items',       S.items,     _lastSaved.items);
-    diffWrite('itemmap',     S.itemMap,   _lastSaved.itemMap,   mapDocId);
-    _col('ct_meta').doc('state').set(_clean({ contacts:S.contacts||{}, trash:S.trash||[], skills:S.skills||[], lC:S.lC||0, pC:S.pC||0, aC:S.aC||0, updated:new Date().toISOString() }))
-      .then(function(){sdot(isOnline?'ok':'offline');})
-      .catch(function(e){console.warn('meta write deferred:',e&&e.code);sdot(isOnline?'err':'offline');});
-  }catch(e){ console.warn('save threw:',e); sdot(isOnline?'err':'offline'); }
+    var next;
+    if(coll==='meta')next=snap.exists?snap.data():null;
+    else{next=Object.create(null);snap.docs.forEach(function(doc){var row=doc.data(),key=ctKey(coll,row);if(key!==doc.id)throw Error('Stored ID does not match document ID in '+coll);if(Object.prototype.hasOwnProperty.call(next,key))throw Error('Duplicate ID');next[key]=ctClone(row);});}
+    var previous=coll==='meta'?ctMeta:ctBase[coll];
+    if(!ctSame(previous,next)){
+      var expected=coll==='meta'?ctJobs.find(function(j){return j.coll==='ct_meta';}):null;
+      var own=ctSaving&&(coll==='meta'?expected&&ctSame(next,expected.data):Object.keys(Object.assign({},previous||{},next||{})).every(function(id){if(ctSame((previous||{})[id],next[id]))return true;var j=ctJobs.find(function(j){return j.coll===coll&&j.id===id;});return j&&ctSame(next[id]||null,j.data||null);}));
+      if(!own){ctRevision++;ctHydrated=false;}
+    }
+    if(coll==='meta')ctMeta=ctClone(next);else ctBase[coll]=next;
+    ctStates[coll]={ok:true};ctError='';ctGate();ctSchedule();
+  }catch(e){ctReadError(coll,e);}
 }
+function ctReadError(coll,e){ctStates[coll]={ok:false,error:e.code||e.message||'Read failed'};ctRevision++;ctError='Records could not be fully read. Editing is blocked; no automatic repair or upload will run.';ctGate();}
+function subscribe(){
+  if(ctSaving)return; if(unsubDB)unsubDB();
+  var epoch=++ctEpoch,owner=uid;ctRevision++;ctHydrated=false;loadedOnce=false;ctStates={};ctIntent={};ctBase={};ctMeta=null;ctError='';
+  ctUnsubs=[];
+  Object.keys(CT_FIELDS).forEach(function(coll){ctUnsubs.push(_col(coll).onSnapshot({includeMetadataChanges:true},function(s){if(epoch===ctEpoch&&owner===uid)ctAccept(coll,s);},function(e){if(epoch===ctEpoch&&owner===uid)ctReadError(coll,e);}));});
+  ctUnsubs.push(_col('ct_meta').doc('state').onSnapshot({includeMetadataChanges:true},function(s){if(epoch===ctEpoch&&owner===uid)ctAccept('meta',s);},function(e){if(epoch===ctEpoch&&owner===uid)ctReadError('meta',e);}));
+  unsubDB=function(){ctUnsubs.forEach(function(u){u();});ctUnsubs=[];};ctGate();
+}
+function ctRetry(){if(uid&&!ctSaving)subscribe();}
+function ctOffline(){isOnline=false;ctHydrated=false;ctRevision++;Object.keys(ctStates).forEach(function(k){ctStates[k].ok=false;});ctGate();}
+function ctOnline(){isOnline=true;if(uid&&!ctSaving)subscribe();else ctGate();}
+function ctFilter(field,predicate){
+  var coll=Object.keys(CT_FIELDS).find(function(k){return CT_FIELDS[k]===field;});
+  return S[field].filter(function(x,i,a){var keep=predicate(x,i,a);if(!keep)ctIntent[coll+'/'+ctKey(coll,x)]=true;return keep;});
+}
+function reconcileCounters(){var mx=function(a){return a.reduce(function(m,x){var match=String(x.dispNo!=null?x.dispNo:(/^(LOT|PAY|ADV)-\d+$/.test(x.id||'')?x.id:'')).match(/\d+/);return Math.max(m,match?Number(match[0]):0);},0);};S.lC=Math.max(S.lC||0,mx(S.lots));S.pC=Math.max(S.pC||0,mx(S.pays));S.aC=Math.max(S.aC||0,mx(S.advances));}
+function ctBytes(x){return new TextEncoder().encode(JSON.stringify(x)).length;}
+function ctDiff(coll,arr){
+  if(!Array.isArray(arr))throw Error('Missing '+coll+' records.');
+  var now=Object.create(null),old=ctBase[coll]||{},jobs=[];
+  arr.forEach(function(x){var id=ctKey(coll,x);if(Object.prototype.hasOwnProperty.call(now,id))throw Error('Duplicate '+coll+' ID: '+id);now[id]=x;if(!ctSame(old[id],x)){ctValidate(x,coll+'/'+id);if(ctBytes(x)>900000)throw Error('Record too large: '+coll+'/'+id);jobs.push({coll:coll,id:id,prev:ctClone(old[id]||null),data:ctClone(x)});}});
+  Object.keys(old).forEach(function(id){if(!Object.prototype.hasOwnProperty.call(now,id)){if(!ctIntent[coll+'/'+id])throw Error('Stopped an unrequested deletion in '+coll+'. Missing records are never treated as a delete request.');jobs.push({coll:coll,id:id,prev:ctClone(old[id]),data:null});}});
+  return jobs;
+}
+async function save(){
+  if(ctSaving)return false;
+  if(!ctCanEdit()){ctIntent={};ctApply();return false;}
+  var owner=uid,epoch=ctEpoch,revision=ctRevision,jobs=[],failed=false;
+  try{
+    Object.keys(CT_FIELDS).forEach(function(coll){jobs.push.apply(jobs,ctDiff(coll,S[CT_FIELDS[coll]]));});
+    var meta=ctClone(ctMeta)||{},metaChanged=false;
+    CT_META.forEach(function(k){if(!ctSame(meta[k],S[k]))metaChanged=true;meta[k]=ctClone(S[k]);});
+    if(!jobs.length&&!metaChanged){ctIntent={};return true;}
+    ctValidate(meta,'settings');
+    var commit=uniqId('CT'),at=new Date().toISOString();
+    meta._ctRevision=commit;meta.updated=at;meta._ctHeads=ctClone(meta._ctHeads)||{};
+    ['ct_lots','ct_pays','ct_advances'].forEach(function(coll){var changed=jobs.filter(function(j){return j.coll===coll;});if(changed.length)meta._ctHeads[coll]=changed.map(function(j){if(j.data)j.data._ctVersion=commit;return {id:j.id,deleted:!j.data,version:commit};});});
+    jobs.push({coll:'ct_meta',id:'state',prev:ctClone(ctMeta),data:meta});
+    jobs.forEach(function(j,i){if(j.prev)j.history={kind:'history',id:commit+'-'+i,operation:commit,createdAt:at,collection:j.coll,recordId:j.id,reason:j.data?'Before edit':'Before deletion',record:ctClone(j.prev)};});
+    if(jobs.reduce(function(n,j){return n+1+(j.history?1:0);},0)>450||jobs.reduce(function(n,j){return n+ctBytes(j.data||{})+ctBytes(j.history||{});},0)>6000000)throw Error('This action is too large for one safe transaction. Use a smaller selection or import.');
+    jobs.forEach(function(j){if(ctBytes(j.data||{})>900000||ctBytes(j.history||{})>950000)throw Error('Record or recovery copy is too large. Nothing was saved.');});
+    ctJobs=jobs;ctSaving=true;ctGate();
+    var root=db.collection('users').doc(owner);
+    await db.runTransaction(async function(tx){
+      if(!ctComplete()||uid!==owner||epoch!==ctEpoch||revision!==ctRevision)throw Error('Connection, account or records changed. Reopen the form and retry.');
+      var refs=jobs.map(function(j){return root.collection(j.coll).doc(j.id);});
+      var snaps=await Promise.all(refs.map(function(ref){return tx.get(ref);}));
+      snaps.forEach(function(s,i){if(!ctSame(s.exists?s.data():null,jobs[i].prev))throw Error('Another device changed '+jobs[i].coll+'/'+jobs[i].id+'. Your save was stopped to protect the newer record.');});
+      if(!ctComplete()||uid!==owner||epoch!==ctEpoch||revision!==ctRevision)throw Error('Cloud state changed during save. Nothing was submitted.');
+      jobs.forEach(function(j,i){if(j.history)tx.set(root.collection('ct_meta').doc('history_'+j.history.id),j.history);if(j.data)tx.set(refs[i],j.data);else tx.delete(refs[i]);});
+    });
+    if(uid!==owner||epoch!==ctEpoch)return false;
+    jobs.forEach(function(j){if(j.coll==='ct_meta'){if(ctSame(ctMeta,j.prev)||ctSame(ctMeta,j.data))ctMeta=ctClone(j.data);}else{var baseline=ctBase[j.coll];if(ctSame(baseline[j.id]||null,j.prev)||ctSame(baseline[j.id]||null,j.data)){if(j.data)baseline[j.id]=ctClone(j.data);else delete baseline[j.id];}}});
+    ctIntent={};ctApply();ctHydrated=true;return true;
+  }catch(e){failed=true;ctError=e.message||String(e);ctIntent={};ctApply();alert('Save was not confirmed.\n\n'+ctError+'\n\nThe app will reload server records before allowing another change.');return false;}
+  finally{ctSaving=false;ctJobs=[];ctGate();if(failed&&uid&&isOnline)subscribe();else ctSchedule();}
+}
+// Complete snapshots are recovery sources only. IndexedDB never supplies editable data.
+function ctBackupDB(){return new Promise(function(resolve,reject){if(!window.indexedDB){reject(Error('Browser backup storage unavailable'));return;}var r=indexedDB.open('ct-confirmed-backups-v1',1);r.onupgradeneeded=function(){r.result.createObjectStore('snapshots');};r.onsuccess=function(){resolve(r.result);};r.onerror=function(){reject(r.error);};});}
+var ctBackupDay='',ctBackupWarned=false;
+async function ctKeepBackup(data){var day=new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'}),key=data.ownerUid+'/'+day;if(ctBackupDay===key)return;ctBackupDay=key;try{var handle=await ctBackupDB();await new Promise(function(resolve,reject){var tx=handle.transaction('snapshots','readwrite'),store=tx.objectStore('snapshots'),r=store.get(key);r.onsuccess=function(){if(!r.result)store.put(data,key);};tx.oncomplete=resolve;tx.onerror=function(){reject(tx.error);};tx.onabort=function(){reject(tx.error);};});handle.close();}catch(e){ctBackupDay='';console.warn('Recovery snapshot unavailable',e);if(!ctBackupWarned){ctBackupWarned=true;alert('This browser could not keep a daily recovery copy. Use Backup & Recovery to download a JSON backup. Cloud saves still require confirmation.');}}}
+function ctDownload(data,name){var blob=new Blob([JSON.stringify(data,function(k,v){return typeof v==='number'&&!Number.isFinite(v)?{_ctNonFinite:String(v)}:v;},2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(function(){URL.revokeObjectURL(url);},1000);}
+function ctExport(){var data=ctComplete()&&!ctSaving?{_app:'contractor-tracker',schema:1,ownerUid:uid,confirmedAt:new Date().toISOString(),collections:ctClone(ctBase),meta:ctClone(ctMeta)}:ctLastComplete;if(!data||data.ownerUid!==uid){alert('No complete snapshot is available in this session. Open Backup & Recovery for older browser copies.');return;}ctDownload(data,'contractor-confirmed-'+data.confirmedAt.slice(0,10)+'.json');}
+async function ctOpenRecovery(){closeMenu();var el=document.getElementById('mo-ct-backup');el._ctRevision=ctRevision;el._ctRevision=ctRevision;el.classList.add('show');el.style.display='flex';document.getElementById('ct-backup-list').textContent='Loading browser copies…';try{var handle=await ctBackupDB();var rows=await new Promise(function(resolve,reject){var tx=handle.transaction('snapshots','readonly'),r=tx.objectStore('snapshots').getAll();r.onsuccess=function(){resolve(r.result);};r.onerror=function(){reject(r.error);};});handle.close();window.ctBackupRows=rows.filter(function(r){return r.ownerUid===uid;}).sort(function(a,b){return b.confirmedAt.localeCompare(a.confirmedAt);});document.getElementById('ct-backup-list').innerHTML=ctBackupRows.map(function(r,i){return '<p>'+esc(r.confirmedAt)+' <button class="btn sm" onclick="ctDownload(ctBackupRows['+i+'],\'contractor-backup.json\')">Download JSON</button></p>';}).join('')||'No daily browser copies yet.';}catch(e){document.getElementById('ct-backup-list').textContent='Browser copies unavailable. Download a complete cloud snapshot while online.';}}
+async function ctLoadHistory(){if(!ctComplete()||ctSaving){alert('Connect and load every collection first.');return;}var owner=uid;try{var snap=await _col('ct_meta').orderBy('createdAt','desc').limit(100).get({source:'server'});if(uid!==owner)return;ctHistory=snap.docs.map(function(d){return d.data();}).filter(function(x){return x.kind==='history';});document.getElementById('ct-history-list').innerHTML=ctHistory.map(function(h,i){return '<p>'+esc(h.createdAt)+' · '+esc(h.collection+'/'+h.recordId)+' · '+esc(h.reason)+' <button class="btn sm" onclick="ctDownload(ctHistory['+i+'],\'contractor-record-history.json\')">Download</button></p>';}).join('')||'No saved previous versions yet.';}catch(e){alert('Could not read recovery history: '+(e.code||e.message));}}
+function ctExportLegacy(){var raw=localStorage.getItem(LS_KEY());if(!raw){alert('No old local backup found for this account.');return;}try{ctDownload(JSON.parse(raw),'contractor-legacy-unverified.json');}catch(e){alert('The old backup could not be decoded. It has been left untouched.');}}
+function tryReconcileAdv(){if(ctComplete())checkUnallocated();}
+function reconcileAdvanceUsage(){} // Never change money during loading/rendering.
+function tryRecover(){}
+function recoverUnsynced(){}
+function migrateLegacyIfNeeded(done){if(done)done();} // Legacy records remain untouched.
+window.addEventListener('beforeunload',function(e){if(ctSaving){e.preventDefault();e.returnValue='Save awaiting server confirmation';}});
 
-// Only run reconciliation once the real server data for both pays and advances has arrived.
-function tryReconcileAdv(){ if(_paysServerLoaded && _advServerLoaded) reconcileAdvanceUsage(); if(_lotsServerLoaded && _paysServerLoaded && _advServerLoaded) checkUnallocated(); }
+function ctMaterializeLegacy(lot){
+  var value=Number(lot.advancePaid||0);if(!value)return;
+  if(!Number.isFinite(value)||value<0)throw Error('Invalid legacy payment on '+lot.id);
+  S.pC++;S.pays.push({id:uniqId('PAY'),dispNo:S.pC,lotId:lot.id,contractorName:lot.contractorName,date:lot.dateReceived||lot.dateIssued||td(),amount:value,mode:'Legacy payment',remarks:'Preserved from the original lot payment field'});delete lot.advancePaid;
+}
+function ctCheckRestore(item){
+  var lots=item.type==='lot'?[item.lot]:item.lots||[],pays=item.pays||[];
+  if(lots.some(function(l){var live=S.lots.find(function(x){return x.id===l.id;});return live&&!ctSame(live,l);})||pays.some(function(p){var live=S.pays.find(function(x){return x.id===p.id;});return live&&!ctSame(live,p);})){alert('Some IDs already have different live records. Restore stopped; the recycle-bin copy is retained.');return false;}
+  var amounts=Object.create(null);
+  pays.forEach(function(p){if(p.fromAdvance&&!S.pays.some(function(x){return x.id===p.id;})){var lot=lots.concat(S.lots).find(function(l){return l.id===p.lotId;}),name=p.contractorName||(lot&&lot.contractorName)||'';amounts[name]=(amounts[name]||0)+p.amount;}});
+  if(Object.keys(amounts).some(function(n){return !n||contractorAdvancePool(n)+0.005<amounts[n];})){alert('The advance money released by this deletion has since been used elsewhere. Restore stopped to prevent counting it twice. The recycle-bin copy is retained.');return false;}return true;
+}
 
 // ── RECONCILIATION: DIAGNOSIS BEFORE MUTATION ───────────────────────────
 // detectUnallocatedPays is PURE — it never modifies data. It finds every payment record that
@@ -970,7 +967,7 @@ function showReconBanner(n){
 }
 function openRecon(){
   renderRecon();
-  var el=document.getElementById('mo-recon');el.classList.add('show');el.style.display='flex';
+  var el=document.getElementById('mo-recon');el._ctRevision=ctRevision;el.classList.add('show');el.style.display='flex';
 }
 function _issueLabel(x){
   if(x.kind==='overpaid')return 'Lot '+lotLabelById(x.lotId)+' is paid '+fmt(x.amount)+' ABOVE its payable';
@@ -1025,7 +1022,7 @@ function _reconApplyPool(t){ // no confirm — callers confirm
   var lot=S.lots.find(function(x){return x.id===pay.lotId;});
   var name=lot?lot.contractorName:(pay.contractorName||'');
   if(!name)return false;
-  S.pays=S.pays.filter(function(x){return x.id!==pay.id;});
+  S.pays=ctFilter("pays",function(x){return x.id!==pay.id;});
   if(pay.fromAdvance)unconsumeAdvance(name,pay.amount);
   else{
     S.aC=(S.aC||0)+1;
@@ -1033,16 +1030,20 @@ function _reconApplyPool(t){ // no confirm — callers confirm
   }
   return true;
 }
-function reconMovePool(key){
+async function reconMovePool(key){
+  if(!ctCanEdit())return;
+
   var t=_reconFind(key);if(!t)return;
   var amt=t.kind==='legacy'?+t.lot.advancePaid:t.pay.amount;
   var name=t.kind==='legacy'?t.lot.contractorName:(function(){var l=S.lots.find(function(x){return x.id===t.pay.lotId;});return l?l.contractorName:(t.pay.contractorName||'');})();
   if(!name){alert('Cannot attribute this record to a contractor — it names no contractor and its lot is gone. Leave it or delete it.');return;}
   var pool=contractorAdvancePool(name);
   if(!confirm('Move '+fmt(amt)+' to '+name+"'s Advance Pool?\n\nPool: "+fmt(pool)+' → '+fmt(pool+amt)+'.\nA dated ledger entry with the lot reference will be recorded.'))return;
-  if(_reconApplyPool(t)){refreshAllStatuses();save();render();if(curCon)renderDet(curCon);renderRecon();}
+  if(_reconApplyPool(t)){refreshAllStatuses();if(!await save())return;render();if(curCon)renderDet(curCon);renderRecon();}
 }
-function reconDelete(key){
+async function reconDelete(key){
+  if(!ctCanEdit())return;
+
   var t=_reconFind(key);if(!t)return;
   if(t.kind==='legacy'){
     if(!confirm('Delete the legacy advance figure of '+fmt(+t.lot.advancePaid)+' on '+lotLabel(t.lot)+'?\n\nIt will NOT go to the Advance Pool — it is treated as an erroneous entry and removed from the books.'))return;
@@ -1050,20 +1051,24 @@ function reconDelete(key){
   }else{
     if(t.pay.fromAdvance){alert('⭐ pool settlements cannot be deleted outright — return them to the pool instead so the pool stays balanced.');return;}
     if(!confirm('Delete this '+fmt(t.pay.amount)+' payment record ('+fmtD(t.pay.date)+')?\n\nIt will NOT go to the Advance Pool — it is treated as an erroneous/duplicate entry and removed from the books.'))return;
-    S.pays=S.pays.filter(function(x){return x.id!==t.pay.id;});
+    S.pays=ctFilter("pays",function(x){return x.id!==t.pay.id;});
   }
-  refreshAllStatuses();save();render();if(curCon)renderDet(curCon);renderRecon();
+  refreshAllStatuses();if(!await save())return;render();if(curCon)renderDet(curCon);renderRecon();
 }
-function reconFixOverpay(lid){
+async function reconFixOverpay(lid){
+  if(!ctCanEdit())return;
+
   var lot=S.lots.find(function(x){return x.id===lid;});if(!lot)return;
   var over=Math.round((adv(lid)-payable(lot))*100)/100;
   if(over<=0.01){renderRecon();return;}
   var pool=contractorAdvancePool(lot.contractorName);
   if(!confirm(lotLabel(lot)+' is paid '+fmt(over)+' above its payable of '+fmt(payable(lot))+'.\n\nThe excess will be trimmed from this lot\u2019s CASH payments first (⭐ advance settlements stay unless cash cannot absorb it) and moved to '+lot.contractorName+"'s Advance Pool.\n\nPool: "+fmt(pool)+' → '+fmt(pool+over)+'.\n\nContinue?'))return;
   moveOverpayToPool(lot,td());
-  refreshAllStatuses();save();render();if(curCon)renderDet(curCon);renderRecon();
+  refreshAllStatuses();if(!await save())return;render();if(curCon)renderDet(curCon);renderRecon();
 }
-function reconAllPool(){
+async function reconAllPool(){
+  if(!ctCanEdit())return;
+
   var issues=detectUnallocatedPays().filter(function(x){return x.name;});
   if(!issues.length)return;
   var tot=issues.reduce(function(s,x){return s+x.amount;},0);
@@ -1077,126 +1082,15 @@ function reconAllPool(){
     var t=_reconFind(x.kind==='legacy'?('legacy|'+x.lotId):('pay|'+x.payId));
     if(t)_reconApplyPool(t);
   });
-  refreshAllStatuses();save();render();if(curCon)renderDet(curCon);renderRecon();
+  refreshAllStatuses();if(!await save())return;render();if(curCon)renderDet(curCon);renderRecon();
 }
 
 // Repair advances whose `used` was not saved earlier (the diffWrite-baseline bug). For each
 // contractor, the total of their "Advance Adjustment" payments is exactly how much of their
 // advances should be marked used. If less is currently marked used, apply only the difference —
 // so already-correct advances are never double-counted.
-function reconcileAdvanceUsage(){
-  if(_advReconcileDone || !uid || !isOnline || !loadedOnce) return;
-  _advReconcileDone=true;
-  var byContractor={};
-  (S.pays||[]).forEach(function(p){ if(p && p.fromAdvance){ var n=p.contractorName||''; byContractor[n]=(byContractor[n]||0)+(+p.amount||0); } });
-  var changed=false;
-  Object.keys(byContractor).forEach(function(name){
-    var target=Math.round(byContractor[name]*100)/100;
-    var advs=contractorAdvances(name);
-    var current=Math.round(advs.reduce(function(s,a){return s+(+a.used||0);},0)*100)/100;
-    var missing=Math.round((target-current)*100)/100;
-    if(missing>0.01){ consumeAdvance(name, missing); changed=true; }
-    else if(missing<-0.01){ unconsumeAdvance(name, -missing); changed=true; } // heal pool leaked by old delete paths
-  });
-  // Contractors whose fromAdvance pays were ALL deleted don't appear in byContractor — release their pool too.
-  var seen={}; Object.keys(byContractor).forEach(function(n){seen[n]=true;});
-  (S.advances||[]).forEach(function(a){
-    if(!a||seen[a.contractorName])return; seen[a.contractorName]=true;
-    var current=Math.round(contractorAdvances(a.contractorName).reduce(function(s,x){return s+(+x.used||0);},0)*100)/100;
-    if(current>0.01){ unconsumeAdvance(a.contractorName,current); changed=true; }
-  });
-  if(changed){ console.log('Reconciling advance-pool usage that was not saved by the earlier version…'); refreshAllStatuses(); render(); save(); }
-}
-
-// Only run recovery once the REAL server data for lots, pays AND meta(trash) has arrived — so we
-// never mistake "not loaded yet" for "missing" and never overwrite newer cloud data.
-function tryRecover(){ if(_lotsServerLoaded && _paysServerLoaded && _metaServerLoaded) recoverUnsynced(); }
-
-// Restore records that exist in this device's local backup but never made it to the cloud
-// (e.g. a write that didn't finish before the app closed on a flaky connection). Deleted lots
-// live in the recycle bin, so we skip anything sitting there — nothing deleted gets resurrected.
-function recoverUnsynced(){
-  if(_recoveryDone || !uid || !isOnline || !loadedOnce) return;
-  _recoveryDone=true;
-  var bk; try{ var raw=localStorage.getItem(LS_KEY()); if(!raw) return; bk=JSON.parse(raw); }catch(e){ return; }
-  if(!bk || !Array.isArray(bk.lots)) return;
-  var cloudLotIds={}; (S.lots||[]).forEach(function(l){ if(l&&l.id!=null) cloudLotIds[String(l.id)]=true; });
-  /* Collect EVERY lot id sitting in the recycle bin, across both entry shapes:
-       type:'lot'        -> a single deleted lot in t.lot
-       type:'contractor' -> a whole contractor, with all their lots in t.lots[]
-     Missing the contractor shape meant every lot of a deleted contractor looked "un-synced" and
-     was pushed straight back in from the local backup on the next load — the contractor
-     reappeared after every refresh. */
-  var trashedLotIds={};
-  (S.trash||[]).forEach(function(t){
-    if(!t) return;
-    if(t.lot && t.lot.id!=null) trashedLotIds[String(t.lot.id)]=true;
-    if(Array.isArray(t.lots)) t.lots.forEach(function(l){ if(l && l.id!=null) trashedLotIds[String(l.id)]=true; });
-  });
-  // Payments belonging to a trashed contractor must not be resurrected either.
-  var trashedPayIds={};
-  (S.trash||[]).forEach(function(t){
-    if(!t) return;
-    if(Array.isArray(t.pays)) t.pays.forEach(function(p){ if(p && p.id!=null) trashedPayIds[String(p.id)]=true; });
-  });
-  var recoveredLots=[], recIdSet={};
-  (bk.lots||[]).forEach(function(l){ if(!l||l.id==null) return; var id=String(l.id);
-    if(!cloudLotIds[id] && !trashedLotIds[id]){ recoveredLots.push(_repairLot(JSON.parse(JSON.stringify(l)))); recIdSet[id]=true; } });
-  var cloudPayIds={}; (S.pays||[]).forEach(function(p){ if(p&&p.id!=null) cloudPayIds[String(p.id)]=true; });
-  var recoveredPays=[];
-  (bk.pays||[]).forEach(function(p){ if(!p||p.id==null) return;
-    if(trashedPayIds[String(p.id)]) return;
-    if(recIdSet[String(p.lotId)] && !cloudPayIds[String(p.id)]) recoveredPays.push(JSON.parse(JSON.stringify(p))); });
-  if(recoveredLots.length || recoveredPays.length){
-    console.log('Recovering '+recoveredLots.length+' un-synced lot(s) + '+recoveredPays.length+' payment(s) from local backup…');
-    recoveredLots.forEach(function(l){ S.lots.push(l); });
-    recoveredPays.forEach(function(p){ S.pays.push(p); });
-    reconcileCounters(); refreshAllStatuses(); render(); save();
-  }
-}
-
-/* Copy-only migration from old contractor/main → per-document. Calls done() when finished.
-   The old document is NEVER modified or deleted (kept as a permanent backup). Partly-paid
-   lots get _recheck:true so you can verify each once after migrating. */
-function migrateLegacyIfNeeded(done){
-  done=done||function(){};
-  var legacy=db.collection('users').doc(uid).collection('contractor').doc('main');
-  var flag=_col('ct_meta').doc('migration');
-  flag.get().then(function(fs){
-    if(fs.exists&&fs.data().done){ done(); return; }
-    legacy.get().then(function(snap){
-      if(!snap.exists){ flag.set({done:true,note:'nothing',at:new Date().toISOString()}); done(); return; }
-      var d=snap.data();
-      _col('ct_lots').limit(1).get().then(function(probe){
-        if(!probe.empty){ flag.set({done:true,note:'already-present',at:new Date().toISOString()}); done(); return; }
-        var lots=d.lots||[], pays=d.pays||[], advances=d.advances||[];
-        if(!lots.length&&!pays.length&&!advances.length){ flag.set({done:true,note:'empty',at:new Date().toISOString()}); done(); return; }
-        console.log('Migrating',lots.length,'lots (copy-only; old data left untouched)…');
-        // Count payments per lot so partially-paid lots can be flagged for one-time review.
-        var payByLot={}; pays.forEach(function(p){ if(p&&p.lotId){(payByLot[p.lotId]=payByLot[p.lotId]||[]).push(p);} });
-        var writes=[];
-        lots.forEach(function(l){
-          if(!l||l.id==null)return;
-          var copy=_clean(l);
-          var paid=(payByLot[l.id]||[]).reduce(function(s,p){return s+(+p.amount||0);},0);
-          var payable=(l.piecesReceived!=null)?(l.piecesReceived*l.rate):0;
-          // Flag lots that are received and only partly paid (balance remaining) for verification.
-          if(l.piecesReceived!=null && paid>0 && paid < payable-0.01) copy._recheck=true;
-          writes.push(_col('ct_lots').doc(String(l.id)).set(copy));
-        });
-        pays.forEach(function(p){ if(p&&p.id!=null) writes.push(_col('ct_pays').doc(String(p.id)).set(_clean(p))); });
-        advances.forEach(function(a){ if(a&&a.id!=null) writes.push(_col('ct_advances').doc(String(a.id)).set(_clean(a))); });
-        writes.push(_col('ct_meta').doc('state').set(_clean({ contacts:d.contacts||{}, trash:d.trash||[], lC:d.lC||0, pC:d.pC||0, aC:d.aC||0, updated:new Date().toISOString() })));
-        Promise.all(writes).then(function(){ flag.set({done:true,note:'migrated',lots:lots.length,at:new Date().toISOString()}); console.log('Migration complete. Old data preserved untouched at contractor/main.'); })
-          .catch(function(e){ console.warn('migration write deferred:',e&&e.code); });
-        done();
-      }).catch(function(e){ console.warn('migration probe failed:',e&&e.code); done(); });
-    }).catch(function(e){ console.warn('legacy read skipped:',e&&e.code); done(); });
-  }).catch(function(e){ console.warn('migration flag read skipped:',e&&e.code); done(); });
-}
-
 function showApp(user){
-  if(!user)return;uid=user.uid;ready=true;
+  if(!user)return;if(uid===user.uid&&unsubDB)return;ctLastComplete=null;ctBackupDay="";uid=user.uid;ready=true;
   document.getElementById('pg-load').style.display='none';
   document.getElementById('pg-login').style.display='none';
   document.getElementById('pg-app').style.display='block';
@@ -1212,7 +1106,8 @@ function showApp(user){
   subscribe();
 }
 function showLogin(){
-  ready=false;uid=null;if(unsubDB){unsubDB();unsubDB=null;}
+  document.querySelectorAll('.ov.show').forEach(function(e){e.classList.remove('show');e.style.display='none';});ctHistory=[];window.ctBackupRows=[];
+  ready=false;loadedOnce=false;ctEpoch++;ctRevision++;ctLastComplete=null;ctStates={};ctBase={};ctMeta=null;uid=null;ctGate();if(unsubDB){unsubDB();unsubDB=null;}
   document.getElementById('pg-load').style.display='none';
   document.getElementById('pg-app').style.display='none';
   document.getElementById('fab').style.display='none';
@@ -1220,7 +1115,7 @@ function showLogin(){
   document.getElementById('lmsg').textContent='';
   var b=document.getElementById('lbtn');if(b){b.disabled=false;b.textContent='Continue with Google';}
 }
-auth.onAuthStateChanged(function(user){if(user){showApp(user);}else if(!ready){showLogin();}});
+auth.onAuthStateChanged(function(user){if(user){showApp(user);}else{showLogin();}});
 auth.getRedirectResult().then(function(r){if(r&&r.user)showApp(r.user);})
   .catch(function(e){ console.warn('redirect sign-in failed:', e&&e.code, e&&e.message); });
 /* ── Signing in on a phone ──
@@ -1230,7 +1125,7 @@ auth.getRedirectResult().then(function(r){if(r&&r.user)showApp(r.user);})
      • an in-app browser (WhatsApp etc.) — Google refuses OAuth there outright
      • localStorage being full — Firebase tests it, and this domain's ~5 MB is shared with
        the Challan Manager, so its daily snapshots can use it all up
-   Both are now detected, and the second is repaired in place. On WebKit a failed popup is
+   Both are detected; recovery copies are preserved when storage is full. On WebKit a failed popup is
    NOT retried as a redirect: that route needs cross-site storage Safari denies, so it just
    bounces you back to the login screen. */
 function ctBrowser(){
@@ -1254,28 +1149,8 @@ function ctInApp(){
   return /iPad|iPhone|iPod/.test(ua)&&/AppleWebKit/.test(ua)&&!/Safari\//.test(ua)&&!/CriOS|FxiOS|EdgiOS/.test(ua);
 }
 function ctStorageOK(){ try{ localStorage.setItem('__t','1'); localStorage.removeItem('__t'); return true; }catch(e){ return false; } }
-/* Free space so Firebase's own storage test can pass. Only expendable copies are dropped:
-   the Challan Manager's daily snapshots (it rebuilds them) and this app's local cache. */
-function ctFreeSpace(){
-  var dropped=0;
-  try{
-    // Oldest, most expendable first: the Challan Manager's daily snapshots, then either app's
-    // local cache. All of these are rebuilt from the cloud on the next load, so nothing is lost.
-    var tiers=[[],[],[]];
-    for(var i=0;i<localStorage.length;i++){
-      var k=localStorage.key(i); if(!k) continue;
-      if(k.indexOf('cm_snap_')===0) tiers[0].push(k);
-      else if(k.indexOf('challan_backup_')===0) tiers[1].push(k);
-      else if(k.indexOf('ct_backup_')===0 || k.indexOf('contractor_backup_')===0) tiers[2].push(k);
-    }
-    tiers[0].sort();
-    for(var t=0;t<tiers.length && !ctStorageOK();t++){
-      while(tiers[t].length && !ctStorageOK()){ localStorage.removeItem(tiers[t].shift()); dropped++; }
-    }
-  }catch(e){}
-  if(dropped) console.warn('freed', dropped, 'cached item(s) so sign-in can work');
-  return ctStorageOK();
-}
+/* Storage checks never discard recovery copies. */
+function ctFreeSpace(){return ctStorageOK();} // Recovery copies are never pruned to make room.
 function ctLoginHelp(title, body, btn){
   var m=document.getElementById('lmsg'); if(!m) return;
   m.style.background='#FFF7ED'; m.style.color='#9A3412'; m.style.padding='12px';
@@ -1334,7 +1209,7 @@ function doLogin(){
     m.textContent='Error: '+code;
   });
 }
-function doLogout(){closeMenu();ready=false;loadedOnce=false;auth.signOut().then(function(){showLogin();});}
+function doLogout(){if(ctSaving){alert("Wait for the save result before signing out.");return;}closeMenu();ready=false;loadedOnce=false;auth.signOut().then(function(){showLogin();});}
 
 function toggleMenu(){document.getElementById('um').classList.toggle('open');}
 function closeMenu(){document.getElementById('um').classList.remove('open');}
@@ -1371,11 +1246,13 @@ document.addEventListener('click',function(e){
 });
 
 // Clear the part-payment "recheck" flag once you've verified the lot's paid/balance is correct.
-function verifyLot(id){
+async function verifyLot(id){
+  if(!ctCanEdit())return;
+
   var lot=S.lots.find(function(l){return l.id===id;});
   if(!lot)return;
   delete lot._recheck;
-  save();render();
+  if(!await save())return;render();
 }
 function recheckCount(){return (S.lots||[]).filter(function(l){return l._recheck;}).length;}
 
@@ -1403,6 +1280,7 @@ function openContractor(name){
 function goBack(){goTab(navStack.pop()||'home');}
 
 function render(){
+  if(!ctComplete()||!ctHydrated||ctSaving){ctGate();return;}
   if(curTab==='home')renderHome();
   else if(curTab==='con')renderCon();
   else if(curTab==='lots')renderLots();
@@ -1541,17 +1419,23 @@ function addItemMapping(key,raw,itemId){
   if(i!==-1) S.itemMap[i]=rec; else S.itemMap.push(rec);
   _itemCanonIdx=null;
 }
-function mapOne(key,itemId){
+async function mapOne(key,itemId){
+  if(!ctCanEdit())return;
+
   var h=scanLotItems().find(function(x){ return x.key===key; });
   addItemMapping(key,h?h.raw:key,itemId);
-  save(); renderIM();
+  if(!await save())return; renderIM();
 }
-function removeItemMapping(key){
+async function removeItemMapping(key){
+  if(!ctCanEdit())return;
+
   if(!confirm('Remove this mapping?\n\n"'+key+'" becomes an unmapped name again. Lots are not changed.')) return;
-  S.itemMap=(S.itemMap||[]).filter(function(m){ return m.key!==key; });
-  _itemCanonIdx=null; save(); renderIM();
+  S.itemMap=ctFilter("itemMap",function(m){ return m.key!==key; });
+  _itemCanonIdx=null; if(!await save())return; renderIM();
 }
-function bulkMapSelected(){
+async function bulkMapSelected(){
+  if(!ctCanEdit())return;
+
   var target=document.getElementById('im-bulk').value;
   if(!target){ alert('Choose the Item Master record to map them to.'); return; }
   var keys=Object.keys(imSel).filter(function(k){ return imSel[k]; });
@@ -1560,13 +1444,15 @@ function bulkMapSelected(){
   if(!confirm('Map '+keys.length+' name'+(keys.length===1?'':'s')+' to "'+(it?it.name:'')+'"?\n\nLots are not changed. Every mapping can be removed later.')) return;
   var scan=scanLotItems();
   keys.forEach(function(k){ var h=scan.find(function(x){ return x.key===k; }); addItemMapping(k,h?h.raw:k,target); });
-  imSel={}; save(); renderIM();
+  imSel={}; if(!await save())return; renderIM();
 }
 function toggleIMSel(k){ imSel[k]=!imSel[k]; renderIM(); }
 function imSelectShown(){ imFiltered().forEach(function(h){ imSel[h.key]=true; }); renderIM(); }
 
 /* ── Item record mutations ── */
-function imAddItem(){
+async function imAddItem(){
+  if(!ctCanEdit())return;
+
   var name=document.getElementById('im-name').value.trim();
   var code=document.getElementById('im-code').value.trim();
   var rateRaw=document.getElementById('im-rate').value;
@@ -1583,9 +1469,11 @@ function imAddItem(){
   document.getElementById('im-name').value='';
   document.getElementById('im-code').value='';
   document.getElementById('im-rate').value='';
-  save(); renderIM();
+  if(!await save())return; renderIM();
 }
-function createItemFromName(key){
+async function createItemFromName(key){
+  if(!ctCanEdit())return;
+
   var h=scanLotItems().find(function(x){ return x.key===key; }); if(!h) return;
   var dup=findDupItem(h.raw,null);
   if(dup){ alert('An item named "'+dup.name+'" already exists. Map it instead.'); return; }
@@ -1595,14 +1483,14 @@ function createItemFromName(key){
   var id=uniqId('IT');
   S.items.push({ id:id, name:h.raw, code:'', rate:0, jobRate:rate });
   _itemCanonIdx=null;
-  save(); renderIM();
+  if(!await save())return; renderIM();
 }
 
 /* ── Edit modal ── */
 var imEditId=null;
 function openItemEdit(id){
   var it=(S.items||[]).find(function(x){ return x&&x.id===id; }); if(!it) return;
-  imEditId=id;
+  imEditId=id;ctEditDesigns(it);
   document.getElementById('ie-name').value=it.name||'';
   document.getElementById('ie-code').value=it.code||'';
   document.getElementById('ie-rate').value=itemJobRate(it);
@@ -1610,11 +1498,13 @@ function openItemEdit(id){
   var lots=(S.lots||[]).filter(function(l){ if(!l||l.kind==='fabric')return false; var c=itemCanon(l.item); return c&&c.id===id; }).length;
   var maps=(S.itemMap||[]).filter(function(m){ return m&&m.itemId===id; }).length;
   document.getElementById('ie-usage').textContent='Used by '+lots+' lot'+(lots===1?'':'s')+' · '+maps+' mapped keyword'+(maps===1?'':'s')+'  ·  sale rate '+fmt(+it.rate||0)+' (set in Challan Manager)';
-  var el=document.getElementById('mo-iE'); el.classList.add('show'); el.style.display='flex';
+  var el=document.getElementById('mo-iE'); el._ctRevision=ctRevision;el.classList.add('show'); el.style.display='flex';
   setTimeout(function(){ var n=document.getElementById('ie-name'); if(n){ n.focus(); n.select(); } },60);
 }
 function closeItemEdit(){ imEditId=null; var el=document.getElementById('mo-iE'); el.classList.remove('show'); el.style.display='none'; }
-function itemEditSave(){
+async function itemEditSave(){
+  if(!ctCanEdit())return;
+
   var it=(S.items||[]).find(function(x){ return x&&x.id===imEditId; }); if(!it){ closeItemEdit(); return; }
   var name=document.getElementById('ie-name').value.trim();
   var code=document.getElementById('ie-code').value.trim();
@@ -1627,6 +1517,7 @@ function itemEditSave(){
   if(rate<0) return bad('Rate cannot be negative.');
   var dup=findDupItem(name,imEditId);
   if(dup) return bad('An item named "'+dup.name+'" already exists.');
+  if(!ctValidateDesignDraft())return;
   var oldName=it.name||'';
   if(normIName(oldName)!==normIName(name)){
     // itemCanon resolves by exact name first, so a rename orphans lots still carrying the old text.
@@ -1641,14 +1532,16 @@ function itemEditSave(){
   // New object (never mutate in place), but built by COPYING the existing record first: `rate`
   // is the Challan Manager's sale rate and any future field it adds must survive a save here.
   var next={}; Object.keys(it).forEach(function(k){ next[k]=it[k]; });
-  next.id=imEditId; next.name=name; next.code=code; next.jobRate=rate;
+  next.id=imEditId; next.name=name; next.code=code; next.jobRate=rate;next.designs=ctClone(ctDesignDraft);next.dzSeq=Math.max(Number(it.dzSeq)||0,...ctDesignDraft.map(function(d){return ctDesignOrdinal(String(d.code).toUpperCase());}));
   if(next.rate==null) next.rate=0;
   S.items[i]=next;
   (S.itemMap||[]).forEach(function(m,mi){ if(m&&m.itemId===imEditId&&m.itemName!==name) S.itemMap[mi]={key:m.key,raw:m.raw,itemId:m.itemId,itemName:name}; });
   _itemCanonIdx=null;
-  save(); closeItemEdit(); renderIM();
+  if(!await save())return; closeItemEdit(); renderIM();
 }
-function itemEditDelete(){
+async function itemEditDelete(){
+  if(!ctCanEdit())return;
+
   var id=imEditId, it=(S.items||[]).find(function(x){ return x&&x.id===id; }); if(!it) return;
   var lots=(S.lots||[]).filter(function(l){ if(!l||l.kind==='fabric')return false; var c=itemCanon(l.item); return c&&c.id===id; }).length;
   var maps=(S.itemMap||[]).filter(function(m){ return m&&m.itemId===id; }).length;
@@ -1656,9 +1549,9 @@ function itemEditDelete(){
   if(lots) msg+='\n\n'+lots+' lot'+(lots===1?'':'s')+' resolve to this item and will become unmapped — their pieces drop out of stock until remapped.';
   if(maps) msg+='\n\n'+maps+' mapped keyword'+(maps===1?'':'s')+' will point at a deleted item.';
   if(!confirm(msg)) return;
-  S.items=S.items.filter(function(x){ return x&&x.id!==id; });
+  S.items=ctFilter("items",function(x){ return x&&x.id!==id; });
   _itemCanonIdx=null;
-  save(); closeItemEdit(); renderIM();
+  if(!await save())return; closeItemEdit(); renderIM();
 }
 
 /* ── Render ── */
@@ -1716,10 +1609,12 @@ function designRateOf(sk, dname){
   if(d && +d.rate>0) return +d.rate;
   return (sk && +sk.rate>0) ? +sk.rate : 0;
 }
-function _skillSave(fn){
+async function _skillSave(fn){
+  if(!ctCanEdit())return;
+
   if(!Array.isArray(S.skills)) S.skills=[];
   fn(S.skills);
-  save(); renderIM();
+  if(!await save())return; renderIM();
 }
 function addSkill(){
   var nm=(document.getElementById('sk-name')||{}).value||'';
@@ -1814,7 +1709,7 @@ function imTabsHTML(){
 }
 function renderIMMaster(el){
   var q=normIName(imSearch);
-  var list=imSortList((S.items||[]).filter(function(it){ return !q || normIName(it.name).indexOf(q)!==-1 || normIName(it.code).indexOf(q)!==-1; }));
+  var list=imSortList((S.items||[]).filter(function(it){ return !q || normIName(it.name).indexOf(q)!==-1 || normIName(it.code).indexOf(q)!==-1 || ctDesigns(it).some(function(d){return normIName((d.name||'')+' '+d.code).indexOf(q)!==-1;}); }));
   el.innerHTML=imTabsHTML()
     +'<div class="ibox blue" style="font-size:11.5px;margin-bottom:12px">Shared with the Challan Manager — items added or edited here appear there too, and vice versa.</div>'
     +'<div style="background:#fff;border:1px solid #ECECEC;border-radius:12px;padding:14px;margin-bottom:12px">'
@@ -1843,7 +1738,7 @@ function renderIMMaster(el){
       return '<div style="background:#fff;border:1px solid #ECECEC;border-radius:11px;padding:11px 13px;margin-bottom:7px;display:flex;align-items:center;gap:10px">'
         +'<div style="flex:1;min-width:0">'
           +'<div style="font-size:13.5px;font-weight:700;color:#1F3864">'+esc(it.name)+(it.code?' <span style="font-size:10px;color:#2563EB;background:#EFF6FF;border:1px solid #BFDBFE;padding:1px 7px;border-radius:8px;font-weight:700">'+esc(it.code)+'</span>':'')+'</div>'
-          +'<div style="font-size:11px;color:#888;margin-top:2px">Job rate: '+(itemJobRate(it)?'<strong style="color:#059669">Rs.'+itemJobRate(it)+'/pc</strong>':'<strong style="color:#DC2626">not set</strong>')+' · '+imLotCount(it.id)+' lot'+(imLotCount(it.id)===1?'':'s')+'</div>'
+          +'<div style="font-size:11px;color:#888;margin-top:2px">Job rate: '+(itemJobRate(it)?'<strong style="color:#059669">Rs.'+itemJobRate(it)+'/pc</strong>':'<strong style="color:#DC2626">not set</strong>')+' · '+ctDesigns(it).length+' designs · '+imLotCount(it.id)+' lot'+(imLotCount(it.id)===1?'':'s')+'</div>'
         +'</div>'
         +'<button class="btn sm" onclick="openItemEdit(\''+it.id+'\')" style="font-size:11px">✏️ Edit</button>'
       +'</div>';
@@ -2131,7 +2026,7 @@ function lotCard(lot,showCon){
   var recheckBadge=lot._recheck?'<div style="background:#FEF3C7;border:1px solid #FDE68A;border-radius:8px;padding:6px 10px;margin-bottom:10px;font-size:11px;color:#92400E;font-weight:600">⚠ Part-payment — please verify the paid/balance is correct, then tap “✓ Verified”.</div>':'';
   var recheckBtn=lot._recheck?'<button class="btn sm" style="color:#92400E;border-color:#FDE68A;background:#FFFBEB" data-action="verifyLot" data-id="'+esc(lot.id)+'">✓ Verified</button>':'';
   return '<div class="lc">'+
-    '<div class="lch"><div style="display:flex;align-items:center;gap:8px"><span class="lid">'+esc(lotLabel(lot))+'</span><div><div class="lname">'+(showCon?esc(lot.contractorName):esc(lot.item))+kindBadge+'</div><div class="lsub">'+(showCon?esc(lot.item):fmtD(lot.dateIssued))+'</div></div></div><span class="sbdg sp-'+lot.status+'">'+lot.status+'</span></div>'+
+    '<div class="lch"><div style="display:flex;align-items:center;gap:8px"><span class="lid">'+esc(lotLabel(lot))+'</span><div><div class="lname">'+(showCon?esc(lot.contractorName):esc(ctLotArticle(lot)))+kindBadge+'</div><div class="lsub">'+(showCon?esc(ctLotArticle(lot)):fmtD(lot.dateIssued))+'</div></div></div><span class="sbdg sp-'+lot.status+'">'+lot.status+'</span></div>'+
     recheckBadge+
     allotBanner+allotOutNote+
     '<div class="lnums">'+
@@ -2213,7 +2108,7 @@ function openModal(t){
     document.getElementById('pay-seltotal').textContent='Rs.0';
     document.getElementById('pay-advnote').style.display='none';
   }
-  var el=document.getElementById('mo-'+t);el.classList.add('show');el.style.display='flex';
+  var el=document.getElementById('mo-'+t);el._ctRevision=ctRevision;el.classList.add('show');el.style.display='flex';
 }
 function openPayFor(name){
   openModal('aP');
@@ -2252,7 +2147,7 @@ function openRv(lid){
   document.getElementById('rbg').value='';
   document.getElementById('radv').value='';
   document.getElementById('rvp').style.display='none';
-  var el=document.getElementById('mo-rv');el.classList.add('show');el.style.display='flex';
+  var el=document.getElementById('mo-rv');el._ctRevision=ctRevision;el.classList.add('show');el.style.display='flex';
 }
 function renderReceivalParts(){
   var lot=S.lots.find(function(l){return l.id===rvId;});
@@ -2286,8 +2181,8 @@ function addReceivalPart(){
   renderReceivalParts();
 }
 function removeReceivalPart(i){stagedReceivals.splice(i,1);renderReceivalParts();}
-function openEL(lid){eLId=lid;var lot=S.lots.find(function(l){return l.id===lid;});if(!lot)return;document.getElementById('els').textContent=lid;document.getElementById('eln').value=lot.lotNumber||'';document.getElementById('ebg').value=lot.bags||'';document.getElementById('ec').value=lot.contractorName;fillItemSelect('ei',lot.item);document.getElementById('ep').value=lot.piecesIssued;document.getElementById('er').value=lot.rate;document.getElementById('ed').value=lot.dateIssued;document.getElementById('em').value=lot.remarks||'';document.getElementById('elp').style.display='none';var el=document.getElementById('mo-eL');el.classList.add('show');el.style.display='flex';}
-function openEC(name){eCName=name;document.getElementById('ecs').textContent=name;document.getElementById('en').value=name;document.getElementById('enph').value=getContact(name);var el=document.getElementById('mo-eC');el.classList.add('show');el.style.display='flex';}
+function openEL(lid){eLId=lid;var lot=S.lots.find(function(l){return l.id===lid;});if(!lot)return;document.getElementById('els').textContent=lid;document.getElementById('eln').value=lot.lotNumber||'';document.getElementById('ebg').value=lot.bags||'';document.getElementById('ec').value=lot.contractorName;fillItemSelect('ei',lot.item);ctFillDesign('ei',lot);document.getElementById('ep').value=lot.piecesIssued;document.getElementById('er').value=lot.rate;document.getElementById('ed').value=lot.dateIssued;document.getElementById('em').value=lot.remarks||'';document.getElementById('elp').style.display='none';var el=document.getElementById('mo-eL');el._ctRevision=ctRevision;el.classList.add('show');el.style.display='flex';}
+function openEC(name){eCName=name;document.getElementById('ecs').textContent=name;document.getElementById('en').value=name;document.getElementById('enph').value=getContact(name);var el=document.getElementById('mo-eC');el._ctRevision=ctRevision;el.classList.add('show');el.style.display='flex';}
 
 /* ── Item selection on lots ──
    Lots pick their item from the shared Item Master instead of free text, so every lot resolves
@@ -2295,6 +2190,40 @@ function openEC(name){eCName=name;document.getElementById('ecs').textContent=nam
    the item NAME, keeping older lots and the itemCanon() resolver working unchanged.
    `jobRate` is this app's manufacturing rate — deliberately separate from `rate`, which is the
    Challan Manager's sale rate. The two must never overwrite each other. */
+// Article designs share the Challan Manager schema. Job rates are separate from sale rates.
+function ctAttr(v){return esc(v).replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+function ctDesigns(it){return it&&Array.isArray(it.designs)?it.designs:[];}
+function ctDesignCode(it,d){return (it&&it.code?it.code+'-':'')+d.code;}
+function ctDesignJobRate(it,d){return d&&d.jobRate!==''&&d.jobRate!=null?Number(d.jobRate):itemJobRate(it);}
+function ctLotArticle(lot){return (lot.item||'')+(lot.kind!=='fabric'&&lot.designCode?' — '+(lot.designName||lot.designCode)+' ['+(lot.designFullCode||lot.designCode)+']':'');}
+function ctSelectedArticle(selId){var el=document.getElementById(selId);return S.items.find(function(x){return x.id===el.value;})||null;}
+function ctFillDesign(selId,old){
+  var it=ctSelectedArticle(selId),el=document.getElementById(selId+'-design'),wrap=document.getElementById(selId+'-design-wrap');if(!el)return;
+  var list=ctDesigns(it),fabric=old&&old.kind==='fabric';
+  el._old=old?ctClone(old):null;el._itemId=it?it.id:'';
+  var keep=old&&!fabric&&(!old.itemId||old.itemId===(it&&it.id));
+  el._allowBlank=!!(keep&&!old.designCode);
+  el.innerHTML='<option value="">'+(el._allowBlank?'Not recorded on this existing lot':list.length?'Select design…':'No designs — article only')+'</option>'+list.map(function(d){return '<option value="'+ctAttr(d.code)+'">'+esc(ctDesignCode(it,d))+(d.name?' · '+esc(d.name):'')+' · Job Rs.'+ctDesignJobRate(it,d)+'</option>';}).join('');
+  if(keep&&old.designCode&&!list.some(function(d){return d.code===old.designCode;}))el.innerHTML+='<option value="'+ctAttr(old.designCode)+'">'+esc(old.designName||old.designCode)+' (saved design)</option>';
+  el.value=keep&&old.designCode||'';el.disabled=!!fabric;wrap.style.display=fabric?'none':'block';
+}
+function ctPickDesign(selId,rateId){var it=ctSelectedArticle(selId),code=document.getElementById(selId+'-design').value,d=ctDesigns(it).find(function(x){return x.code===code;});if(it)document.getElementById(rateId).value=ctDesignJobRate(it,d)||'';if(selId==='fi')pvL();else if(selId==='ei')pvEL();else pvAl();}
+function ctDesignSelection(selId){
+  var el=document.getElementById(selId+'-design'),it=ctSelectedArticle(selId),old=el._old,code=el.value;
+  if(old&&old.kind==='fabric')return {};
+  if(!code){if(ctDesigns(it).length&&!el._allowBlank){alert('Select a design for this article.');return null;}return {itemId:it?it.id:(old&&old.itemId||''),designCode:'',designName:'',designFullCode:''};}
+  if(old&&old.designCode===code&&el._itemId===(it?it.id:''))return {itemId:old.itemId||(it&&it.id)||'',designCode:old.designCode,designName:old.designName||'',designFullCode:old.designFullCode||old.designCode};
+  var d=ctDesigns(it).find(function(x){return x.code===code;});
+  if(!d){if(old&&old.designCode===code&&el._itemId===(it?it.id:''))return {itemId:old.itemId||(it&&it.id)||'',designCode:old.designCode,designName:old.designName||'',designFullCode:old.designFullCode||old.designCode};alert('This design is no longer available for the selected article. Reopen the lot form.');return null;}
+  return {itemId:it.id,designCode:d.code,designName:d.name||'',designFullCode:ctDesignCode(it,d)};
+}
+var ctDesignDraft=[];
+function ctEditDesigns(it){ctDesignDraft=ctClone(ctDesigns(it));ctRenderDesignDraft();}
+function ctRenderDesignDraft(){var el=document.getElementById('ie-designs');el.innerHTML=ctDesignDraft.map(function(d,i){return '<div style="display:grid;grid-template-columns:65px 1fr 100px;gap:8px;margin-bottom:8px"><strong>'+esc(d.code)+'</strong><input aria-label="Design name" value="'+ctAttr(d.name||'')+'" oninput="ctDesignDraft['+i+'].name=this.value"><input aria-label="Design job rate" type="number" min="0" step="0.01" placeholder="Default" value="'+ctAttr(d.jobRate==null?'':d.jobRate)+'" oninput="ctDesignDraft['+i+'].jobRate=this.value===\'\'?\'\':Number(this.value)"></div>';}).join('')||'<p>No designs yet. Add a design below.</p>';}
+function ctDesignOrdinal(code){return /^[A-Z]+$/.test(code)?Array.from(code).reduce(function(n,c){return n*26+c.charCodeAt(0)-64;},0):0;}
+function ctAddDesignDraft(){var it=S.items.find(function(x){return x.id===imEditId;}),n=Math.max(Number(it&&it.dzSeq)||0,...ctDesignDraft.map(function(d){return ctDesignOrdinal(String(d.code).toUpperCase());}))+1,code;do{var k=n++,s='';while(k){k--;s=String.fromCharCode(65+k%26)+s;k=Math.floor(k/26);}code=s;}while(ctDesignDraft.some(function(d){return String(d.code).toUpperCase()===code;}));ctDesignDraft.push({code:code,name:'',rate:'',jobRate:''});ctRenderDesignDraft();}
+function ctValidateDesignDraft(){var seen=new Set();for(var d of ctDesignDraft){if(!d||!d.code||seen.has(d.code)){alert('Each design must have a unique code.');return false;}seen.add(d.code);if(d.jobRate!==''&&d.jobRate!=null&&(!Number.isFinite(Number(d.jobRate))||Number(d.jobRate)<0)){alert('Design job rates must be zero or a positive number.');return false;}}return true;}
+
 function itemJobRate(it){ return it && it.jobRate!=null && it.jobRate!=='' ? (+it.jobRate||0) : 0; }
 function fillItemSelect(selId, currentName){
   var sel=document.getElementById(selId); if(!sel) return;
@@ -2314,7 +2243,7 @@ function fillItemSelect(selId, currentName){
   }
   if(!list.length && !currentName) html='<option value="">No items — add them in Item Master</option>';
   sel.innerHTML=html;
-  sel.value=matched||'';
+  sel.value=matched||'';ctFillDesign(selId,null);
 }
 function selectedItemName(selId, fallback){
   var sel=document.getElementById(selId); if(!sel) return fallback||'';
@@ -2326,6 +2255,7 @@ function selectedItemName(selId, fallback){
 function onLotItemPick(selId, rateId){
   var sel=document.getElementById(selId);
   var it=(S.items||[]).find(function(x){ return x&&x.id===(sel?sel.value:''); });
+  ctFillDesign(selId,null);
   var r=document.getElementById(rateId);
   // Picking an item ALWAYS refills the rate with that item's default job rate — same as the
   // Challan Manager. Whatever is left in the box is then just a starting value: typing over it
@@ -2362,7 +2292,7 @@ function onPayConChange(){
   if(!dueLots.length){list.innerHTML='<div style="padding:14px;text-align:center;color:#AAA;font-size:13px">No unpaid received lots. Use Advance tab to give advance.</div>';document.getElementById('pay-seltotal').textContent='Rs.0';return;}
   list.innerHTML=dueLots.map(function(l){
     return '<label class="lotsel" data-lid="'+esc(l.id)+'"><input type="checkbox" class="paylotcb" value="'+esc(l.id)+'" data-due="'+bal(l)+'" onchange="onLotSelToggle()">'+
-      '<div style="flex:1"><div style="font-size:13px;font-weight:600">'+esc(l.id)+' &middot; '+esc(l.item)+(l.lotNumber?' &middot; Lot '+l.lotNumber:'')+'</div>'+
+      '<div style="flex:1"><div style="font-size:13px;font-weight:600">'+esc(l.id)+' &middot; '+esc(ctLotArticle(l))+(l.lotNumber?' &middot; Lot '+l.lotNumber:'')+'</div>'+
       '<div style="font-size:11px;color:#888">Rcvd '+fmtN(l.piecesReceived)+' pcs &middot; '+fmtD(l.dateReceived)+'</div></div>'+
       '<div style="font-weight:700;color:var(--r);font-size:13px">'+fmt(bal(l))+'</div></label>';
   }).join('');
@@ -2424,14 +2354,18 @@ function pvR(){
   else{b.className='ibox green';b.textContent='After adding: '+fmtN(newTotal)+' pcs (full) — Payable '+fmt(newTotal*lot.rate);}
 }
 
-function addLot(){
+async function addLot(){
+  if(!ctCanEdit())return;
+  var chosenDesign=ctDesignSelection('fi');if(!chosenDesign)return;
+
   var c=document.getElementById('fc').value.trim(),i=selectedItemName('fi',''),p=+document.getElementById('fp').value,r=+document.getElementById('fr').value,d=document.getElementById('fd').value,m=document.getElementById('fm').value.trim();
   if(!i){alert('Select an item from the Item Master.');return;}
   if(!c||!p||!r||!d){alert('Fill all required fields.');return;}
   if(p<=0||r<=0){alert('Pieces and rate must be greater than zero.');return;}
   S.lC++;var _ln=+document.getElementById('fln').value||S.lC;var _bg=+document.getElementById('fbg').value||0;S.lots.push({id:uniqId('LOT'),dispNo:S.lC,lotNumber:_ln,bags:_bg,contractorName:c,item:i,piecesIssued:p,rate:r,dateIssued:d,piecesReceived:null,dateReceived:null,status:'PENDING',remarks:m});
+  Object.assign(S.lots[S.lots.length-1],chosenDesign);
   var _ph=(document.getElementById('fcph').value||'').trim();if(_ph)setContact(c,_ph);
-  save();closeModal('aL');render();if(curCon)renderDet(curCon);
+  if(!await save())return;closeModal('aL');render();if(curCon)renderDet(curCon);
 }
 
 // ═══ FABRIC PROCESSING ═══
@@ -2544,7 +2478,9 @@ function pvF(){
   if(q>0&&r>0){b.style.display='block';b.innerHTML='Payable on receive: <strong>'+fmt(q*r)+'</strong> ('+fmtN(q)+' '+u+' × Rs.'+r+'/'+u+')';}
   else b.style.display='none';
 }
-function addFabricLot(){
+async function addFabricLot(){
+  if(!ctCanEdit())return;
+
   var c=document.getElementById('ffc').value.trim(),
       sk=document.getElementById('ffs').value.trim(),
       dg=document.getElementById('ffi').value.trim(),
@@ -2559,7 +2495,7 @@ function addFabricLot(){
   S.lC++;var _ln=+document.getElementById('ffln').value||S.lC;
   S.lots.push({id:uniqId('LOT'),dispNo:S.lC,lotNumber:_ln,kind:'fabric',unit:u,bags:0,contractorName:c,item:i,skill:sk,design:dg,piecesIssued:q,rate:r,dateIssued:d,piecesReceived:null,dateReceived:null,status:'PENDING',remarks:m});
   var _ph=(document.getElementById('ffcph').value||'').trim();if(_ph)setContact(c,_ph);
-  save();closeModal('aF');conSubTab='fabric';render();if(curCon)renderDet(curCon);
+  if(!await save())return;closeModal('aF');conSubTab='fabric';render();if(curCon)renderDet(curCon);
 }
 var allotSrcId=null;
 function openAllot(lid){
@@ -2575,7 +2511,7 @@ function openAllot(lid){
   document.getElementById('alNewWrap').style.display='none';
   document.getElementById('alc').value='';
   document.getElementById('alcph').value='';
-  fillItemSelect('ali',lot.item);
+  fillItemSelect('ali',lot.item);ctFillDesign('ali',lot.kind!=='fabric'&&lot.designCode?lot:null);
   document.getElementById('alp').value='';
   document.getElementById('alr').value='';
   document.getElementById('alln').value='';
@@ -2596,7 +2532,10 @@ function pvAl(){
   if(p>0&&r>0){b.style.display='block';b.innerHTML='New cutting lot payable on receive: <strong>'+fmt(p*r)+'</strong> ('+fmtN(p)+' pcs × Rs.'+r+'/pc)';}
   else b.style.display='none';
 }
-function saveAllot(){
+async function saveAllot(){
+  if(!ctCanEdit())return;
+  var chosenDesign=ctDesignSelection('ali');if(!chosenDesign)return;
+
   var src=S.lots.find(function(l){return l.id===allotSrcId;});if(!src)return;
   // Resolve contractor: dropdown selection, or a freshly-typed new name
   var sel=document.getElementById('alcSel').value;
@@ -2618,12 +2557,15 @@ function saveAllot(){
   S.lC++;var _ln=+document.getElementById('alln').value||S.lC;
   var newId=uniqId('LOT');var _disp=S.lC;
   S.lots.push({id:newId,dispNo:_disp,lotNumber:_ln,bags:0,contractorName:c,item:i,piecesIssued:p,rate:r,dateIssued:d,piecesReceived:null,dateReceived:null,status:'PENDING',remarks:m,allottedFrom:src.contractorName,allottedFromLot:src.id});
+  Object.assign(S.lots[S.lots.length-1],chosenDesign);
   if(!src.allottedTo)src.allottedTo=[];
   src.allottedTo.push({contractor:c,lotId:newId,pieces:p,date:d});
-  save();closeModal('al');conSubTab='cutting';render();if(curCon)renderDet(curCon);
+  if(!await save())return;closeModal('al');conSubTab='cutting';render();if(curCon)renderDet(curCon);
   alert('✅ Created cutting lot '+newId+' for '+c+', alloted from '+src.contractorName+'.');
 }
-function savePay(){
+async function savePay(){
+  if(!ctCanEdit())return;
+
   var name=document.getElementById('pl2').value;
   if(!name){alert('Select a contractor.');return;}
   if(payMode==='adv'){
@@ -2632,7 +2574,7 @@ function savePay(){
     if(aa<=0){alert('Advance must be greater than zero.');return;}
     if(!an){alert('Please add a note for the advance.');return;}
     addAdvance(name,aa,ad,am,an);
-    save();closeModal('aP');render();if(curCon)renderDet(curCon);
+    if(!await save())return;closeModal('aP');render();if(curCon)renderDet(curCon);
     return;
   }
   // Lots mode
@@ -2647,10 +2589,12 @@ function savePay(){
     a=0; // allow pool-only settlement
   }
   var res=payLots(name,lotIds,a,d,m,r);
-  save();closeModal('aP');render();if(curCon)renderDet(curCon);
+  if(!await save())return;closeModal('aP');render();if(curCon)renderDet(curCon);
   if(res.note)setTimeout(function(){/* silent */},10);
 }
-function recvLot(){
+async function recvLot(){
+  if(!ctCanEdit())return;
+
   var lot=S.lots.find(function(l){return l.id===rvId;});if(!lot)return;
   // If user typed a part but didn't click "Add", include it automatically
   var raw=document.getElementById('rp').value,p=+raw,d=document.getElementById('rd').value,bg=+document.getElementById('rbg').value||0;
@@ -2674,7 +2618,7 @@ function recvLot(){
     lot.piecesReceived=null;lot.dateReceived=null;lot.status='PENDING';
     delete lot.receivals;delete lot.bagsReturned;
     refreshAllStatuses();
-    save();closeModal('rv');render();if(curCon)renderDet(curCon);
+    if(!await save())return;closeModal('rv');render();if(curCon)renderDet(curCon);
     return;
   }
   // Payable-change impact is calculated and confirmed BEFORE anything is saved.
@@ -2690,7 +2634,7 @@ function recvLot(){
   lot.dateReceived=lot.receivals[lot.receivals.length-1].date;
   var totalBags=lot.receivals.reduce(function(s,r){return s+(+r.bags||0);},0);
   if(totalBags>0)lot.bagsReturned=totalBags;else delete lot.bagsReturned;
-  delete lot.advancePaid;
+  ctMaterializeLegacy(lot);
   if(over>0.01)moveOverpayToPool(lot,lot.dateReceived);
   refreshLotStatus(lot);
   // Payable increased on an already-paid lot: offer to settle the increase from the Advance Pool.
@@ -2705,10 +2649,12 @@ function recvLot(){
   // Optional payment on receive
   var _radv=+document.getElementById('radv').value||0;
   if(_radv>0){payLots(lot.contractorName,[lot.id],_radv,lot.dateReceived,'Cash','Paid on receive');}
-  save();closeModal('rv');render();if(curCon)renderDet(curCon);
+  if(!await save())return;closeModal('rv');render();if(curCon)renderDet(curCon);
   setTimeout(function(){printReturn(lot.id);},400);
 }
-function settleLot(id){
+async function settleLot(id){
+  if(!ctCanEdit())return;
+
   var lot=S.lots.find(function(l){return l.id===id;});if(!lot)return;
   if(lot.piecesReceived==null||lot.piecesReceived===''){alert('This lot has not been received yet, so there is nothing to settle.');return;}
   var name=lot.contractorName;
@@ -2733,22 +2679,26 @@ function settleLot(id){
   if(due>0.01){
     if(!confirm('This lot still has '+fmt(due)+' due'+(usedFromPool>0.01?' (after applying '+fmt(usedFromPool)+' from the advance pool)':'')+'. Mark as settled anyway?')){
       // Keep the advance we already applied (it's a real payment); just don't force-settle.
-      if(usedFromPool>0.01){ save(); render(); if(curCon)renderDet(curCon); }
+      if(usedFromPool>0.01){ if(!await save())return; render(); if(curCon)renderDet(curCon); }
       return;
     }
     lot.status='SETTLED';
   }
   // If due is now <=0, refreshLotStatus already marked it SETTLED.
   refreshAllStatuses();
-  save();render();if(curCon)renderDet(curCon);
+  if(!await save())return;render();if(curCon)renderDet(curCon);
 }
-function saveEL(){
+async function saveEL(){
+  if(!ctCanEdit())return;
+  var chosenDesign=ctDesignSelection('ei');if(!chosenDesign)return;
+
   var lot=S.lots.find(function(l){return l.id===eLId;});if(!lot)return;
   var _elLot=S.lots.find(function(l){return l.id===eLId;});
   var c=document.getElementById('ec').value.trim(),i=selectedItemName('ei',_elLot?_elLot.item:''),p=+document.getElementById('ep').value,r=+document.getElementById('er').value,d=document.getElementById('ed').value,m=document.getElementById('em').value.trim();
   if(!i){alert('Select an item from the Item Master.');return;}
   if(!c||!i||!p||!r||!d){alert('Fill all required fields.');return;}
   if(p<=0||r<=0){alert('Pieces and rate must be greater than zero.');return;}
+  if(c!==lot.contractorName&&(Number(lot.advancePaid||0)>0||S.pays.some(function(p){return p.lotId===lot.id;}))){alert('This lot has payment records. Use Rename Contractor to rename its owner; do not move paid lots to another contractor.');return;}
   // Rate change on a received lot changes its payable — confirm impact BEFORE saving.
   var wasReceived=(lot.piecesReceived!=null&&lot.piecesReceived!=='');
   var oldPayable=wasReceived?payable(lot):0;
@@ -2758,6 +2708,7 @@ function saveEL(){
   if(wasReceived&&over>0.01){
     if(!confirm('You have reduced the payable amount of '+lotLabel(lot)+' from '+fmt(oldPayable)+' to '+fmt(newPayable)+' (rate change).\n\n'+fmt(over)+' will be transferred from this lot\u2019s settlement to '+c+"'s Advance Pool. All balances and payment allocations will be recalculated.\n\nDo you want to continue?"))return;
   }
+  Object.assign(lot,chosenDesign);
   lot.lotNumber=+document.getElementById('eln').value||lot.lotNumber||0;lot.bags=+document.getElementById('ebg').value||0;lot.contractorName=c;lot.item=i;lot.piecesIssued=p;lot.rate=r;lot.dateIssued=d;lot.remarks=m;
   if(wasReceived&&over>0.01)moveOverpayToPool(lot,td());
   refreshAllStatuses();
@@ -2769,40 +2720,47 @@ function saveEL(){
         settleFromPool(lot,use,td());
     }
   }
-  save();closeModal('eL');render();if(curCon)renderDet(curCon);
+  if(!await save())return;closeModal('eL');render();if(curCon)renderDet(curCon);
 }
-function saveEC(){
+async function saveEC(){
+  if(!ctCanEdit())return;
+
   if(!eCName)return;
   var n=document.getElementById('en').value.trim();
   if(!n){alert('Name required.');return;}
+  if(n!==eCName&&getNames().some(function(x){return x.toLowerCase()===n.toLowerCase();})){alert('A contractor with this name already exists. Choose a unique name to avoid mixing their payments.');return;}
   var ph=document.getElementById('enph').value.trim();
+  S.pays.forEach(function(p){if(p.contractorName===eCName)p.contractorName=n;});
+  S.advances.forEach(function(a){if(a.contractorName===eCName)a.contractorName=n;});
   S.lots.forEach(function(l){if(l.contractorName===eCName)l.contractorName=n;});
   // Migrate contact to the (possibly new) name
   if(eCName!==n&&S.contacts&&S.contacts[eCName]){delete S.contacts[eCName];}
   setContact(n,ph);
-  curCon=n;eCName=n;save();closeModal('eC');document.getElementById('tbt').textContent=n;render();renderDet(n);
+  if(!await save())return;curCon=n;eCName=n;closeModal('eC');document.getElementById('tbt').textContent=n;render();renderDet(n);
 }
 function confirmDel(lid){
   var lot=S.lots.find(function(l){return l.id===lid;});if(!lot)return;
   var b=bal(lot),lotPays=S.pays.filter(function(p){return p.lotId===lid;});
   document.getElementById('cfm').innerHTML=
     '<div style="margin-bottom:8px"><span class="lid">'+esc(lotLabel(lot))+'</span></div>'+
-    '<div style="font-size:13px;color:#555">Contractor: <strong>'+esc(lot.contractorName)+'</strong><br>Item: <strong>'+esc(lot.item)+'</strong></div>'+
+    '<div style="font-size:13px;color:#555">Contractor: <strong>'+esc(lot.contractorName)+'</strong><br>Item: <strong>'+esc(ctLotArticle(lot))+'</strong></div>'+
     (b>0?'<div class="ibox red" style="margin:10px 0">⚠️ Balance Due: <strong>'+fmt(b)+'</strong></div>':'<div class="ibox green" style="margin:10px 0">✅ No outstanding balance</div>')+
     '<div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:10px;font-size:12px;color:#1E40AF;margin-top:4px">📦 Lot will be moved to <strong>Recycle Bin</strong>. Restore anytime.</div>';
   document.getElementById('cfo').textContent='Move to Recycle Bin';
-  document.getElementById('cfo').onclick=function(){
+  document.getElementById('cfo').onclick=async function(){
+  if(!ctCanEdit())return;
+
     if(!S.trash)S.trash=[];
     S.trash.unshift({type:'lot',deletedAt:new Date().toISOString(),lot:JSON.parse(JSON.stringify(lot)),pays:lotPays.map(function(p){return JSON.parse(JSON.stringify(p));})});
-    S.lots=S.lots.filter(function(l){return l.id!==lid;});
-    S.pays=S.pays.filter(function(p){return p.lotId!==lid;});
+    S.lots=ctFilter("lots",function(l){return l.id!==lid;});
+    S.pays=ctFilter("pays",function(p){return p.lotId!==lid;});
     restorePoolForPays(lotPays); // fromAdvance money returns to the pool (re-consumed on restore)
-    save();closeModal('cf');render();if(curCon)renderDet(curCon);
+    if(!await save())return;closeModal('cf');render();if(curCon)renderDet(curCon);
   };
-  var el=document.getElementById('mo-cf');el.classList.add('show');el.style.display='flex';
+  var el=document.getElementById('mo-cf');el._ctRevision=ctRevision;el.classList.add('show');el.style.display='flex';
 }
 
-function openImport(){closeMenu();['i1','i2','i3','i4'].forEach(function(id,i){document.getElementById(id).style.display=i===0?'block':'none';});document.getElementById('iff').value='';document.getElementById('ift').innerHTML='<button class="btn" style="flex:1;justify-content:center" onclick="closeModal(\'imp\')">Cancel</button>';impData=null;var el=document.getElementById('mo-imp');el.classList.add('show');el.style.display='flex';}
+function openImport(){closeMenu();['i1','i2','i3','i4'].forEach(function(id,i){document.getElementById(id).style.display=i===0?'block':'none';});document.getElementById('iff').value='';document.getElementById('ift').innerHTML='<button class="btn" style="flex:1;justify-content:center" onclick="closeModal(\'imp\')">Cancel</button>';impData=null;var el=document.getElementById('mo-imp');el._ctRevision=ctRevision;el.classList.add('show');el.style.display='flex';}
 function rdXL(input){
   var file=input.files[0];if(!file)return;
   document.getElementById('i1').style.display='none';document.getElementById('i2').style.display='block';
@@ -2846,13 +2804,15 @@ function showPrev(r){
   var bn={};r.newLots.forEach(function(l){if(!bn[l.contractorName])bn[l.contractorName]=[];bn[l.contractorName].push(l);});
   document.getElementById('isum').innerHTML='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px"><div style="background:#EFF6FF;border-radius:10px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:700;color:var(--n)">'+r.newLots.length+'</div><div style="font-size:10px;color:#888">New Lots</div></div><div style="background:#ECFDF5;border-radius:10px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:700;color:var(--g)">'+r.newPays.length+'</div><div style="font-size:10px;color:#888">Payments</div></div></div><div style="font-size:12px;color:#555;background:#F5F5F5;border-radius:8px;padding:10px">Total Advance: <strong>'+fmt(ta)+'</strong>'+(r.skipped>0?'<br>Skipped: <strong>'+r.skipped+'</strong>':'')+'</div>';
   if(!r.newLots.length){document.getElementById('ilist').innerHTML='<div style="text-align:center;padding:16px;color:#888">No new lots to import.</div>';document.getElementById('ift').innerHTML='<button class="btn pri" style="flex:1;justify-content:center" onclick="closeModal(\'imp\')">OK</button>';return;}
-  document.getElementById('ilist').innerHTML=Object.entries(bn).map(function(e){var n=e[0],ls=e[1];return '<div style="background:#fff;border:1px solid #E8E8E8;border-radius:10px;margin-bottom:8px;overflow:hidden"><div style="background:var(--n);color:#fff;padding:8px 12px;font-weight:700;font-size:13px">'+esc(n)+' ('+ls.length+')</div>'+ls.map(function(l,i){return '<div style="padding:8px 12px;border-bottom:1px solid #F5F5F5;display:flex;justify-content:space-between;'+(i%2?'background:#FAFAFA':'')+'">'+'<div style="font-size:12px"><strong>'+fmtD(l.dateIssued)+'</strong> &middot; '+esc(l.item)+'</div><div style="font-size:12px;font-weight:700">'+fmt(l.piecesIssued*l.rate)+'</div></div>';}).join('')+'</div>';}).join('');
+  document.getElementById('ilist').innerHTML=Object.entries(bn).map(function(e){var n=e[0],ls=e[1];return '<div style="background:#fff;border:1px solid #E8E8E8;border-radius:10px;margin-bottom:8px;overflow:hidden"><div style="background:var(--n);color:#fff;padding:8px 12px;font-weight:700;font-size:13px">'+esc(n)+' ('+ls.length+')</div>'+ls.map(function(l,i){return '<div style="padding:8px 12px;border-bottom:1px solid #F5F5F5;display:flex;justify-content:space-between;'+(i%2?'background:#FAFAFA':'')+'">'+'<div style="font-size:12px"><strong>'+fmtD(l.dateIssued)+'</strong> &middot; '+esc(ctLotArticle(l))+'</div><div style="font-size:12px;font-weight:700">'+fmt(l.piecesIssued*l.rate)+'</div></div>';}).join('')+'</div>';}).join('');
   document.getElementById('ift').innerHTML='<button class="btn" style="flex:1;justify-content:center" onclick="closeModal(\'imp\')">Cancel</button><button class="btn pri" style="flex:1;justify-content:center" onclick="doImport()">Import Now</button>';
 }
-function doImport(){
+async function doImport(){
+  if(!ctCanEdit())return;
+
   if(!impData)return;
   S.lots=S.lots.concat(impData.newLots);S.pays=S.pays.concat(impData.newPays);S.lC=impData.lC;S.pC=impData.pC;
-  save();document.getElementById('i3').style.display='none';document.getElementById('i4').style.display='block';
+  if(!await save())return;document.getElementById('i3').style.display='none';document.getElementById('i4').style.display='block';
   document.getElementById('idn').textContent='Imported '+impData.newLots.length+' lots!';
   document.getElementById('ift').innerHTML='<button class="btn pri" style="flex:1;justify-content:center" onclick="closeModal(\'imp\')">Done</button>';
   render();
@@ -2931,7 +2891,7 @@ function printLot(lid){
     +'<div class="lbl">Contractor<\/div>'
     +'<div class="con-name">'+esc(lot.contractorName)+'<\/div>'
     // Details rows
-    +'<div class="row"><span class="rk">Item \/ Work<\/span><span class="rv">'+esc(lot.item)+'<\/span><\/div>'
+    +'<div class="row"><span class="rk">Item \/ Work<\/span><span class="rv">'+esc(ctLotArticle(lot))+'<\/span><\/div>'
     +'<div class="row"><span class="rk">Date Issued<\/span><span class="rv">'+fmtD(lot.dateIssued)+'<\/span><\/div>'
     +(lot.bags?'<div class="row"><span class="rk">Bags in Lot<\/span><span class="rv">'+lot.bags+' bags<\/span><\/div>':'')
     // Big pieces count
@@ -3028,7 +2988,7 @@ function printReturn(lid){
     +'<div class="lbl">Contractor<\/div>'
     +'<div class="con-name">'+esc(lot.contractorName)+'<\/div>'
     // Details
-    +'<div class="row"><span class="rk">Item \/ Work<\/span><span class="rv">'+esc(lot.item)+'<\/span><\/div>'
+    +'<div class="row"><span class="rk">Item \/ Work<\/span><span class="rv">'+esc(ctLotArticle(lot))+'<\/span><\/div>'
     +'<div class="row"><span class="rk">'+(isFabric(lot)?'Quantity Issued':'Pieces Issued')+'<\/span><span class="rv">'+fmtN(lot.piecesIssued)+' '+U+'<\/span><\/div>'
     +'<div class="row"><span class="rk">Date Returned<\/span><span class="rv">'+fmtD(lot.dateReceived)+'<\/span><\/div>'
     +((lot.receivals&&lot.receivals.length>1)?'<div class="row" style="flex-direction:column;align-items:flex-start;gap:2px"><span class="rk">Received in '+lot.receivals.length+' parts<\/span><span class="rv" style="font-size:9px;font-weight:600">'+lot.receivals.map(function(r){return fmtN(r.pieces)+' '+U+' on '+fmtD(r.date);}).join(' · ')+'<\/span><\/div>':'')
@@ -3079,7 +3039,7 @@ function printReport(name){
     return '<tr style="background:'+(i%2?'#F9F9F9':'#fff')+'">'
       +'<td style="padding:7px;border:1px solid #E0E0E0">'+esc(l.id)+'<'+'/td>'
       +'<td style="padding:7px;border:1px solid #E0E0E0">'+fmtD(l.dateIssued)+'<'+'/td>'
-      +'<td style="padding:7px;border:1px solid #E0E0E0">'+esc(l.item)+'<'+'/td>'
+      +'<td style="padding:7px;border:1px solid #E0E0E0">'+esc(ctLotArticle(l))+'<'+'/td>'
       +'<td style="padding:7px;border:1px solid #E0E0E0;text-align:center">'+(l.piecesReceived!=null?fmtN(l.piecesReceived)+' / '+fmtN(l.piecesIssued):'Pending / '+fmtN(l.piecesIssued))+' '+lotUnit(l)+'<'+'/td>'
       +'<td style="padding:7px;border:1px solid #E0E0E0;text-align:right">'+fmt(py)+'<'+'/td>'
       +'<td style="padding:7px;border:1px solid #E0E0E0;text-align:right;color:#059669">'+fmt(a)+'<'+'/td>'
@@ -3138,19 +3098,21 @@ function confirmDelCon(name){
     (tbal>0?'<div class="ibox red">⚠️ Outstanding: <strong>'+fmt(tbal)+'</strong></div>':'<div class="ibox green">✅ No outstanding balance</div>')+
     '<div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:10px;font-size:12px;color:#1E40AF;margin-top:8px">👷 Contractor and all data will be moved to <strong>Recycle Bin</strong>. Restore anytime.</div>';
   document.getElementById('cfo').textContent='Move to Recycle Bin';
-  document.getElementById('cfo').onclick=function(){
+  document.getElementById('cfo').onclick=async function(){
+  if(!ctCanEdit())return;
+
     if(!S.trash)S.trash=[];
     var lots=S.lots.filter(function(l){return l.contractorName===name;});
     var pays=S.pays.filter(function(p){return lots.find(function(l){return l.id===p.lotId;});});
     S.trash.unshift({type:'contractor',deletedAt:new Date().toISOString(),name:name,lots:lots.map(function(l){return JSON.parse(JSON.stringify(l));}),pays:pays.map(function(p){return JSON.parse(JSON.stringify(p));})});
     var ids=lots.map(function(l){return l.id;});
-    S.lots=S.lots.filter(function(l){return l.contractorName!==name;});
-    S.pays=S.pays.filter(function(p){return ids.indexOf(p.lotId)===-1;});
+    S.lots=ctFilter("lots",function(l){return l.contractorName!==name;});
+    S.pays=ctFilter("pays",function(p){return ids.indexOf(p.lotId)===-1;});
     restorePoolForPays(pays); // fromAdvance money returns to the pool (re-consumed on restore)
     if(curCon===name){curCon=null;goTab('con');}
-    save();closeModal('cf');render();
+    if(!await save())return;closeModal('cf');render();
   };
-  var el=document.getElementById('mo-cf');el.classList.add('show');el.style.display='flex';
+  var el=document.getElementById('mo-cf');el._ctRevision=ctRevision;el.classList.add('show');el.style.display='flex';
 }
 
 // DELETE PAYMENT
@@ -3164,14 +3126,16 @@ function confirmDelPay(pid){
     'Lot: <strong>'+esc(pay.lotId)+'</strong></div>'+
     '<div style="background:#FFF7ED;border:1px solid #FDE68A;border-radius:8px;padding:10px;font-size:12px;color:#92400E;margin-top:10px">Deleting this payment will increase the balance due. Cannot be undone.</div>';
   document.getElementById('cfo').textContent='Delete Payment';
-  document.getElementById('cfo').onclick=function(){
+  document.getElementById('cfo').onclick=async function(){
+  if(!ctCanEdit())return;
+
     var removed=S.pays.filter(function(p){return p.id===pid;});
-    S.pays=S.pays.filter(function(p){return p.id!==pid;});
+    S.pays=ctFilter("pays",function(p){return p.id!==pid;});
     restorePoolForPays(removed); // fromAdvance money returns to the pool
     refreshAllStatuses();
-    save();closeModal('cf');render();if(curCon)renderDet(curCon);
+    if(!await save())return;closeModal('cf');render();if(curCon)renderDet(curCon);
   };
-  var el=document.getElementById('mo-cf');el.classList.add('show');el.style.display='flex';
+  var el=document.getElementById('mo-cf');el._ctRevision=ctRevision;el.classList.add('show');el.style.display='flex';
 }
 function confirmDelPayGroup(key){
   var group=paymentGroups(S.pays).find(function(g){return g.key===key;});if(!group)return;
@@ -3184,15 +3148,17 @@ function confirmDelPayGroup(key){
     'FIFO: <strong>'+paymentAllocationText(group)+'</strong></div>'+
     '<div style="background:#FFF7ED;border:1px solid #FDE68A;border-radius:8px;padding:10px;font-size:12px;color:#92400E;margin-top:10px">Deleting this payment removes all FIFO allocations created from it.</div>';
   document.getElementById('cfo').textContent='Delete Payment';
-  document.getElementById('cfo').onclick=function(){
+  document.getElementById('cfo').onclick=async function(){
+  if(!ctCanEdit())return;
+
     var ids=group.ids;
     var removed=S.pays.filter(function(p){return ids.indexOf(p.id)!==-1;});
-    S.pays=S.pays.filter(function(p){return ids.indexOf(p.id)===-1;});
+    S.pays=ctFilter("pays",function(p){return ids.indexOf(p.id)===-1;});
     restorePoolForPays(removed); // fromAdvance money returns to the pool
     refreshAllStatuses();
-    save();closeModal('cf');render();if(curCon)renderDet(curCon);
+    if(!await save())return;closeModal('cf');render();if(curCon)renderDet(curCon);
   };
-  var el=document.getElementById('mo-cf');el.classList.add('show');el.style.display='flex';
+  var el=document.getElementById('mo-cf');el._ctRevision=ctRevision;el.classList.add('show');el.style.display='flex';
 }
 
 // EDIT PAYMENT
@@ -3211,7 +3177,7 @@ function openEditPay(pid){
   document.getElementById('epm').value=pay.mode||'Cash';
   document.getElementById('epr').value=pay.remarks||'';
   document.getElementById('epp').style.display='none';
-  var el=document.getElementById('mo-ePay');el.classList.add('show');el.style.display='flex';
+  var el=document.getElementById('mo-ePay');el._ctRevision=ctRevision;el.classList.add('show');el.style.display='flex';
 }
 // Compute the deterministic allocation plan for editing a payment: the amount goes to the
 // chosen lot first (capped at its balance WITHOUT the payment being edited), overflows FIFO
@@ -3256,7 +3222,9 @@ function pvEP(){
   b.style.display='block';b.className='ibox '+(plan.toAdvance>0.005?'yellow':'green');
   b.textContent='Will allocate: '+(parts.join(' | ')||'nothing due — full amount goes to Advance Pool');
 }
-function saveEditPay(){
+async function saveEditPay(){
+  if(!ctCanEdit())return;
+
   var pay=S.pays.find(function(p){return p.id===editPayId;});if(!pay)return;
   if(pay.fromAdvance){alert('Advance adjustments cannot be edited here. Delete it (returns to pool) and settle again.');closeModal('ePay');return;}
   var lid=document.getElementById('epl').value,d=document.getElementById('epd').value,a=+document.getElementById('epa').value,m=document.getElementById('epm').value,r=document.getElementById('epr').value.trim();
@@ -3276,7 +3244,7 @@ function saveEditPay(){
   // no other lot's allocation is touched, and ⭐ advance settlements never change — only the
   // cash component adjusts. FIFO stays intact.
   var batchId=pay.batchId||('PAYB-'+Date.now()+'-'+Math.floor(Math.random()*1000));
-  S.pays=S.pays.filter(function(p){return p.id!==editPayId;});
+  S.pays=ctFilter("pays",function(p){return p.id!==editPayId;});
   plan.steps.forEach(function(s,i){
     S.pC++;
     S.pays.push({id:uniqId('PAY'),dispNo:S.pC,batchId:batchId,contractorName:plan.name,lotId:s.lot.id,date:d,amount:s.amount,totalAmount:a,mode:m,remarks:r||(i===0?'':'Overflow from edited payment')});
@@ -3286,7 +3254,7 @@ function saveEditPay(){
     S.advances.push({id:uniqId('ADV'),contractorName:plan.name,date:d,amount:plan.toAdvance,used:0,mode:m,remarks:(r?r+' — ':'')+'Extra from edited payment, kept as advance'});
   }
   refreshAllStatuses();
-  save();closeModal('ePay');render();if(curCon)renderDet(curCon);
+  if(!await save())return;closeModal('ePay');render();if(curCon)renderDet(curCon);
 }
 
 // ── RECYCLE BIN ──
@@ -3313,8 +3281,8 @@ function renderBin(){
       var paid=pays.reduce(function(s,p){return s+p.amount;},0)+(lot.advancePaid?+lot.advancePaid:0);
       html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
         +'<div style="display:flex;align-items:center;gap:8px"><span class="lid">'+esc(lotLabel(lot))+'</span><span class="sbdg sp-'+lot.status+'">'+lot.status+'</span></div>'
-        +'<span style="font-size:11px;color:'+(daysLeft<=5?'#DC2626':'#888')+'">🕒 '+daysLeft+'d left</span></div>'
-        +'<div style="font-size:13px;color:#555;margin-bottom:6px"><strong>'+esc(lot.contractorName)+'</strong> &middot; '+esc(lot.item)+'</div>'
+        +'<span style="font-size:11px;color:'+(daysLeft<=5?'#DC2626':'#888')+'">🕒 '+'Kept until removed</span></div>'
+        +'<div style="font-size:13px;color:#555;margin-bottom:6px"><strong>'+esc(lot.contractorName)+'</strong> &middot; '+esc(ctLotArticle(lot))+'</div>'
         +'<div style="font-size:12px;color:#888;margin-bottom:10px">📤 '+fmtD(lot.dateIssued)+' &middot; '+fmtN(lot.piecesIssued)+' pcs &middot; Payable: '+fmt(py)+' &middot; Paid: '+fmt(paid)+'</div>';
     } else {
       var lots=item.lots||[],pays=item.pays||[];
@@ -3322,7 +3290,7 @@ function renderBin(){
       var tp=pays.reduce(function(s,p){return s+p.amount;},0)+lots.reduce(function(s,l){return s+(l.advancePaid?+l.advancePaid:0);},0);
       html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
         +'<div style="font-size:15px;font-weight:700">👷 '+esc(item.name)+'</div>'
-        +'<span style="font-size:11px;color:'+(daysLeft<=5?'#DC2626':'#888')+'">🕒 '+daysLeft+'d left</span></div>'
+        +'<span style="font-size:11px;color:'+(daysLeft<=5?'#DC2626':'#888')+'">🕒 '+'Kept until removed</span></div>'
         +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">'
         +'<div style="background:#F5F5F5;border-radius:8px;padding:8px;text-align:center"><div style="font-size:16px;font-weight:700">'+lots.length+'</div><div style="font-size:10px;color:#888">Lots</div></div>'
         +'<div style="background:#F5F5F5;border-radius:8px;padding:8px;text-align:center"><div style="font-size:13px;font-weight:700">'+fmt(tb)+'</div><div style="font-size:10px;color:#888">Billed</div></div>'
@@ -3338,34 +3306,38 @@ function renderBin(){
   }).join('');
 }
 
-function restoreItem(i){
+async function restoreItem(i){
+  if(!ctCanEdit())return;
+
   if(!S.trash||!S.trash[i])return;
-  var item=S.trash[i];
+  var item=S.trash[i];if(!ctCheckRestore(item))return;
   if(item.type==='lot'){
     if(!S.lots.find(function(l){return l.id===item.lot.id;}))S.lots.push(item.lot);
     var restoredL=[];
     if(item.pays)(item.pays).forEach(function(p){if(!S.pays.find(function(x){return x.id===p.id;})){S.pays.push(p);restoredL.push(p);}});
     consumePoolForPays(restoredL); // re-consume advance for restored fromAdvance pays
-    alert('✅ Lot '+item.lot.id+' restored!');
+    
   } else {
     (item.lots||[]).forEach(function(l){if(!S.lots.find(function(x){return x.id===l.id;}))S.lots.push(l);});
     var restoredC=[];
     (item.pays||[]).forEach(function(p){if(!S.pays.find(function(x){return x.id===p.id;})){S.pays.push(p);restoredC.push(p);}});
     consumePoolForPays(restoredC);
-    alert('✅ Contractor "'+item.name+'" and all data restored!');
+    
   }
   refreshAllStatuses();
   S.trash.splice(i,1);
-  save();render();renderBin();
+  if(!await save())return;render();renderBin();alert("Restored and confirmed by the server.");
 }
 
-function permDelete(i){
+async function permDelete(i){
+  if(!ctCanEdit())return;
+
   if(!S.trash||!S.trash[i])return;
   var item=S.trash[i];
   var label=item.type==='lot'?'lot '+item.lot.id:('contractor "'+item.name+'"');
   if(!confirm('Permanently delete '+label+'? This CANNOT be undone.'))return;
   S.trash.splice(i,1);
-  save();renderBin();updateBinBadge();
+  if(!await save())return;renderBin();updateBinBadge();
 }
 
 function shareWA(){
@@ -3397,7 +3369,7 @@ function openPrintChoice(lid){
     backBtn.style.display='none';
     document.getElementById('pc-backnote').style.display='block';
   }
-  var el=document.getElementById('mo-pc');el.classList.add('show');el.style.display='flex';
+  var el=document.getElementById('mo-pc');el._ctRevision=ctRevision;el.classList.add('show');el.style.display='flex';
 }
 
 // ── EDIT MENU ──────────────────────────────────────────────────────────
@@ -3420,7 +3392,7 @@ function openEditMenu(lid){
     payBtn.style.opacity='.5';
     payBtn.onclick=function(){alert('Receive the lot first before editing its payment.');};
   }
-  var el=document.getElementById('mo-em');el.classList.add('show');el.style.display='flex';
+  var el=document.getElementById('mo-em');el._ctRevision=ctRevision;el.classList.add('show');el.style.display='flex';
 }
 
 // ── EDIT LOT PAYMENT (set exact paid amount for one lot) ───────────────
@@ -3437,7 +3409,7 @@ function openLotPayModal(lid){
   document.getElementById('lpm').value='Cash';
   document.getElementById('lpr').value='';
   document.getElementById('lpp').style.display='none';
-  var el=document.getElementById('mo-lPay');el.classList.add('show');el.style.display='flex';
+  var el=document.getElementById('mo-lPay');el._ctRevision=ctRevision;el.classList.add('show');el.style.display='flex';
 }
 function pvLP(){
   var lid=editLotPayId,a=+document.getElementById('lpa').value,b=document.getElementById('lpp');
@@ -3452,7 +3424,9 @@ function pvLP(){
   else if(a>0){b.className='ibox yellow';b.textContent='Partial — Balance remaining: '+fmt(p-a)+advNote;}
   else{b.className='ibox red';b.textContent='Enter an amount (0 to clear).';}
 }
-function saveLotPay(){
+async function saveLotPay(){
+  if(!ctCanEdit())return;
+
   var lid=editLotPayId,newAmt=+document.getElementById('lpa').value;
   var d=document.getElementById('lpd').value,m=document.getElementById('lpm').value,r=document.getElementById('lpr').value.trim();
   if(!lid){return;}
@@ -3479,7 +3453,8 @@ function saveLotPay(){
   if(surplus>0.005)msg+='\n\nPayable is '+fmt(cap)+' — the extra '+fmt(surplus)+' will be moved to the Advance Pool.';
   msg+='\n\nAll balances will be recalculated. Continue?';
   if(!confirm(msg))return;
-  S.pays=S.pays.filter(function(p){return !(p.lotId===lid&&!p.fromAdvance);}); // replace cash rows only
+  ctMaterializeLegacy(lot);
+  S.pays=ctFilter("pays",function(p){return !(p.lotId===lid&&!p.fromAdvance);}); // replace cash rows only
   if(releaseAdv>0.005)releaseAdvFromLot(lid,releaseAdv); // reverse excess ⭐ once
   if(cashAlloc>0.005){
     S.pC++;
@@ -3489,7 +3464,7 @@ function saveLotPay(){
     S.aC=(S.aC||0)+1;
     S.advances.push({id:uniqId('ADV'),contractorName:lot.contractorName,date:d,amount:surplus,used:0,mode:m,remarks:(r?r+' — ':'')+'Extra over '+lotLabel(lot)+' payable, moved to advance pool'});
   }
-  refreshAllStatuses();save();closeModal('lPay');render();if(curCon)renderDet(curCon);
+  refreshAllStatuses();if(!await save())return;closeModal('lPay');render();if(curCon)renderDet(curCon);
 }
 
 // ── ADVANCE RECORD EDITING (accounting-safe core) ───────────────────────
@@ -3535,29 +3510,35 @@ function removeAdvanceRecord(advId){
   }
   if(newPool<-0.005){alert('This would make the Advance Pool negative ('+fmt(newPool)+'). Not allowed.');return false;}
   if(!confirm('Delete advance of '+fmt(a.amount)+' ('+fmtD(a.date)+') to '+name+'?'+(used>0.01?'\n\n'+fmt(used)+' already used will be shifted onto other advances.':'')+'\n\n'+name+"'s Advance Pool: "+fmt(pool)+' → '+fmt(newPool)+'.\n\nContinue?'))return false;
-  S.advances=S.advances.filter(function(x){return x.id!==advId;});
+  S.advances=ctFilter("advances",function(x){return x.id!==advId;});
   if(used>0.01)consumeAdvance(name,used);
   refreshAllStatuses();
   return true;
 }
-function editAdvance(advId){
+async function editAdvance(advId){
+  if(!ctCanEdit())return;
+
   var a=(S.advances||[]).find(function(x){return x.id===advId;});if(!a)return;
   var newAmt=prompt('Edit advance for '+a.contractorName+'\n\nCurrent amount: Rs.'+Math.round(a.amount)+'\nUsed so far: Rs.'+Math.round(a.used||0)+'\n\nEnter new amount (0 to delete):',a.amount);
   if(newAmt===null)return;
   newAmt=+newAmt;
   if(isNaN(newAmt)||newAmt<0){alert('Invalid amount.');return;}
   var done=(newAmt===0)?removeAdvanceRecord(advId):changeAdvanceAmount(advId,newAmt);
-  if(done){save();render();if(curCon)renderDet(curCon);}
+  if(done){if(!await save())return;render();if(curCon)renderDet(curCon);}
 }
-function editAdvanceNote(advId){
+async function editAdvanceNote(advId){
+  if(!ctCanEdit())return;
+
   var a=(S.advances||[]).find(function(x){return x.id===advId;});if(!a)return;
   var newNote=prompt('Edit note for this advance:',a.remarks||'');
   if(newNote===null)return;
   a.remarks=newNote;
-  save();render();if(curCon)renderDet(curCon);
+  if(!await save())return;render();if(curCon)renderDet(curCon);
 }
-function deleteAdvance(advId){
-  if(removeAdvanceRecord(advId)){save();render();if(curCon)renderDet(curCon);}
+async function deleteAdvance(advId){
+  if(!ctCanEdit())return;
+
+  if(removeAdvanceRecord(advId)){if(!await save())return;render();if(curCon)renderDet(curCon);}
 }
 
 // ── DAYBOOK ────────────────────────────────────────────────────────────
@@ -3572,7 +3553,7 @@ function renderDaybook(){
   if(issued.length){
     html+='<div style="margin:12px 0 8px;font-size:14px;font-weight:700;color:#1E40AF">📤 Lots Issued ('+issued.length+')</div>';
     issued.forEach(function(l){
-      html+='<div style="background:#F8FBFF;border:1px solid #DBEAFE;border-radius:10px;padding:10px 14px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:13px;font-weight:700;color:#1E40AF">'+esc(lotLabel(l))+(l.lotNumber?' · Lot '+l.lotNumber:'')+'</div><div style="font-size:12px;color:#555">'+esc(l.contractorName)+' · '+esc(l.item)+'</div></div><div style="text-align:right"><div style="font-size:14px;font-weight:700">'+fmtN(l.piecesIssued)+' pcs</div><div style="font-size:11px;color:#888">'+fmt(l.piecesIssued*l.rate)+'</div></div></div>';
+      html+='<div style="background:#F8FBFF;border:1px solid #DBEAFE;border-radius:10px;padding:10px 14px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:13px;font-weight:700;color:#1E40AF">'+esc(lotLabel(l))+(l.lotNumber?' · Lot '+l.lotNumber:'')+'</div><div style="font-size:12px;color:#555">'+esc(l.contractorName)+' · '+esc(ctLotArticle(l))+'</div></div><div style="text-align:right"><div style="font-size:14px;font-weight:700">'+fmtN(l.piecesIssued)+' pcs</div><div style="font-size:11px;color:#888">'+fmt(l.piecesIssued*l.rate)+'</div></div></div>';
     });
   }
 
@@ -3589,7 +3570,7 @@ function renderDaybook(){
     var rt=recv.reduce(function(s,r){return s+r.pieces;},0);
     html+='<div style="margin:12px 0 8px;font-size:14px;font-weight:700;color:#065F46">📥 Received ('+recv.length+' receival'+(recv.length>1?'s':'')+' · '+fmtN(rt)+' pcs)</div>';
     recv.forEach(function(r){
-      html+='<div style="background:#F0FFF4;border:1px solid #BBF7D0;border-radius:10px;padding:10px 14px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:13px;font-weight:700;color:#065F46">'+esc(lotLabel(r.lot))+' · '+esc(r.lot.contractorName)+'</div><div style="font-size:12px;color:#555">'+esc(r.lot.item)+(r.bags?' · '+r.bags+' bags':'')+'</div></div><div style="font-size:14px;font-weight:700;color:#065F46">'+fmtN(r.pieces)+' pcs</div></div>';
+      html+='<div style="background:#F0FFF4;border:1px solid #BBF7D0;border-radius:10px;padding:10px 14px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:13px;font-weight:700;color:#065F46">'+esc(lotLabel(r.lot))+' · '+esc(r.lot.contractorName)+'</div><div style="font-size:12px;color:#555">'+esc(ctLotArticle(r.lot))+(r.bags?' · '+r.bags+' bags':'')+'</div></div><div style="font-size:14px;font-weight:700;color:#065F46">'+fmtN(r.pieces)+' pcs</div></div>';
     });
   }
 
@@ -3637,13 +3618,13 @@ function openConEditMenu(name){
   document.getElementById('cem-sub').textContent=name;
   document.getElementById('cem-name').onclick=function(){closeModal('cem');openEC(name);};
   document.getElementById('cem-adv').onclick=function(){closeModal('cem');openAdvList(name);};
-  var el=document.getElementById('mo-cem');el.classList.add('show');el.style.display='flex';
+  var el=document.getElementById('mo-cem');el._ctRevision=ctRevision;el.classList.add('show');el.style.display='flex';
 }
 
 function openAdvList(name){
   document.getElementById('advList-sub').textContent=name;
   renderAdvList(name);
-  var el=document.getElementById('mo-advList');el.classList.add('show');el.style.display='flex';
+  var el=document.getElementById('mo-advList');el._ctRevision=ctRevision;el.classList.add('show');el.style.display='flex';
 }
 
 function renderAdvList(name){
@@ -3673,24 +3654,30 @@ function renderAdvList(name){
   body.innerHTML=html;
 }
 
-function advListEdit(advId,name){
+async function advListEdit(advId,name){
+  if(!ctCanEdit())return;
+
   var a=(S.advances||[]).find(function(x){return x.id===advId;});if(!a)return;
   var v=prompt('Edit advance amount\nCurrent: Rs.'+Math.round(a.amount)+'\nUsed: Rs.'+Math.round(a.used||0)+'\n\nNew amount (0 to delete):',a.amount);
   if(v===null)return;
   v=+v;
   if(isNaN(v)||v<0){alert('Invalid amount.');return;}
   var done=(v===0)?removeAdvanceRecord(advId):changeAdvanceAmount(advId,v);
-  if(done){save();render();if(curCon)renderDet(curCon);renderAdvList(name);}
+  if(done){if(!await save())return;render();if(curCon)renderDet(curCon);renderAdvList(name);}
 }
-function advListNote(advId,name){
+async function advListNote(advId,name){
+  if(!ctCanEdit())return;
+
   var a=(S.advances||[]).find(function(x){return x.id===advId;});if(!a)return;
   var v=prompt('Edit note:',a.remarks||'');
   if(v===null)return;
   a.remarks=v;
-  save();render();if(curCon)renderDet(curCon);renderAdvList(name);
+  if(!await save())return;render();if(curCon)renderDet(curCon);renderAdvList(name);
 }
-function advListDel(advId,name){
-  if(removeAdvanceRecord(advId)){save();render();if(curCon)renderDet(curCon);renderAdvList(name);}
+async function advListDel(advId,name){
+  if(!ctCanEdit())return;
+
+  if(removeAdvanceRecord(advId)){if(!await save())return;render();if(curCon)renderDet(curCon);renderAdvList(name);}
 }
 </script>
 
