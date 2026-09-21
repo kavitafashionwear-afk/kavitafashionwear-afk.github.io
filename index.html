@@ -7,9 +7,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Contractor Tracker - Modrobe Impex</title>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 :root{--n:#1F3864;--g:#059669;--r:#DC2626;--a:#D97706}
@@ -456,10 +456,10 @@ input:focus,select:focus{border-color:var(--n)}
 </div></div>
 
 
-<div id="ct-gate" role="alertdialog" aria-modal="true" style="display:none;position:fixed;inset:0;z-index:20000;background:#f1f5f9;align-items:center;justify-content:center;padding:24px"><div style="background:white;border-radius:18px;padding:28px;max-width:560px;width:100%;box-shadow:0 8px 40px #0002"><h2 id="ct-gate-title">Waiting for complete cloud records</h2><p id="ct-gate-detail"></p><pre id="ct-gate-list" style="line-height:1.9;white-space:pre-wrap"></pre><button class="btn pri" id="ct-retry" onclick="ctRetry()">Try again</button> <button class="btn" onclick="ctExport()">Download last complete JSON</button> <button class="btn" onclick="ctOpenRecovery()">Older backups</button><p style="font-size:12px;color:#64748b">Contractor Tracker · safety build 2026-09-20.2-designs</p></div></div>
+<div id="ct-gate" role="alertdialog" aria-modal="true" style="display:none;position:fixed;inset:0;z-index:20000;background:#f1f5f9;align-items:center;justify-content:center;padding:24px"><div style="background:white;border-radius:18px;padding:28px;max-width:560px;width:100%;box-shadow:0 8px 40px #0002"><h2 id="ct-gate-title">Waiting for complete cloud records</h2><p id="ct-gate-detail"></p><pre id="ct-gate-list" style="line-height:1.9;white-space:pre-wrap"></pre><button class="btn pri" id="ct-retry" onclick="ctRetry()">Try again</button> <button class="btn" onclick="ctExport()">Download last complete JSON</button> <button class="btn" onclick="ctOpenRecovery()">Older backups</button> <button class="btn" id="ct-draft-download" style="display:none" onclick="ctDownload(ctFailedDraft,'contractor-unconfirmed-entry.json')">Download unconfirmed entry</button><p style="font-size:12px;color:#64748b">Contractor Tracker · safety build 2026-09-21.3-connection-fix</p></div></div>
 <div class="ov" id="mo-ct-backup" style="z-index:21000"><div class="mb" style="max-width:760px"><div class="mh"><h2>Backup &amp; Recovery</h2><button class="btn" onclick="closeModal('ct-backup')">Close</button></div><div class="mbd" style="padding:20px;overflow:auto;max-height:75vh"><p>Only complete, server-confirmed data is used for new snapshots. Browser copies never overwrite your cloud records.</p><button class="btn pri" onclick="ctExport()">Download complete JSON</button> <button class="btn" onclick="ctExportLegacy()">Download old local backup</button><h3>Daily browser copies</h3><p>One complete copy per day when this app is open and fully loaded. These are stored on this device; download copies to keep them outside the browser.</p><div id="ct-backup-list"></div><h3>Previous versions</h3><p>Edits and deletions keep the previous records alongside the same atomic save. Load the latest 100 versions only when needed.</p><button class="btn" onclick="ctLoadHistory()">Load recovery history</button><div id="ct-history-list"></div></div></div></div>
 <script>
-var ctFirebaseApp=firebase.initializeApp({apiKey:"AIzaSyDRfRBzqdg8LCUjZKdGRNIsKCBszbtM7ok",authDomain:"challan-manager-85768.firebaseapp.com",projectId:"challan-manager-85768",storageBucket:"challan-manager-85768.firebasestorage.app",messagingSenderId:"667915790046",appId:"1:667915790046:web:92b61ba86c9facd620444f"},"contractor-online-safe-v1");
+var ctFirebaseApp=firebase.initializeApp({apiKey:"AIzaSyDRfRBzqdg8LCUjZKdGRNIsKCBszbtM7ok",authDomain:"challan-manager-85768.firebaseapp.com",projectId:"challan-manager-85768",storageBucket:"challan-manager-85768.firebasestorage.app",messagingSenderId:"667915790046",appId:"1:667915790046:web:92b61ba86c9facd620444f"},"contractor-online-safe-v2");
 var auth=firebase.auth(ctFirebaseApp),db=firebase.firestore(ctFirebaseApp);
 /* Read cache only. The isolated SDK namespace cannot replay the old app write queue. */
 var TRANSPORT={state:'auto-detect',code:''};
@@ -759,13 +759,13 @@ function paymentGroups(pays){
 function paymentAllocationText(group){
   return group.items.map(function(p){return (p.isAdvance?'Advance to ':'')+esc(lotLabelById(p.lotId))+' '+fmt(p.amount);}).join(' | ');
 }
-/* Contractor Tracker safety build 2026-09-20.2-designs.
+/* Contractor Tracker safety build 2026-09-21.3-connection-fix.
    Cached reads are never editable. No direct Firestore writes, offline queue,
    local-ledger restore, automatic reconciliation, migration, or backup pruning. */
 var CT_FIELDS={ct_lots:'lots',ct_pays:'pays',ct_advances:'advances',items:'items',itemmap:'itemMap'};
 var CT_META=['contacts','trash','skills','lC','pC','aC'];
 var ctStates={},ctBase={},ctMeta=null,ctSaving=false,ctEpoch=0,ctRevision=0,ctIntent={},ctJobs=[],ctTimer=null,ctLastComplete=null;
-var ctError='',ctHistory=[],ctUnsubs=[],ctHydrated=false;
+var ctError='',ctHistory=[],ctUnsubs=[],ctHydrated=false,ctFatal=false,ctFailedDraft=null;
 function ctClone(x){if(x==null||typeof x!=='object')return x;if(Array.isArray(x))return x.map(ctClone);if(x instanceof Date)return new Date(x.getTime());if(typeof x.toDate==='function')return x;var out=Object.create(null);Object.keys(x).forEach(function(k){out[k]=ctClone(x[k]);});return out;}
 function ctCanon(x){if(typeof x==='number'&&!Number.isFinite(x))return 'number:'+String(x);if(Array.isArray(x))return '['+x.map(ctCanon).join(',')+']';if(x&&typeof x==='object')return '{'+Object.keys(x).sort().map(function(k){return JSON.stringify(k)+':'+ctCanon(x[k]);}).join(',')+'}';return JSON.stringify(x);}
 function ctSame(a,b){return ctCanon(a)===ctCanon(b);}
@@ -778,8 +778,19 @@ var LS_KEY=function(){return 'contractor_backup_'+(uid||'anon');};
 function saveLocal(){} // Preserve old recovery copies without ever overwriting them.
 function loadLocal(){return false;}
 function flushPendingSave(){} // Reconnection reads only; no queued ledger writes.
+
+function ctIsFatal(e){return /INTERNAL ASSERTION FAILED|Unexpected state|AsyncQueue is already failed/i.test(String(e&&e.message||e||''));}
+function ctCrash(e){
+  console.error('Contractor Firestore connection failed',e&&e.stack||e);
+  ctFatal=true;ctHydrated=false;loadedOnce=false;ctRevision++;
+  ctError='The cloud connection stopped unexpectedly. Restart the app, then check the server records before retrying your entry. No offline upload will run.';
+  clearTimeout(ctTimer);ctGate();
+}
+window.addEventListener('unhandledrejection',function(e){if(ctIsFatal(e.reason))ctCrash(e.reason);});
+window.addEventListener('error',function(e){if(ctIsFatal(e.error||e.message))ctCrash(e.error||e.message);});
+
 function ctComplete(){
-  if(!uid||!isOnline||navigator.onLine===false)return false;
+  if(ctFatal||!uid||!isOnline||navigator.onLine===false)return false;
   if(!Object.keys(CT_FIELDS).concat('meta').every(function(k){return ctStates[k]&&ctStates[k].ok;}))return false;
   if(!ctMeta&&['ct_lots','ct_pays','ct_advances'].some(function(k){return Object.keys(ctBase[k]||{}).length>0;})){ctError='Contractor settings are missing, although ledger records exist. Saving is blocked to protect your data.';return false;}
   var heads=ctMeta&&ctMeta._ctHeads||{};
@@ -793,10 +804,10 @@ function ctGate(){
   if(app)app.style.visibility=uid&&!loadedOnce?'hidden':'visible';
   if(fab)fab.style.visibility=uid&&(!loadedOnce||ctSaving)?'hidden':'visible';
   if(gate){gate.style.display=uid&&(!loadedOnce||ctSaving)?'flex':'none';
-    document.getElementById('ct-gate-title').textContent=ctSaving?'Saving — wait for confirmation':!isOnline?'You are offline':'Waiting for complete cloud records';
+    document.getElementById('ct-gate-title').textContent=ctSaving?'Saving — wait for confirmation':ctFatal?'Restart the cloud connection':!isOnline?'You are offline':'Waiting for complete cloud records';
     document.getElementById('ct-gate-detail').textContent=ctSaving?'Do not close this page until the server confirms your change.':!isOnline?'Editing is disabled. Reconnect to load confirmed records. No offline changes will be uploaded.':ctError||'Figures and edits stay blocked until every required collection is confirmed by the server.';
     document.getElementById('ct-gate-list').textContent=Object.keys(CT_FIELDS).concat('meta').map(function(k){var s=ctStates[k];return (s&&s.ok?'✓ ':'… ')+(CT_FIELDS[k]||'Settings')+(s&&s.error?' — '+s.error:'');}).join('\n');
-    document.getElementById('ct-retry').disabled=ctSaving;
+    document.getElementById('ct-retry').disabled=ctSaving;document.getElementById('ct-retry').textContent=ctFatal?'Restart app':'Try again';document.getElementById('ct-draft-download').style.display=ctFailedDraft?'inline-flex':'none';
   }
   sdot(ctSaving?'busy':!isOnline?'offline':loadedOnce?'ok':'err');
 }
@@ -830,16 +841,16 @@ function ctAccept(coll,snap){
     ctStates[coll]={ok:true};ctError='';ctGate();ctSchedule();
   }catch(e){ctReadError(coll,e);}
 }
-function ctReadError(coll,e){ctStates[coll]={ok:false,error:e.code||e.message||'Read failed'};ctRevision++;ctError='Records could not be fully read. Editing is blocked; no automatic repair or upload will run.';ctGate();}
+function ctReadError(coll,e){if(ctIsFatal(e)){ctCrash(e);return;}ctStates[coll]={ok:false,error:e.code||e.message||'Read failed'};ctRevision++;ctError='Records could not be fully read. Editing is blocked; no automatic repair or upload will run.';ctGate();}
 function subscribe(){
-  if(ctSaving)return; if(unsubDB)unsubDB();
+  if(ctSaving||ctFatal)return; if(unsubDB){try{unsubDB();}catch(e){if(ctIsFatal(e)){ctCrash(e);return;}throw e;}}
   var epoch=++ctEpoch,owner=uid;ctRevision++;ctHydrated=false;loadedOnce=false;ctStates={};ctIntent={};ctBase={};ctMeta=null;ctError='';
   ctUnsubs=[];
   Object.keys(CT_FIELDS).forEach(function(coll){ctUnsubs.push(_col(coll).onSnapshot({includeMetadataChanges:true},function(s){if(epoch===ctEpoch&&owner===uid)ctAccept(coll,s);},function(e){if(epoch===ctEpoch&&owner===uid)ctReadError(coll,e);}));});
   ctUnsubs.push(_col('ct_meta').doc('state').onSnapshot({includeMetadataChanges:true},function(s){if(epoch===ctEpoch&&owner===uid)ctAccept('meta',s);},function(e){if(epoch===ctEpoch&&owner===uid)ctReadError('meta',e);}));
-  unsubDB=function(){ctUnsubs.forEach(function(u){u();});ctUnsubs=[];};ctGate();
+  unsubDB=function(){ctUnsubs.forEach(function(u){try{u();}catch(e){console.warn("Listener cleanup failed",e);}});ctUnsubs=[];};ctGate();
 }
-function ctRetry(){if(uid&&!ctSaving)subscribe();}
+function ctRetry(){if(ctSaving)return;if(ctFatal){location.reload();return;}if(uid)subscribe();}
 function ctOffline(){isOnline=false;ctHydrated=false;ctRevision++;Object.keys(ctStates).forEach(function(k){ctStates[k].ok=false;});ctGate();}
 function ctOnline(){isOnline=true;if(uid&&!ctSaving)subscribe();else ctGate();}
 function ctFilter(field,predicate){
@@ -877,7 +888,7 @@ async function save(){
     await db.runTransaction(async function(tx){
       if(!ctComplete()||uid!==owner||epoch!==ctEpoch||revision!==ctRevision)throw Error('Connection, account or records changed. Reopen the form and retry.');
       var refs=jobs.map(function(j){return root.collection(j.coll).doc(j.id);});
-      var snaps=await Promise.all(refs.map(function(ref){return tx.get(ref);}));
+      var snaps=[];for(var ref of refs)snaps.push(await tx.get(ref));
       snaps.forEach(function(s,i){if(!ctSame(s.exists?s.data():null,jobs[i].prev))throw Error('Another device changed '+jobs[i].coll+'/'+jobs[i].id+'. Your save was stopped to protect the newer record.');});
       if(!ctComplete()||uid!==owner||epoch!==ctEpoch||revision!==ctRevision)throw Error('Cloud state changed during save. Nothing was submitted.');
       jobs.forEach(function(j,i){if(j.history)tx.set(root.collection('ct_meta').doc('history_'+j.history.id),j.history);if(j.data)tx.set(refs[i],j.data);else tx.delete(refs[i]);});
@@ -885,8 +896,8 @@ async function save(){
     if(uid!==owner||epoch!==ctEpoch)return false;
     jobs.forEach(function(j){if(j.coll==='ct_meta'){if(ctSame(ctMeta,j.prev)||ctSame(ctMeta,j.data))ctMeta=ctClone(j.data);}else{var baseline=ctBase[j.coll];if(ctSame(baseline[j.id]||null,j.prev)||ctSame(baseline[j.id]||null,j.data)){if(j.data)baseline[j.id]=ctClone(j.data);else delete baseline[j.id];}}});
     ctIntent={};ctApply();ctHydrated=true;return true;
-  }catch(e){failed=true;ctError=e.message||String(e);ctIntent={};ctApply();alert('Save was not confirmed.\n\n'+ctError+'\n\nThe app will reload server records before allowing another change.');return false;}
-  finally{ctSaving=false;ctJobs=[];ctGate();if(failed&&uid&&isOnline)subscribe();else ctSchedule();}
+  }catch(e){failed=true;ctFailedDraft={_app:'contractor-unconfirmed-action',ownerUid:owner,capturedAt:new Date().toISOString(),warning:'Unconfirmed action, not a complete backup. Check server records before entering again. Never upload this automatically.',jobs:ctClone(jobs)};if(ctIsFatal(e))ctCrash(e);ctError=ctFatal?'Firestore stopped unexpectedly. Download the unconfirmed entry if needed, then restart the app. Check the latest cloud records before entering it again.':e.message||String(e);ctIntent={};ctApply();alert('Save was not confirmed.\n\n'+ctError+'\n\nThe app will reload server records before allowing another change.');return false;}
+  finally{ctSaving=false;ctJobs=[];ctGate();if(!ctFatal){if(failed&&uid&&isOnline)subscribe();else ctSchedule();}}
 }
 // Complete snapshots are recovery sources only. IndexedDB never supplies editable data.
 function ctBackupDB(){return new Promise(function(resolve,reject){if(!window.indexedDB){reject(Error('Browser backup storage unavailable'));return;}var r=indexedDB.open('ct-confirmed-backups-v1',1);r.onupgradeneeded=function(){r.result.createObjectStore('snapshots');};r.onsuccess=function(){resolve(r.result);};r.onerror=function(){reject(r.error);};});}
@@ -1090,7 +1101,7 @@ async function reconAllPool(){
 // advances should be marked used. If less is currently marked used, apply only the difference —
 // so already-correct advances are never double-counted.
 function showApp(user){
-  if(!user)return;if(uid===user.uid&&unsubDB)return;ctLastComplete=null;ctBackupDay="";uid=user.uid;ready=true;
+  if(!user)return;if(uid===user.uid&&unsubDB)return;ctLastComplete=null;ctFailedDraft=null;ctBackupDay="";uid=user.uid;ready=true;
   document.getElementById('pg-load').style.display='none';
   document.getElementById('pg-login').style.display='none';
   document.getElementById('pg-app').style.display='block';
@@ -1106,7 +1117,7 @@ function showApp(user){
   subscribe();
 }
 function showLogin(){
-  document.querySelectorAll('.ov.show').forEach(function(e){e.classList.remove('show');e.style.display='none';});ctHistory=[];window.ctBackupRows=[];
+  document.querySelectorAll('.ov.show').forEach(function(e){e.classList.remove('show');e.style.display='none';});ctHistory=[];ctFailedDraft=null;window.ctBackupRows=[];
   ready=false;loadedOnce=false;ctEpoch++;ctRevision++;ctLastComplete=null;ctStates={};ctBase={};ctMeta=null;uid=null;ctGate();if(unsubDB){unsubDB();unsubDB=null;}
   document.getElementById('pg-load').style.display='none';
   document.getElementById('pg-app').style.display='none';
