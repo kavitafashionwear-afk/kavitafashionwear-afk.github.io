@@ -456,7 +456,22 @@ input:focus,select:focus{border-color:var(--n)}
 </div></div>
 
 
-<div id="ct-gate" role="alertdialog" aria-modal="true" style="display:none;position:fixed;inset:0;z-index:20000;background:#f1f5f9;align-items:center;justify-content:center;padding:24px"><div style="background:white;border-radius:18px;padding:28px;max-width:560px;width:100%;box-shadow:0 8px 40px #0002"><h2 id="ct-gate-title">Waiting for complete cloud records</h2><p id="ct-gate-detail"></p><pre id="ct-gate-list" style="line-height:1.9;white-space:pre-wrap"></pre><button class="btn pri" id="ct-retry" onclick="ctRetry()">Try again</button> <button class="btn" onclick="ctExport()">Download last complete JSON</button> <button class="btn" onclick="ctOpenRecovery()">Older backups</button> <button class="btn" id="ct-draft-download" style="display:none" onclick="ctDownload(ctFailedDraft,'contractor-unconfirmed-entry.json')">Download unconfirmed entry</button><p style="font-size:12px;color:#64748b">Contractor Tracker · safety build 2026-09-21.3-connection-fix</p></div></div>
+<style>
+#ct-gate{position:fixed;inset:0;z-index:20000;display:none;align-items:center;justify-content:center;padding:24px;background:rgba(15,23,42,.32);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px)}
+.ct-loading-card{width:100%;max-width:360px;background:#fff;border:1px solid #e2e8f0;border-radius:22px;padding:32px 26px;text-align:center;box-shadow:0 20px 70px #0f172a24;color:#14243c}
+#ct-gate-title{font-size:20px;line-height:1.3;margin:18px 0 8px;letter-spacing:-.35px}#ct-gate-detail{font-size:14px;line-height:1.6;color:#64748b;margin:0}
+.ct-spinner{width:40px;height:40px;margin:0 auto;border:3px solid #e2e8f0;border-top-color:#2563eb;border-radius:50%;animation:ct-spin .85s linear infinite}
+#ct-gate-icon{font-size:30px;line-height:40px}#ct-gate-help{margin-top:22px;border-top:1px solid #eef2f6;padding-top:18px}#ct-gate-help .btn{justify-content:center;margin:4px 0;width:100%}
+#ct-gate-diagnostics{text-align:left;margin-top:16px;color:#64748b;font-size:12px}#ct-gate-diagnostics summary{cursor:pointer}#ct-gate-list{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7;font:inherit}
+#ct-saved-toast{position:fixed;z-index:22000;left:50%;bottom:calc(28px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#153c30;color:#fff;border:1px solid #2b6750;border-radius:30px;padding:12px 22px;box-shadow:0 8px 28px #0f172a25;font-size:14px;pointer-events:none}
+@keyframes ct-spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.ct-spinner{animation:none;border-top-color:#2563eb;border-right-color:#2563eb}}
+</style>
+<div id="ct-gate" role="dialog" aria-modal="true" aria-labelledby="ct-gate-title" aria-describedby="ct-gate-detail" tabindex="-1"><div class="ct-loading-card">
+<div id="ct-gate-spinner" class="ct-spinner" aria-hidden="true"></div><div id="ct-gate-icon" aria-hidden="true" style="display:none">☁</div>
+<div role="status" aria-live="polite" aria-atomic="true"><h2 id="ct-gate-title">Loading your records…</h2><p id="ct-gate-detail">Just a moment.</p></div>
+<div id="ct-gate-help" style="display:none"><button class="btn pri" id="ct-retry" onclick="ctRetry()">Try again</button><button class="btn" onclick="ctExport()">Download last complete backup</button><button class="btn" onclick="ctOpenRecovery()">Backup &amp; recovery</button><button class="btn" id="ct-draft-download" style="display:none" onclick="ctDownload(ctFailedDraft,'contractor-unconfirmed-entry.json')">Download unconfirmed entry</button><details id="ct-gate-diagnostics"><summary>Connection details</summary><pre id="ct-gate-list"></pre></details></div>
+</div></div>
+<div id="ct-saved-toast" role="status" aria-live="polite" style="display:none">✓ Changes saved</div>
 <div class="ov" id="mo-ct-backup" style="z-index:21000"><div class="mb" style="max-width:760px"><div class="mh"><h2>Backup &amp; Recovery</h2><button class="btn" onclick="closeModal('ct-backup')">Close</button></div><div class="mbd" style="padding:20px;overflow:auto;max-height:75vh"><p>Only complete, server-confirmed data is used for new snapshots. Browser copies never overwrite your cloud records.</p><button class="btn pri" onclick="ctExport()">Download complete JSON</button> <button class="btn" onclick="ctExportLegacy()">Download old local backup</button><h3>Daily browser copies</h3><p>One complete copy per day when this app is open and fully loaded. These are stored on this device; download copies to keep them outside the browser.</p><div id="ct-backup-list"></div><h3>Previous versions</h3><p>Edits and deletions keep the previous records alongside the same atomic save. Load the latest 100 versions only when needed.</p><button class="btn" onclick="ctLoadHistory()">Load recovery history</button><div id="ct-history-list"></div></div></div></div>
 <script>
 var ctFirebaseApp=firebase.initializeApp({apiKey:"AIzaSyDRfRBzqdg8LCUjZKdGRNIsKCBszbtM7ok",authDomain:"challan-manager-85768.firebaseapp.com",projectId:"challan-manager-85768",storageBucket:"challan-manager-85768.firebasestorage.app",messagingSenderId:"667915790046",appId:"1:667915790046:web:92b61ba86c9facd620444f"},"contractor-online-safe-v2");
@@ -759,7 +774,7 @@ function paymentGroups(pays){
 function paymentAllocationText(group){
   return group.items.map(function(p){return (p.isAdvance?'Advance to ':'')+esc(lotLabelById(p.lotId))+' '+fmt(p.amount);}).join(' | ');
 }
-/* Contractor Tracker safety build 2026-09-21.3-connection-fix.
+/* Contractor Tracker safety build 2026-09-21.4-loading-ui.
    Cached reads are never editable. No direct Firestore writes, offline queue,
    local-ledger restore, automatic reconciliation, migration, or backup pruning. */
 var CT_FIELDS={ct_lots:'lots',ct_pays:'pays',ct_advances:'advances',items:'items',itemmap:'itemMap'};
@@ -798,19 +813,33 @@ function ctComplete(){
 }
 function sdot(s){var d=document.getElementById('sd');if(d){d.className='sdot'+(s==='busy'?' busy':s==='offline'?' offline':s==='err'?' err':'');d.title=s==='busy'?'Waiting for server confirmation':s==='offline'?'Offline — editing disabled':s==='err'?'Cloud read or save blocked — see alert':'Server confirmed';}}
 function updateSyncUI(){ctGate();}
+var ctGateOpenedAt=0,ctGateWaitTimer=null,ctGateWasVisible=false,ctGatePreviousFocus=null,ctSavedTimer=null;
+function ctSavedNotice(){var el=document.getElementById('ct-saved-toast');if(!el)return;clearTimeout(ctSavedTimer);el.style.display='block';ctSavedTimer=setTimeout(function(){el.style.display='none';},2200);}
 function ctGate(){
   loadedOnce=ctComplete()&&ctHydrated;
-  var gate=document.getElementById('ct-gate'),app=document.getElementById('pg-app'),fab=document.getElementById('fab');
-  if(app)app.style.visibility=uid&&!loadedOnce?'hidden':'visible';
-  if(fab)fab.style.visibility=uid&&(!loadedOnce||ctSaving)?'hidden':'visible';
-  if(gate){gate.style.display=uid&&(!loadedOnce||ctSaving)?'flex':'none';
-    document.getElementById('ct-gate-title').textContent=ctSaving?'Saving — wait for confirmation':ctFatal?'Restart the cloud connection':!isOnline?'You are offline':'Waiting for complete cloud records';
-    document.getElementById('ct-gate-detail').textContent=ctSaving?'Do not close this page until the server confirms your change.':!isOnline?'Editing is disabled. Reconnect to load confirmed records. No offline changes will be uploaded.':ctError||'Figures and edits stay blocked until every required collection is confirmed by the server.';
-    document.getElementById('ct-gate-list').textContent=Object.keys(CT_FIELDS).concat('meta').map(function(k){var s=ctStates[k];return (s&&s.ok?'✓ ':'… ')+(CT_FIELDS[k]||'Settings')+(s&&s.error?' — '+s.error:'');}).join('\n');
+  var visible=!!(uid&&(!loadedOnce||ctSaving)),gate=document.getElementById('ct-gate'),app=document.getElementById('pg-app'),fab=document.getElementById('fab');
+  if(app){app.style.visibility=uid&&!loadedOnce?'hidden':'visible';app.inert=visible;}
+  if(fab){fab.style.visibility=uid&&(!loadedOnce||ctSaving)?'hidden':'visible';fab.inert=visible;}
+  document.querySelectorAll('.ov').forEach(function(el){if(el.id!=='mo-ct-backup')el.inert=visible;});
+  if(visible&&!ctGateWasVisible){ctGateOpenedAt=Date.now();ctGatePreviousFocus=document.activeElement;clearTimeout(ctGateWaitTimer);ctGateWaitTimer=setTimeout(ctGate,15000);}
+  if(!visible){clearTimeout(ctGateWaitTimer);ctGateOpenedAt=0;}
+  var waiting=visible&&Date.now()-ctGateOpenedAt>=15000;
+  var problem=!ctSaving&&(ctFatal||!isOnline||!!ctError||Object.keys(ctStates).some(function(k){return ctStates[k].error&&ctStates[k].error!=='Awaiting server'&&ctStates[k].error!=='Unconfirmed writes';}));
+  if(gate){
+    gate.style.display=visible?'flex':'none';gate.setAttribute('aria-busy',visible&&!problem?'true':'false');
+    document.getElementById('ct-gate-title').textContent=ctSaving?(waiting?'Still saving…':'Saving changes…'):ctFatal?'Let’s reconnect':!isOnline?'You’re offline':problem?'Unable to load records':waiting?'Taking a little longer…':'Loading your records…';
+    document.getElementById('ct-gate-detail').textContent=ctSaving?(waiting?'Please keep this page open while we wait for confirmation.':'Just a moment. We’re saving your update.'):ctFatal?'Restart the app, then check your latest records before retrying.':!isOnline?'Reconnect to the internet to continue.':problem?'Please try again. Editing stays paused until your records are ready.':waiting?'We’re still waiting for the connection. You can retry or download a backup.':'Getting everything ready for you.';
+    document.getElementById('ct-gate-spinner').style.display=problem?'none':'block';document.getElementById('ct-gate-icon').style.display=problem?'block':'none';
+    document.getElementById('ct-gate-help').style.display=problem||waiting?'block':'none';
+    document.getElementById('ct-gate-list').textContent=(ctError?ctError+'\n\n':'')+Object.keys(CT_FIELDS).concat('meta').map(function(k){var state=ctStates[k];return(state&&state.ok?'✓ ':'… ')+(CT_FIELDS[k]||'Settings')+(state&&state.error?' — '+state.error:'');}).join('\n');
     document.getElementById('ct-retry').disabled=ctSaving;document.getElementById('ct-retry').textContent=ctFatal?'Restart app':'Try again';document.getElementById('ct-draft-download').style.display=ctFailedDraft?'inline-flex':'none';
+    if(visible&&!ctGateWasVisible){document.getElementById('ct-saved-toast').style.display='none';gate.focus();}
+    if(!visible&&ctGateWasVisible){document.getElementById('ct-gate-diagnostics').open=false;if(ctGatePreviousFocus&&ctGatePreviousFocus.isConnected)ctGatePreviousFocus.focus();}
   }
+  ctGateWasVisible=visible;
   sdot(ctSaving?'busy':!isOnline?'offline':loadedOnce?'ok':'err');
 }
+
 function ctCanEdit(){
   if(ctSaving){alert('A save is still awaiting confirmation. Please wait.');return false;}
   if(!ctComplete()||!ctHydrated){ctGate();alert('Cannot edit: the app must be online and all records must be server-confirmed.');return false;}
@@ -895,7 +924,7 @@ async function save(){
     });
     if(uid!==owner||epoch!==ctEpoch)return false;
     jobs.forEach(function(j){if(j.coll==='ct_meta'){if(ctSame(ctMeta,j.prev)||ctSame(ctMeta,j.data))ctMeta=ctClone(j.data);}else{var baseline=ctBase[j.coll];if(ctSame(baseline[j.id]||null,j.prev)||ctSame(baseline[j.id]||null,j.data)){if(j.data)baseline[j.id]=ctClone(j.data);else delete baseline[j.id];}}});
-    ctIntent={};ctApply();ctHydrated=true;return true;
+    ctIntent={};ctApply();ctHydrated=true;ctSavedNotice();return true;
   }catch(e){failed=true;ctFailedDraft={_app:'contractor-unconfirmed-action',ownerUid:owner,capturedAt:new Date().toISOString(),warning:'Unconfirmed action, not a complete backup. Check server records before entering again. Never upload this automatically.',jobs:ctClone(jobs)};if(ctIsFatal(e))ctCrash(e);ctError=ctFatal?'Firestore stopped unexpectedly. Download the unconfirmed entry if needed, then restart the app. Check the latest cloud records before entering it again.':e.message||String(e);ctIntent={};ctApply();alert('Save was not confirmed.\n\n'+ctError+'\n\nThe app will reload server records before allowing another change.');return false;}
   finally{ctSaving=false;ctJobs=[];ctGate();if(!ctFatal){if(failed&&uid&&isOnline)subscribe();else ctSchedule();}}
 }
